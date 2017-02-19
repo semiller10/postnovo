@@ -21,17 +21,17 @@ def main(argv):
     #save_json_objects(test_dir, **{'user_args': user_args})
     user_args, = load_json_objects(test_dir, 'user_args')
 
-    alg_list, alg_df_name_dict, tol_df_name_dict, alg_tol_dict = input.load_files(user_args)
+    #alg_list, alg_df_name_dict, tol_df_name_dict, alg_tol_dict = input.load_files(user_args)
 
     #save_pkl_objects(test_dir, **{'alg_df_name_dict': alg_df_name_dict,
     #                              'tol_df_name_dict': tol_df_name_dict,
     #                              'alg_tol_dict': alg_tol_dict,
     #                              'alg_list': alg_list})
-    #alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
-    #    load_pkl_objects(test_dir, 'alg_df_name_dict',
-    #                     'tol_df_name_dict',
-    #                     'alg_tol_dict',
-    #                     'alg_list')
+    alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
+        load_pkl_objects(test_dir, 'alg_df_name_dict',
+                         'tol_df_name_dict',
+                         'alg_tol_dict',
+                         'alg_list')
 
     prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict,
                                                  user_args['min_len'], user_args['train'], user_args['cores'], alg_list)
