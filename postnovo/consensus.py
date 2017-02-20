@@ -95,7 +95,6 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol, cores, tol_a
                                        first_seq_second_seq_alg_positions_dict))
     print(r)
     print(time.time() - t)
-    sys.exit(0)
 
     scan_prediction_dict_list = [scan_prediction_dict
                                  for scan_prediction_dict_list in grand_scan_prediction_dict_list
@@ -276,7 +275,7 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
             elif k == 'seq':
                 prediction_dict['seq'] = scan_consensus_source_df.at[0, (alg, 'seq')]
             elif k == 'len':
-                prediction_dict['len'] = len(scan_consensus_source_df.at[0, (alg, 'seq')])
+                prediction_dict['len'] = scan_consensus_source_df.at[0, (alg, 'encoded seq')].size
             elif k == 'avg rank':
                 prediction_dict['avg rank'] = 0
         
@@ -342,7 +341,7 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
                     elif k == 'is novor seq':
                         alg_prediction_dict['is novor seq'] = 1
                     elif k == 'fraction novor parent len':
-                        alg_prediction_dict['fraction novor parent len'] = cs_info_dict['consensus_len'] / len(scan_consensus_source_df.at[alg_rank, (alg, 'seq')])
+                        alg_prediction_dict['fraction novor parent len'] = cs_info_dict['consensus_len'] / scan_consensus_source_df.at[alg_rank, (alg, 'encoded seq')].size
                     elif k == 'avg novor aa score':
                         alg_prediction_dict['avg novor aa score'] = sum(scan_consensus_source_df.at[alg_rank, (alg, 'aa score')][selection_seq_start: selection_seq_end]) / cs_info_dict['consensus_len']
             elif alg == 'peaks':
@@ -352,7 +351,7 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
                     if k == 'is pn seq':
                         alg_prediction_dict['is pn seq'] = 1
                     elif k == 'fraction pn parent len':
-                        alg_prediction_dict['fraction pn parent len'] = cs_info_dict['consensus_len'] / len(scan_consensus_source_df.at[alg_rank, (alg, 'seq')])
+                        alg_prediction_dict['fraction pn parent len'] = cs_info_dict['consensus_len'] / scan_consensus_source_df.at[alg_rank, (alg, 'encoded seq')].size
                     elif k == 'rank score':
                         alg_prediction_dict['rank score'] = scan_consensus_source_df.at[alg_rank, (alg, 'rank score')]
                     elif k == 'pn score':
@@ -585,6 +584,9 @@ def make_scan_info_lists(consensus_source_df, highest_level_alg_combo, cores):
             multiprocessing_pool = Pool(cores)
             multiprocessing_make_scan_info_lists_for_alg_split = partial(make_scan_info_lists_for_alg_split, alg_consensus_source_df = consensus_source_df[alg])
             multiprocessing_info_list = multiprocessing_pool.map(multiprocessing_make_scan_info_lists_for_alg_split, scan_index_splits)
+            multiprocessing_pool.close()
+            multiprocessing_pool.join()
+
             rank_encoded_seqs_lists_for_alg, max_seq_len_lists_for_alg = zip(*multiprocessing_info_list)
             combined_rank_encoded_seqs_lists_for_alg = []
             combined_max_seq_lens_lists_for_alg = []

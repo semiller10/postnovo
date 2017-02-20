@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 import sklearn as sk
 import matplotlib.pyplot as plt
+import sys
+import time
 
 from utils import (save_pkl_objects, load_pkl_objects,
                    save_json_objects, load_json_objects)
@@ -14,19 +16,19 @@ from collections import OrderedDict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from os.path import join
+from multiprocessing import Pool
 
-def classify(prediction_df, train, ref_file, alg_list):
+def classify(prediction_df, train, ref_file, cores, alg_list):
 
     if train:
-        prediction_df = find_target_accuracy(prediction_df, ref_file)
+        prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
+        #save_pkl_objects(test_dir, **{'prediction_df_test': prediction_df})
+        prediction_df, = load_pkl_objects(test_dir, 'prediction_df_test')
         make_training_forests(prediction_df, alg_list)
 
     return
 
 def make_training_forests(prediction_df, alg_list):
-
-    save_pkl_objects(test_dir, **{'prediction_df': prediction_df})
-    #prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
 
     prediction_df = standardize_prediction_df_cols(prediction_df)
     prediction_df.sort_index(inplace = True)
@@ -163,22 +165,62 @@ def make_train_target_arr_dict(prediction_df, alg_list):
 
     return train_target_arr_dict
 
-def find_target_accuracy(prediction_df, ref_file):
+def find_target_accuracy(prediction_df, ref_file, cores):
 
     ref = load_ref(ref_file)
-
-    grouped_by_seq = prediction_df.groupby('seq')['seq']
     single_var_match_seq = partial(match_seq_to_ref, ref = ref)
-    prediction_df['ref match'] = grouped_by_seq.transform(single_var_match_seq)
+
+    ### TEMPORARY ###
+    cores = 3
+    #################
+
+    if cores == 1:
+        grouped_by_seq = prediction_df.groupby('seq')['seq']
+        prediction_df['ref match'] = grouped_by_seq.transform(single_var_match_seq)
+
+    else:
+        partitioned_prediction_df_list = []
+        partitioned_grouped_by_seq_series_list = []
+        total_rows = len(prediction_df)
+        first_row_number_split = int(total_rows / cores)
+
+        row_number_splits = [(0, first_row_number_split)]
+        for core_number in range(2, cores):
+            row_number_splits.append((row_number_splits[-1][1], first_row_number_split * core_number))
+
+        row_number_splits.append(
+            (row_number_splits[-1][1], total_rows))
+
+        for row_number_split in row_number_splits:
+            partitioned_prediction_df_list.append(prediction_df.ix[row_number_split[0]: row_number_split[1]])
+            partitioned_grouped_by_seq_series_list.append(partitioned_prediction_df_list[-1].groupby('seq')['seq'])
+
+        multiprocessing_pool = Pool(cores)
+        multiprocessing_match_seqs_to_ref_for_partitioned_group =\
+            partial(match_seqs_to_ref_for_partitioned_group, single_var_match_seq_fn = single_var_match_seq)
+        partitioned_seq_match_series_list = multiprocessing_pool.map(
+            multiprocessing_match_seqs_to_ref_for_partitioned_group, partitioned_grouped_by_seq_series_list)
+        multiprocessing_pool.close()
+        multiprocessing_pool.join()
+
+        prediction_df['ref_match'] = pd.concat(partitioned_seq_match_series_list)
+
     return prediction_df
 
 def match_seq_to_ref(grouped_by_seq_series, ref):
 
     query_seq = grouped_by_seq_series.iloc[0]
+    print(query_seq)
     for target_seq in ref:
         if query_seq in target_seq:
             return 1
     return 0
+
+def match_seqs_to_ref_for_partitioned_group(partitioned_grouped_by_seq_series, single_var_match_seq_fn):
+
+    partitioned_seq_match_series = partitioned_grouped_by_seq_series.transform(single_var_match_seq_fn)
+
+    return partitioned_seq_match_series
 
 def load_ref(ref_file):
 
