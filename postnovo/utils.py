@@ -17,19 +17,19 @@ def save_pkl_objects(dir, **kwargs):
 def load_pkl_objects(dir, *args):
     return_list = []
     for obj_name in args:
-        with open(join(test_dir, obj_name + '.pkl'), 'rb') as f:
+        with open(join(dir, obj_name + '.pkl'), 'rb') as f:
             return_list.append(pkl.load(f))
     return tuple(return_list)
 
 def save_json_objects(dir, **kwargs):
     for obj_name, obj in kwargs.items():
-        with open(join(test_dir, obj_name + '.json'), 'w') as f:
+        with open(join(dir, obj_name + '.json'), 'w') as f:
             json.dump(obj, f)
 
 def load_json_objects(dir, *args):
     return_list = []
     for obj_name in args:
-        with open(join(test_dir, obj_name + '.json'), 'r') as f:
+        with open(join(dir, obj_name + '.json'), 'r') as f:
             return_list.append(json.load(f))
     return tuple(return_list)
 

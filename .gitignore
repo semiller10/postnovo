@@ -246,3 +246,4 @@ ModelManifest.xml
 /userfiles
 /test
 *.pyperf
+/training

@@ -6,6 +6,7 @@ import sklearn as sk
 import matplotlib.pyplot as plt
 import sys
 import time
+import datetime
 
 from utils import (save_pkl_objects, load_pkl_objects,
                    save_json_objects, load_json_objects)
@@ -21,16 +22,42 @@ from multiprocessing import Pool
 def classify(prediction_df, train, ref_file, cores, alg_list):
 
     if train:
-        prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
+        #prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
+
+        #prediction_df = standardize_prediction_df_cols(prediction_df)
         #save_pkl_objects(test_dir, **{'prediction_df_test': prediction_df})
-        prediction_df, = load_pkl_objects(test_dir, 'prediction_df_test')
+        #prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
+
+        #training_df = update_training_data(prediction_df)
+        training_df, = load_pkl_objects(training_dir, 'training_df_test')
+
         make_training_forests(prediction_df, alg_list)
 
     return
 
+def update_training_data(prediction_df):
+
+    try:
+        training_df, = load_pkl_objects(training_dir, 'training_df_test')
+        training_df = pd.concat([training_df, prediction_df])
+    except FileNotFoundError:
+        training_df = prediction_df
+    save_pkl_objects(training_dir, **{'training_df_test': training_df})
+
+    prediction_df['timestamp'] = str(datetime.datetime.now()).split('.')[0]
+    prediction_df.reset_index(inplace = True)
+    try:
+        training_df_csv = pd.read_csv(join(training_dir, 'training_df_test.csv'))
+        training_df_csv = pd.concat([training_df_csv, prediction_df])
+    except FileNotFoundError:
+        training_df_csv = prediction_df
+    training_df_csv.set_index(['timestamp', 'scan'], inplace = True)
+    training_df_csv.to_csv(join(training_dir, 'training_df_test.csv'))
+
+    return training_df
+
 def make_training_forests(prediction_df, alg_list):
 
-    prediction_df = standardize_prediction_df_cols(prediction_df)
     prediction_df.sort_index(inplace = True)
     # Store these dataframes in a directory
     # Create a random forest from the merged dataframes
@@ -139,7 +166,7 @@ def standardize_prediction_df_cols(prediction_df):
     prediction_df.drop('is top rank single alg', inplace = True)
     min_retention_time = prediction_df['retention time'].min()
     max_retention_time = prediction_df['retention time'].max()
-    prediction_df['retention time'] = (prediction_df['retention time'] - min_retention_time) / max_retention_time
+    prediction_df['retention time'] = (prediction_df['retention time'] - min_retention_time) / (max_retention_time - min_retention_time)
     prediction_df.sort_index(1, inplace = True)
     return prediction_df
 

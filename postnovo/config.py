@@ -4,9 +4,10 @@ import numpy as np
 
 from os.path import join, dirname, realpath
 
-test_dir = join(dirname(dirname(realpath(__file__))), 'test')
-training_dir = join(dirname(dirname(realpath(__file__))), 'training')
-user_files_dir = join(dirname(dirname(realpath(__file__))), 'userfiles')
+postnovo_par_dir = dirname(dirname(realpath(__file__)))
+test_dir = join(postnovo_par_dir, 'test')
+training_dir = join(postnovo_par_dir, 'training')
+user_files_dir = join(postnovo_par_dir, 'userfiles')
 accepted_algs = ['novor', 'peaks', 'pn']
 seqs_reported_per_alg_dict = {'novor': 1, 'peaks': 20, 'pn': 20}
 accepted_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']

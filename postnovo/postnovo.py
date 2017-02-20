@@ -33,7 +33,7 @@ def main(argv):
     #                     'tol_df_name_dict',
     #                     'alg_tol_dict',
     #                     'alg_list')
-    alg_list, = load_pkl_objects(test_dir, 'alg_list_test')
+    alg_list, = load_pkl_objects(test_dir, 'alg_list')
 
     #prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict,
     #                                             user_args['min_len'], user_args['train'], user_args['cores'], alg_list)
