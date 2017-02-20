@@ -267,8 +267,6 @@ def make_scan_prediction_dicts(
 def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info_dict = None, cs_type_list = None, alg_combo = None, first_seq_second_seq_alg_positions_subdict = None):
 
     if cs_info_dict is None:
-        rank_alg_series = scan_consensus_source_df.loc[0, alg]
-
         prediction_dict = {}.fromkeys(single_alg_prediction_dict_cols['general'])
         for k in prediction_dict:
             if k == 'scan':
@@ -276,9 +274,9 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
             elif k == 'is top rank single alg':
                 prediction_dict['is top rank single alg'] = 1
             elif k == 'seq':
-                prediction_dict['seq'] = rank_alg_series.at['seq']
+                prediction_dict['seq'] = scan_consensus_source_df.at[0, (alg, 'seq')]
             elif k == 'len':
-                prediction_dict['len'] = rank_alg_series.at['encoded seq'].size
+                prediction_dict['len'] = len(scan_consensus_source_df.at[0, (alg, 'seq')])
             elif k == 'avg rank':
                 prediction_dict['avg rank'] = 0
         
@@ -286,11 +284,11 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
         if alg == 'novor':
             for k in alg_prediction_dict:
                 if k == 'retention time':
-                    alg_prediction_dict['retention time'] = rank_alg_series.at['retention time']
+                    alg_prediction_dict['retention time'] = scan_consensus_source_df.at[0, (alg, 'retention time')]
                 elif k == 'is novor seq':
                     alg_prediction_dict['is novor seq'] = 1
                 elif k == 'avg novor aa score':
-                    alg_prediction_dict['avg novor aa score'] = rank_alg_series.at['avg aa score']
+                    alg_prediction_dict['avg novor aa score'] = scan_consensus_source_df.at[0, (alg, 'avg aa score')]
         elif alg == 'peaks':
             pass
         elif alg == 'pn':
@@ -298,20 +296,18 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
                 if k == 'is pn seq':
                     alg_prediction_dict['is pn seq'] = 1
                 elif k == 'rank score':
-                    alg_prediction_dict['rank score'] = rank_alg_series.at['rank score']
+                    alg_prediction_dict['rank score'] = scan_consensus_source_df.at[0, (alg, 'rank score')]
                 elif k == 'pn score':
-                    alg_prediction_dict['pn score'] = rank_alg_series.at['pn score']
+                    alg_prediction_dict['pn score'] = scan_consensus_source_df.at[0, (alg, 'pn score')]
                 elif k == 'pn rank':
                     alg_prediction_dict['pn rank'] = 0
                 elif k == 'sqs':
-                    alg_prediction_dict['sqs'] = rank_alg_series.at['sqs']
+                    alg_prediction_dict['sqs'] = scan_consensus_source_df.at[0, (alg, 'sqs')]
         prediction_dict.update(alg_prediction_dict)
 
         return prediction_dict
 
     else:
-        rank_last_alg_series = scan_consensus_source_df.loc[cs_info_dict['alg_ranks'][1][0], alg_combo[-1]]
-
         prediction_dict = {}.fromkeys(consensus_prediction_dict_cols['general'])
         selection_seq_start = cs_info_dict['seq_starts'][1]
         selection_seq_end = selection_seq_start + cs_info_dict['consensus_len']
@@ -319,8 +315,8 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
             if k == 'scan':
                 prediction_dict['scan'] = scan
             elif k == 'seq':
-                cs_info_dict['encoded_consensus_seq'] = rank_last_alg_series.at['encoded seq'][selection_seq_start: selection_seq_end]
-                prediction_dict['seq'] = cs_info_dict['consensus_seq'] = rank_last_alg_series.at['seq'][selection_seq_start: selection_seq_end]
+                cs_info_dict['encoded_consensus_seq'] = scan_consensus_source_df.at[cs_info_dict['alg_ranks'][1][0], (alg_combo[-1], 'encoded seq')][selection_seq_start: selection_seq_end]
+                prediction_dict['seq'] = cs_info_dict['consensus_seq'] = scan_consensus_source_df.at[cs_info_dict['alg_ranks'][1][0], (alg_combo[-1], 'seq')][selection_seq_start: selection_seq_end]
             elif k == 'len':
                 prediction_dict['len'] = cs_info_dict['consensus_len']
             elif k == 'avg rank':
@@ -338,7 +334,6 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
 
         for alg in alg_combo:
             alg_rank = cs_info_dict['alg_ranks'][first_seq_second_seq_alg_positions_subdict[alg][0]][first_seq_second_seq_alg_positions_subdict[alg][1]]
-            rank_alg_series = scan_consensus_source_df.loc[alg_rank, alg]
             alg_prediction_dict = {}.fromkeys(consensus_prediction_dict_cols[alg])
             if alg == 'novor':
                 for k in alg_prediction_dict:
@@ -347,9 +342,9 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
                     elif k == 'is novor seq':
                         alg_prediction_dict['is novor seq'] = 1
                     elif k == 'fraction novor parent len':
-                        alg_prediction_dict['fraction novor parent len'] = cs_info_dict['consensus_len'] / rank_alg_series.at['encoded seq'].size
+                        alg_prediction_dict['fraction novor parent len'] = cs_info_dict['consensus_len'] / len(scan_consensus_source_df.at[alg_rank, (alg, 'seq')])
                     elif k == 'avg novor aa score':
-                        alg_prediction_dict['avg novor aa score'] = sum(rank_alg_series.at['aa score'][selection_seq_start: selection_seq_end]) / cs_info_dict['consensus_len']
+                        alg_prediction_dict['avg novor aa score'] = sum(scan_consensus_source_df.at[alg_rank, (alg, 'aa score')][selection_seq_start: selection_seq_end]) / cs_info_dict['consensus_len']
             elif alg == 'peaks':
                 pass
             elif alg == 'pn':
@@ -357,15 +352,15 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
                     if k == 'is pn seq':
                         alg_prediction_dict['is pn seq'] = 1
                     elif k == 'fraction pn parent len':
-                        alg_prediction_dict['fraction pn parent len'] = cs_info_dict['consensus_len'] / rank_alg_series.at['encoded seq'].size
+                        alg_prediction_dict['fraction pn parent len'] = cs_info_dict['consensus_len'] / len(scan_consensus_source_df.at[alg_rank, (alg, 'seq')])
                     elif k == 'rank score':
-                        alg_prediction_dict['rank score'] = rank_alg_series.at['rank score']
+                        alg_prediction_dict['rank score'] = scan_consensus_source_df.at[alg_rank, (alg, 'rank score')]
                     elif k == 'pn score':
-                        alg_prediction_dict['pn score'] = rank_alg_series.at['pn score']
+                        alg_prediction_dict['pn score'] = scan_consensus_source_df.at[alg_rank, (alg, 'pn score')]
                     elif k == 'pn rank':
                         alg_prediction_dict['pn rank'] = alg_rank
                     elif k == 'sqs':
-                        alg_prediction_dict['sqs'] = rank_alg_series.at['sqs']
+                        alg_prediction_dict['sqs'] = scan_consensus_source_df.at[alg_rank, (alg, 'sqs')]
             prediction_dict.update(alg_prediction_dict)
 
         return prediction_dict, cs_info_dict
