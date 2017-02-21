@@ -43,8 +43,6 @@ def main(argv):
 
     classifier.classify(prediction_df, user_args['train'], user_args['ref_file'], user_args['cores'], alg_list)
 
-    return
-
 def parse_user_args(argv):
     ''' Return command line args as dict '''
 
