@@ -18,6 +18,7 @@ from itertools import product
 from collections import OrderedDict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.cluster import KMeans
 from os.path import join
 from multiprocessing import Pool
 
@@ -30,6 +31,8 @@ def classify(prediction_df, train, ref_file, cores, alg_list):
         #save_pkl_objects(test_dir, **{'prediction_df_test': prediction_df})
         prediction_df, = load_pkl_objects(test_dir, 'prediction_df_test')
 
+        subsampled_df = subsample_training_data(prediction_df, alg_list)
+
         #training_df = update_training_data(prediction_df)
         training_df, = load_pkl_objects(training_dir, 'training_df_test')
 
@@ -38,6 +41,22 @@ def classify(prediction_df, train, ref_file, cores, alg_list):
 
     else:
         pass
+
+def subsample_training_data(p, alg_list):
+
+    prediction_df = p.copy()
+    d = {}
+    multiindex_groups = list(product((0, 1), repeat = len(alg_list)))[1:]
+    prediction_df.drop('is top rank single alg', axis = 1, inplace = True)
+    for multiindex in multiindex_groups:
+        k = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
+        alg_group_df = prediction_df.xs(multiindex).reset_index().set_index(['scan', 'seq'])
+        alg_group_df.dropna(1, inplace = True)
+        alg_group_df.drop('ref match', axis = 1, inplace = True)
+        m = alg_group_df.as_matrix()
+        model = KMeans(n_clusters = 10).fit(m)
+
+    return subsampled_df
 
 def update_training_data(prediction_df):
 
@@ -204,12 +223,12 @@ def make_train_target_arr_dict(training_df, alg_list):
         model_keys_used.append(model_key)
         train_target_arr_dict[model_keys_used[-1]] = {}.fromkeys(['train', 'target'])
         try:
-            multiindex_group_df = training_df.xs(multiindex).reset_index().set_index(['scan', 'seq'])
-            multiindex_group_df.dropna(1, inplace = True)
-            train_columns = multiindex_group_df.columns.tolist()
+            alg_group_df = training_df.xs(multiindex).reset_index().set_index(['scan', 'seq'])
+            alg_group_df.dropna(1, inplace = True)
+            train_columns = alg_group_df.columns.tolist()
             train_columns.remove('ref match')
-            train_target_arr_dict[model_key]['train'] = multiindex_group_df.as_matrix(train_columns)
-            train_target_arr_dict[model_key]['target'] = multiindex_group_df['ref match'].tolist()
+            train_target_arr_dict[model_key]['train'] = alg_group_df.as_matrix(train_columns)
+            train_target_arr_dict[model_key]['target'] = alg_group_df['ref match'].tolist()
             train_target_arr_dict[model_key]['feature_names'] = train_columns
         except KeyError:
             print(str(model_keys_used[-1]) + ' predictions were not found')
