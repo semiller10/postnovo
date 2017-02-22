@@ -19,8 +19,12 @@ from collections import OrderedDict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from os.path import join
 from multiprocessing import Pool
+from collections import Counter
 
 def classify(prediction_df, train, ref_file, cores, alg_list):
 
@@ -31,7 +35,7 @@ def classify(prediction_df, train, ref_file, cores, alg_list):
         #save_pkl_objects(test_dir, **{'prediction_df_test': prediction_df})
         prediction_df, = load_pkl_objects(test_dir, 'prediction_df_test')
 
-        subsampled_df = subsample_training_data(prediction_df, alg_list)
+        subsampled_df = subsample_training_data(prediction_df, alg_list, cores)
 
         #training_df = update_training_data(prediction_df)
         training_df, = load_pkl_objects(training_dir, 'training_df_test')
@@ -42,19 +46,47 @@ def classify(prediction_df, train, ref_file, cores, alg_list):
     else:
         pass
 
-def subsample_training_data(p, alg_list):
+def subsample_training_data(prediction_df_orig, alg_list, cores):
 
-    prediction_df = p.copy()
-    d = {}
+    ### TEMPORARY ###
+    cores = 3
+    #################
+
+    subsampled_alg_group_df_dict = {}
     multiindex_groups = list(product((0, 1), repeat = len(alg_list)))[1:]
-    prediction_df.drop('is top rank single alg', axis = 1, inplace = True)
+
+    prediction_df = prediction_df_orig.copy()
+    prediction_df.drop(accepted_mass_tols + ['is top rank single alg'],
+                       axis = 1, inplace = True)
+
     for multiindex in multiindex_groups:
-        k = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
+        alg_group_df_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
         alg_group_df = prediction_df.xs(multiindex).reset_index().set_index(['scan', 'seq'])
         alg_group_df.dropna(1, inplace = True)
-        alg_group_df.drop('ref match', axis = 1, inplace = True)
-        m = alg_group_df.as_matrix()
-        model = KMeans(n_clusters = 10).fit(m)
+
+        pipe = make_pipeline(StandardScaler(),
+                             PCA(n_components = int(alg_group_df.columns.size / 4)),
+                             KMeans(n_clusters = int(alg_group_df.shape[0] / 20), n_jobs = cores))
+
+        cluster_assignments = pipe.fit_predict(alg_group_df.as_matrix())
+        cluster_assignment_accuracies = zip(cluster_assignments, alg_group_df['ref match'])
+        mean_cluster_accuracies = {}.fromkeys(cluster_assignments, 0)
+        for cluster, acc in cluster_assignment_accuracies:
+            mean_cluster_accuracies[cluster] += acc
+        cluster_counts = Counter(cluster_assignments)
+        for cluster in cluster_counts:
+            mean_cluster_accuracies[cluster] = round(mean_cluster_accuracies[cluster] / cluster_counts[cluster], 2)
+        ordered_clusters_accuracies = sorted(
+            mean_cluster_accuracies.items(), key = lambda cluster_accuracy_tuple: cluster_accuracy_tuple[1], reverse = True)
+        cluster_assignments_row_indices = [(cluster, index) for index, cluster in enumerate(cluster_assignments)]
+        cluster_row_indices_dict = {cluster: [] for cluster in mean_cluster_accuracies}
+        for cluster, index in cluster_assignments_row_indices:
+            cluster_row_indices_dict[cluster].append(index)
+        cluster_accuracies_ordered_by_cluster = [cluster_acc_tuple[1] for cluster_acc_tuple in
+                                                 sorted(ordered_clusters_accuracies, key = lambda cluster_acc_tuple: cluster_acc_tuple[0])]
+        clusters_row_indices_ordered_by_accuracy = [x[0] for x in sorted(
+            zip(cluster_row_indices_dict.items(), cluster_accuracies_ordered_by_cluster),
+            key = lambda cluster_acc_tuple: cluster_acc_tuple[1], reverse = True)]
 
     return subsampled_df
 
