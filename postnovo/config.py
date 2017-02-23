@@ -35,3 +35,17 @@ consensus_prediction_dict_cols = {'general': ['scan', 'seq', 'len', 'avg rank', 
                                    'pn': ['is pn seq', 'fraction pn parent len', 'rank score', 'pn score', 'pn rank', 'sqs']}
 
 n_estimators = 150
+
+subsample_size = 10000
+accuracy_divisor = 10
+accuracy_distribution_lower_bound = 0
+accuracy_distribution_upper_bound = 3
+accuracy_distribution_mu_location = 0.5
+accuracy_distribution_sigma = 0.9
+min_retained_features_target = 2
+features_for_clustering_ordered_by_importance = ['rank score', 'pn score', 'avg novor aa score', 'avg rank',
+                                                 'retention time', 'pn rank', 'sqs', 'fraction novor parent len',
+                                                 'fraction pn parent len', 'len', 'is longest consensus', 'is top rank consensus',
+                                                 '0.5', '0.4', '0.6', '0.3', '0.7', '0.2']
+clustering_feature_retention_factor_dict = {1: 1400000, 2: 900000, 3: 900000}
+birch_threshold = 1

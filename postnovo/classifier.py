@@ -18,8 +18,7 @@ from itertools import product
 from collections import OrderedDict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.cluster import KMeans, Birch
-from sklearn.decomposition import PCA
+from sklearn.cluster import Birch
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from os.path import join
@@ -38,7 +37,7 @@ def classify(prediction_df, train, ref_file, cores, alg_list):
 
         t = time.time()
         subsampled_df = subsample_training_data(prediction_df, alg_list, cores)
-        save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
+        #save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
         print(time.time() - t)
         sys.exit(0)
 
@@ -57,26 +56,20 @@ def subsample_training_data(prediction_df_orig, alg_list, cores):
     cores = 3
     #################
 
-    subsample_size = 1000
     subsample_row_indices = []
-
-    subsampled_alg_group_df_dict = {}
-    multiindex_groups = list(product((0, 1), repeat = len(alg_list)))[1:]
-
+    train_target_arr_dict = list(product((0, 1), repeat = len(alg_list)))[1:]
     prediction_df = prediction_df_orig.copy()
-    prediction_df.drop(accepted_mass_tols + ['is top rank single alg', 'seq'],
-                       axis = 1, inplace = True)
+    prediction_df.drop(['is top rank single alg', 'seq'], axis = 1, inplace = True)
 
-    accuracy_division = 10
-    accuracy_bins = sorted([round(x / accuracy_division, 1) for x in range(accuracy_division)], reverse = True)
+    accuracy_bins = sorted([round(x / accuracy_divisor, 1) for x in range(accuracy_divisor)], reverse = True)
     
-    lower = 0
-    upper = 3
-    weight_bins = np.arange(lower, upper + (upper - lower) / accuracy_division, (upper - lower) / accuracy_division)
-    sigma = 0.9
-    mu_location = 0.5
-    accuracy_weights = (norm.cdf(weight_bins[1: 1 + accuracy_division], loc = mu_location, scale = sigma)
-                        - norm.cdf(weight_bins[: accuracy_division], loc = mu_location, scale = sigma))\
+    lower = accuracy_distribution_lower_bound
+    upper = accuracy_distribution_upper_bound
+    weight_bins = np.arange(lower, upper + (upper - lower) / accuracy_divisor, (upper - lower) / accuracy_divisor)
+    sigma = accuracy_distribution_sigma
+    mu_location = accuracy_distribution_mu_location
+    accuracy_weights = (norm.cdf(weight_bins[1: 1 + accuracy_divisor], loc = mu_location, scale = sigma)
+                        - norm.cdf(weight_bins[: accuracy_divisor], loc = mu_location, scale = sigma))\
                             / (norm.cdf(upper, loc = mu_location, scale = sigma)
                                - norm.cdf(lower, loc = mu_location, scale = sigma))
     accuracy_subsample_weights = {acc_bin: weight for acc_bin, weight in zip(accuracy_bins, accuracy_weights)}
@@ -84,27 +77,32 @@ def subsample_training_data(prediction_df_orig, alg_list, cores):
     while sum(accuracy_subsample_sizes.values()) != subsample_size:
         accuracy_subsample_sizes[accuracy_bins[0]] += 1
 
-    for multiindex in multiindex_groups:
+    for multiindex in train_target_arr_dict:
         multiindex_list = list(multiindex)
         alg_group_df_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
         alg_group_df = prediction_df.xs(multiindex).reset_index().set_index(['scan'])
-        ref_match_col = alg_group_df['ref match'].copy()
         alg_group_df.dropna(1, inplace = True)
-        alg_group_df.drop('ref match', 1, inplace = True)
+        ref_match_col = alg_group_df['ref match'].copy()
+
+        retained_features_target = round(clustering_feature_retention_factor_dict[sum(multiindex)] / alg_group_df.shape[0], 0)
+        if retained_features_target < min_retained_features_target:
+            retained_features_target = min_retained_features_target
+        retained_features_list = []
+        retained_feature_count = 0
+        for feature in features_for_clustering_ordered_by_importance:
+            if feature in alg_group_df.columns:
+                retained_features_list.append(feature)
+                retained_feature_count += 1
+            if retained_feature_count == retained_features_target:
+                break
+        alg_group_df = alg_group_df[retained_features_list]
 
         if alg_group_df.shape[0] > subsample_size:
-            #pipe = make_pipeline(StandardScaler(),
-            #                     PCA(n_components = int(alg_group_df.columns.size / 4)),
-            #                     KMeans(n_clusters = int(alg_group_df.shape[0] / 20), n_jobs = cores, verbose = 1))
 
             pipe = make_pipeline(StandardScaler(),
-                                 Birch(threshold = 1, n_clusters = None))
-
-            t = time.time()
-            print('hello')
+                                 Birch(threshold = birch_threshold, n_clusters = None))
             cluster_assignments = pipe.fit_predict(alg_group_df.as_matrix())
-            print('goodbye')
-            print(time.time() - t)
+
             cluster_assignment_accuracies = zip(cluster_assignments, ref_match_col)
             sum_cluster_accuracies = {}.fromkeys(cluster_assignments, 0)
             for cluster, acc in cluster_assignment_accuracies:
@@ -343,10 +341,10 @@ def standardize_prediction_df_cols(prediction_df):
 def make_train_target_arr_dict(training_df, alg_list):
 
     training_df.sort_index(inplace = True)
-    multiindex_groups = list(product((0, 1), repeat = len(alg_list)))[1:]
+    train_target_arr_dict = list(product((0, 1), repeat = len(alg_list)))[1:]
     model_keys_used = []
     train_target_arr_dict = {}
-    for multiindex in multiindex_groups:
+    for multiindex in train_target_arr_dict:
         model_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
         model_keys_used.append(model_key)
         train_target_arr_dict[model_keys_used[-1]] = {}.fromkeys(['train', 'target'])
