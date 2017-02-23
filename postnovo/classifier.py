@@ -25,6 +25,7 @@ from sklearn.preprocessing import StandardScaler
 from os.path import join
 from multiprocessing import Pool
 from collections import Counter
+from scipy.stats import norm
 
 def classify(prediction_df, train, ref_file, cores, alg_list):
 
@@ -52,43 +53,125 @@ def subsample_training_data(prediction_df_orig, alg_list, cores):
     cores = 3
     #################
 
+    subsample_size = 1000
+    subsample_row_indices = []
+
     subsampled_alg_group_df_dict = {}
     multiindex_groups = list(product((0, 1), repeat = len(alg_list)))[1:]
 
     prediction_df = prediction_df_orig.copy()
-    prediction_df.drop(accepted_mass_tols + ['is top rank single alg'],
+    prediction_df.drop(accepted_mass_tols + ['is top rank single alg', 'seq'],
                        axis = 1, inplace = True)
 
+    accuracy_division = 10
+    accuracy_bins = sorted([round(x / accuracy_division, 1) for x in range(accuracy_division)], reverse = True)
+    
+    lower = 0
+    upper = 3
+    weight_bins = np.arange(lower, upper + (upper - lower) / accuracy_division, (upper - lower) / accuracy_division)
+    sigma = 0.9
+    mu_location = 0.5
+    accuracy_weights = (norm.cdf(weight_bins[1: 1 + accuracy_division], loc = mu_location, scale = sigma)
+                        - norm.cdf(weight_bins[: accuracy_division], loc = mu_location, scale = sigma))\
+                            / (norm.cdf(upper, loc = mu_location, scale = sigma)
+                               - norm.cdf(lower, loc = mu_location, scale = sigma))
+    accuracy_subsample_weights = {acc_bin: weight for acc_bin, weight in zip(accuracy_bins, accuracy_weights)}
+    accuracy_subsample_sizes = {acc_bin: int(weight * subsample_size) for acc_bin, weight in accuracy_subsample_weights.items()}
+    while sum(accuracy_subsample_sizes.values()) != subsample_size:
+        accuracy_subsample_sizes[accuracy_bins[0]] += 1
+
     for multiindex in multiindex_groups:
+        multiindex_list = list(multiindex)
         alg_group_df_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
-        alg_group_df = prediction_df.xs(multiindex).reset_index().set_index(['scan', 'seq'])
+        alg_group_df = prediction_df.xs(multiindex).reset_index().set_index(['scan'])
         alg_group_df.dropna(1, inplace = True)
 
-        pipe = make_pipeline(StandardScaler(),
-                             PCA(n_components = int(alg_group_df.columns.size / 4)),
-                             KMeans(n_clusters = int(alg_group_df.shape[0] / 20), n_jobs = cores))
+        if alg_group_df.shape[0] > subsample_size:
+            pipe = make_pipeline(StandardScaler(),
+                                 PCA(n_components = int(alg_group_df.columns.size / 4)),
+                                 KMeans(n_clusters = int(alg_group_df.shape[0] / 20), n_jobs = cores))
 
-        cluster_assignments = pipe.fit_predict(alg_group_df.as_matrix())
-        cluster_assignment_accuracies = zip(cluster_assignments, alg_group_df['ref match'])
-        mean_cluster_accuracies = {}.fromkeys(cluster_assignments, 0)
-        for cluster, acc in cluster_assignment_accuracies:
-            mean_cluster_accuracies[cluster] += acc
-        cluster_counts = Counter(cluster_assignments)
-        for cluster in cluster_counts:
-            mean_cluster_accuracies[cluster] = round(mean_cluster_accuracies[cluster] / cluster_counts[cluster], 2)
-        ordered_clusters_accuracies = sorted(
-            mean_cluster_accuracies.items(), key = lambda cluster_accuracy_tuple: cluster_accuracy_tuple[1], reverse = True)
-        cluster_assignments_row_indices = [(cluster, index) for index, cluster in enumerate(cluster_assignments)]
-        cluster_row_indices_dict = {cluster: [] for cluster in mean_cluster_accuracies}
-        for cluster, index in cluster_assignments_row_indices:
-            cluster_row_indices_dict[cluster].append(index)
-        cluster_accuracies_ordered_by_cluster = [cluster_acc_tuple[1] for cluster_acc_tuple in
-                                                 sorted(ordered_clusters_accuracies, key = lambda cluster_acc_tuple: cluster_acc_tuple[0])]
-        clusters_row_indices_ordered_by_accuracy = [x[0] for x in sorted(
-            zip(cluster_row_indices_dict.items(), cluster_accuracies_ordered_by_cluster),
-            key = lambda cluster_acc_tuple: cluster_acc_tuple[1], reverse = True)]
+            cluster_assignments = pipe.fit_predict(alg_group_df.as_matrix())
+            cluster_assignment_accuracies = zip(cluster_assignments, alg_group_df['ref match'])
+            sum_cluster_accuracies = {}.fromkeys(cluster_assignments, 0)
+            for cluster, acc in cluster_assignment_accuracies:
+                sum_cluster_accuracies[cluster] += acc
+            cluster_counts = Counter(cluster_assignments)
+            mean_cluster_accuracies = {}.fromkeys(sum_cluster_accuracies, 0)
+            for cluster in cluster_counts:
+                mean_cluster_accuracies[cluster] = min(
+                    accuracy_bins,
+                    key = lambda accuracy_bin: abs(accuracy_bin - int(
+                        sum_cluster_accuracies[cluster] * 10 / cluster_counts[cluster]) / 10))
+            ordered_clusters_accuracies = sorted(
+                mean_cluster_accuracies.items(), key = lambda cluster_accuracy_tuple: cluster_accuracy_tuple[1], reverse = True)
+            cluster_assignments_row_indices = [(cluster, index) for index, cluster in enumerate(cluster_assignments)]
+            cluster_row_indices_dict = {cluster: [] for cluster in mean_cluster_accuracies}
+            for cluster, index in cluster_assignments_row_indices:
+                cluster_row_indices_dict[cluster].append(index)
+            cluster_accuracies_ordered_by_cluster = [cluster_acc_tuple[1] for cluster_acc_tuple in
+                                                     sorted(ordered_clusters_accuracies, key = lambda cluster_acc_tuple: cluster_acc_tuple[0])]
+            cluster_accuracies_row_indices = [(x[1], x[0][1]) for x in sorted(
+                zip(cluster_row_indices_dict.items(), cluster_accuracies_ordered_by_cluster),
+                key = lambda cluster_acc_tuple: cluster_acc_tuple[1], reverse = True)]
+
+            accuracy_row_indices_dict = {acc: [] for acc in cluster_accuracies_ordered_by_cluster}
+            for acc_row_indices_tuple in cluster_accuracies_row_indices:
+                accuracy_row_indices_dict[acc_row_indices_tuple[0]] += acc_row_indices_tuple[1]
+
+            alg_group_subsample_indices = []
+            remaining_subsample_size = subsample_size
+            remaining_accuracy_bins = [acc_bin for acc_bin in accuracy_bins]
+            remaining_accuracy_subsample_sizes = {acc_bin: size for acc_bin, size in accuracy_subsample_sizes.items()}
+            loop_remaining_accuracy_bins = [acc_bin for acc_bin in remaining_accuracy_bins]
+            while remaining_subsample_size > 0:
+                for acc_bin in loop_remaining_accuracy_bins:
+                    if acc_bin not in accuracy_row_indices_dict:
+                        residual = remaining_accuracy_subsample_sizes[acc_bin]
+                        remaining_accuracy_bins.remove(acc_bin)
+                        remaining_accuracy_subsample_sizes[acc_bin] = 0
+                        remaining_accuracy_subsample_sizes = redistribute_residual_subsample(
+                            residual, remaining_accuracy_bins, accuracy_subsample_weights, remaining_accuracy_subsample_sizes)
+                    elif remaining_accuracy_subsample_sizes[acc_bin] > len(accuracy_row_indices_dict[acc_bin]):
+                        acc_bin_subsample_size = len(accuracy_row_indices_dict[acc_bin])
+                        remaining_subsample_size -= acc_bin_subsample_size
+                        residual = remaining_accuracy_subsample_sizes[acc_bin] - acc_bin_subsample_size
+                        remaining_accuracy_bins.remove(acc_bin)
+                        remaining_accuracy_subsample_sizes[acc_bin] = 0
+                        alg_group_subsample_indices += accuracy_row_indices_dict[acc_bin]
+                        remaining_accuracy_subsample_sizes = redistribute_residual_subsample(
+                            residual, remaining_accuracy_bins, accuracy_subsample_weights, remaining_accuracy_subsample_sizes)
+                    else:
+                        alg_group_subsample_indices += np.random.choice(
+                            accuracy_row_indices_dict[acc_bin], remaining_accuracy_subsample_sizes[acc_bin], replace = False).tolist()
+                        remaining_subsample_size -= remaining_accuracy_subsample_sizes[acc_bin]
+                        remaining_accuracy_subsample_sizes[acc_bin] = 0
+                loop_remaining_accuracy_bins = remaining_accuracy_bins
+
+            for i in alg_group_subsample_indices:
+                subsample_row_indices.append(tuple(multiindex_list + [i])) 
+
+        else:
+            for i in alg_group_df.index:
+                subsample_row_indices.append(tuple(multiindex_list + [i]))
+
+    subsampled_df = prediction_df_orig.loc[sorted(subsample_row_indices)]
 
     return subsampled_df
+
+def redistribute_residual_subsample(residual, remaining_accuracy_bins, accuracy_subsample_weights, remaining_accuracy_subsample_sizes):
+
+    residual_of_residual = residual
+    sum_remaining_weights = 0
+    for acc_bin in remaining_accuracy_bins:
+        sum_remaining_weights += accuracy_subsample_weights[acc_bin]
+    for acc_bin in remaining_accuracy_bins:
+        acc_bin_redistributed_residual = int(residual * accuracy_subsample_weights[acc_bin] / sum_remaining_weights)
+        remaining_accuracy_subsample_sizes[acc_bin] += acc_bin_redistributed_residual
+        residual_of_residual -= acc_bin_redistributed_residual
+    remaining_accuracy_subsample_sizes[remaining_accuracy_bins[0]] += residual_of_residual
+
+    return remaining_accuracy_subsample_sizes
 
 def update_training_data(prediction_df):
 
