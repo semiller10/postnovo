@@ -39,7 +39,7 @@ def main(argv):
     #                                             user_args['min_len'], user_args['train'], user_args['cores'], alg_list)
 
     #save_pkl_objects(test_dir, **{'consensus_prediction_df_test': prediction_df})
-    prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df_test')
+    prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
     classifier.classify(prediction_df, user_args['train'], user_args['ref_file'], user_args['cores'], alg_list)
 

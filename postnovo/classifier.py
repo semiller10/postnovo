@@ -18,7 +18,7 @@ from itertools import product
 from collections import OrderedDict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, Birch
 from sklearn.decomposition import PCA
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -33,10 +33,14 @@ def classify(prediction_df, train, ref_file, cores, alg_list):
         #prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
 
         #prediction_df = standardize_prediction_df_cols(prediction_df)
-        #save_pkl_objects(test_dir, **{'prediction_df_test': prediction_df})
-        prediction_df, = load_pkl_objects(test_dir, 'prediction_df_test')
+        #save_pkl_objects(test_dir, **{'prediction_df': prediction_df})
+        prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
 
+        t = time.time()
         subsampled_df = subsample_training_data(prediction_df, alg_list, cores)
+        save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
+        print(time.time() - t)
+        sys.exit(0)
 
         #training_df = update_training_data(prediction_df)
         training_df, = load_pkl_objects(training_dir, 'training_df_test')
@@ -84,15 +88,24 @@ def subsample_training_data(prediction_df_orig, alg_list, cores):
         multiindex_list = list(multiindex)
         alg_group_df_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
         alg_group_df = prediction_df.xs(multiindex).reset_index().set_index(['scan'])
+        ref_match_col = alg_group_df['ref match'].copy()
         alg_group_df.dropna(1, inplace = True)
+        alg_group_df.drop('ref match', 1, inplace = True)
 
         if alg_group_df.shape[0] > subsample_size:
-            pipe = make_pipeline(StandardScaler(),
-                                 PCA(n_components = int(alg_group_df.columns.size / 4)),
-                                 KMeans(n_clusters = int(alg_group_df.shape[0] / 20), n_jobs = cores))
+            #pipe = make_pipeline(StandardScaler(),
+            #                     PCA(n_components = int(alg_group_df.columns.size / 4)),
+            #                     KMeans(n_clusters = int(alg_group_df.shape[0] / 20), n_jobs = cores, verbose = 1))
 
+            pipe = make_pipeline(StandardScaler(),
+                                 Birch(threshold = 1, n_clusters = None))
+
+            t = time.time()
+            print('hello')
             cluster_assignments = pipe.fit_predict(alg_group_df.as_matrix())
-            cluster_assignment_accuracies = zip(cluster_assignments, alg_group_df['ref match'])
+            print('goodbye')
+            print(time.time() - t)
+            cluster_assignment_accuracies = zip(cluster_assignments, ref_match_col)
             sum_cluster_accuracies = {}.fromkeys(cluster_assignments, 0)
             for cluster, acc in cluster_assignment_accuracies:
                 sum_cluster_accuracies[cluster] += acc
