@@ -1,6 +1,7 @@
 from config import (proton_mass, seconds_in_min,
                     novor_dropped_chars, pn_dropped_chars,
                     accepted_algs)
+from utils import verbose_print
 
 import pandas as pd
 import numpy as np
@@ -9,6 +10,8 @@ import re
 from collections import OrderedDict
 from os.path import basename
 from itertools import combinations
+import warnings
+warnings.filterwarnings('ignore')
 
 def load_files(user_args):
 
@@ -19,6 +22,8 @@ def load_files(user_args):
         novor_dfs = OrderedDict.fromkeys(
             [basename(novor_file) for novor_file in user_args['novor_files']])
         for i, novor_file in enumerate(user_args['novor_files']):
+            verbose_print('loading', basename(novor_file))
+
             check_file_mass_tol(novor_file, user_args['novor_tols'][i])
             novor_dfs[basename(novor_file)] = load_novor_file(novor_file)
 
@@ -33,6 +38,8 @@ def load_files(user_args):
         peaks_dfs = OrderedDict.fromkeys(
             [basename(peaks_file) for peaks_file in user_args['peaks_files']])
         for i, peaks_file in enumerate(user_args['peaks_files']):
+            verbose_print('loading', basename(peaks_file))
+
             peaks_dfs[basename(peaks_file)] = load_peaks_file(peaks_file)
 
         peaks_tols = OrderedDict(
@@ -46,6 +53,8 @@ def load_files(user_args):
         pn_dfs = OrderedDict.fromkeys(
             [basename(pn_file) for pn_file in user_args['pn_files']])
         for i, pn_file in enumerate(user_args['pn_files']):
+            verbose_print('loading', basename(pn_file))
+
             pn_dfs[basename(pn_file)] = load_pn_file(pn_file)
 
         pn_tols = OrderedDict(
@@ -58,6 +67,7 @@ def load_files(user_args):
     alg_df_name_dict = OrderedDict([('novor', novor_dfs), ('peaks', peaks_dfs), ('pn', pn_dfs)])
     alg_tol_dict = OrderedDict([('novor', novor_tols), ('peaks', peaks_tols), ('pn', pn_tols)])
 
+    verbose_print('cleaning up input data')
     alg_df_name_dict, tol_df_name_dict = filter_shared_scans(alg_df_name_dict, alg_tol_dict)
 
     return alg_list, alg_df_name_dict, tol_df_name_dict, alg_tol_dict

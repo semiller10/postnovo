@@ -247,3 +247,8 @@ ModelManifest.xml
 /test
 *.pyperf
 /training
+/postnovo/user_args.json
+/postnovo/novor_pn_feature_importances.png
+/postnovo/novor_pn_error.png
+/postnovo/novor_feature_importances.png
+/postnovo/novor_error.png

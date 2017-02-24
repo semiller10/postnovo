@@ -4,17 +4,20 @@ import classifier
 
 import getopt
 import sys
+import time
 
 from config import (test_dir, user_files_dir,
                     accepted_algs, accepted_mass_tols,
                     train_consensus_len)
 from utils import (save_pkl_objects, load_pkl_objects,
-                   save_json_objects, load_json_objects)
+                   save_json_objects, load_json_objects,
+                   verbose)
 
 from os.path import join, exists
 from multiprocessing import cpu_count
 
 def main(argv):
+    start_time = time.time()
 
     #user_args = parse_user_args(argv)
 
@@ -28,20 +31,22 @@ def main(argv):
     #                              'alg_tol_dict': alg_tol_dict,
     #                              'alg_list': alg_list})
     #save_pkl_objects(test_dir, **{'alg_list_test': alg_list})
-    #alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
-    #    load_pkl_objects(test_dir, 'alg_df_name_dict',
-    #                     'tol_df_name_dict',
-    #                     'alg_tol_dict',
-    #                     'alg_list')
-    alg_list, = load_pkl_objects(test_dir, 'alg_list')
+    alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
+        load_pkl_objects(test_dir, 'alg_df_name_dict',
+                         'tol_df_name_dict',
+                         'alg_tol_dict',
+                         'alg_list')
+    #alg_list, = load_pkl_objects(test_dir, 'alg_list')
 
     #prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict,
     #                                             user_args['min_len'], user_args['train'], user_args['cores'], alg_list)
 
-    #save_pkl_objects(test_dir, **{'consensus_prediction_df_test': prediction_df})
+    #save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
     prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
     classifier.classify(prediction_df, user_args['train'], user_args['ref_file'], user_args['cores'], alg_list)
+
+    print('total time elapsed: ' + str(time.time() - start_time))
 
 def parse_user_args(argv):
     ''' Return command line args as dict '''
@@ -69,8 +74,8 @@ def parse_user_args(argv):
 
     try:
         opts, args = getopt.getopt(argv,
-                                   'htn:u:p:v:e:w:l:r:c:',
-                                   ['train',
+                                   'htqn:u:p:v:e:w:l:r:c:',
+                                   ['train', 'quiet',
                                     'novorfiles=', 'novortols=',
                                     'peaksfiles=', 'peakstols=',
                                     'pnfiles=', 'pntols=',
@@ -90,6 +95,10 @@ def parse_user_args(argv):
 
         elif opt in ('-t', '--train'):
             user_args['train'] = True
+
+        elif opt in ('-q', '--quiet'):
+            user_args['quiet'] = True
+            utils.verbose[0] = False
 
         elif opt in ('-n', '--novorfiles'):
             novor_files = arg.split(',')
@@ -187,6 +196,10 @@ def parse_user_args(argv):
         if 'ref_file' not in user_args:
             print('Training requires a protein reffile')
             sys.exit(1)
+
+    if user_args['min_len'] < 6:
+        print('Sequences shorter than length 6 are not supported')
+        sys.exit(1)
 
     user_args = order_by_mass_tol(user_args)
 
