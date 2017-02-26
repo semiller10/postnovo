@@ -38,9 +38,8 @@ seq_matching_count = 0
 def classify(ref_file, cores, alg_list, min_prob, prediction_df = None):
     verbose_print()
 
-    if run_type[0] in ['train', 'test', 'optimize']:
-        prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
-        sys.exit(0)
+    #if run_type[0] in ['train', 'test', 'optimize']:
+    #    prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
 
     #verbose_print('formatting data for compatability with model')
     #prediction_df = standardize_prediction_df_cols(prediction_df)
@@ -127,7 +126,7 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
     plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
     annotation_x = recall[len(recall) // 2]
     annotation_y = true_positive_rate[len(true_positive_rate) // 2]
-    plt.annotate('random forest\narea = ' + str(round(model_auc, 2)),
+    plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
                  xy = (annotation_x, annotation_y),
                  xycoords='data',
                  xytext = (annotation_x + 50, annotation_y + 50),
@@ -590,7 +589,7 @@ def find_target_accuracy(prediction_df, ref_file, cores):
     single_var_get_match_from_dict = partial(get_match_from_dict, seq_match_dict = seq_match_dict)
     prediction_df['seq match'] = prediction_df['seq'].apply(single_var_get_match_from_dict)
 
-    print()
+    verbose_print()
     return prediction_df
 
 def match_seq_to_ref(query_seq, ref, one_percent_number_seqs):

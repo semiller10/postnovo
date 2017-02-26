@@ -27,20 +27,26 @@ def main(argv):
 
     #alg_list, alg_df_name_dict, tol_df_name_dict, alg_tol_dict = input.load_files(user_args)
 
+    ## Object schema:
+    ## alg_df_name_dict = odict('novor': novor input df, 'pn': pn input df)
+    ## tol_df_name_dict = odict('0.4': ['proteome-0.4.novor.csv', 'proteome-0.4.mgf.out'], '0.5': ['proteome-0.5.novor.csv', 'proteome-0.5.mgf.out'])
+    ##alg_tol_dict = odict('novor': odict('0.4': 'proteome-0.4.novor.csv', '0.5': 'proteome-0.5.novor.csv'),
+    ##                     'pn': odict('0.4': 'proteome-0.4.mgf.out', '0.5': 'proteome-0.5.mgf.out'))
+
     #save_pkl_objects(test_dir, **{'alg_df_name_dict': alg_df_name_dict,
     #                              'tol_df_name_dict': tol_df_name_dict,
     #                              'alg_tol_dict': alg_tol_dict,
     #                              'alg_list': alg_list})
     #save_pkl_objects(test_dir, **{'alg_list_test': alg_list})
-    #alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
-    #    load_pkl_objects(test_dir, 'alg_df_name_dict',
-    #                     'tol_df_name_dict',
-    #                     'alg_tol_dict',
-    #                     'alg_list')
-    alg_list, = load_pkl_objects(test_dir, 'alg_list')
+    alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
+        load_pkl_objects(test_dir, 'alg_df_name_dict',
+                         'tol_df_name_dict',
+                         'alg_tol_dict',
+                         'alg_list')
+    #alg_list, = load_pkl_objects(test_dir, 'alg_list')
 
-    #prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict,
-    #                                             user_args['min_len'], user_args['train'], user_args['cores'], alg_list)
+    prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict,
+                                                 user_args['min_len'], user_args['cores'], alg_list)
 
     #save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
     prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
