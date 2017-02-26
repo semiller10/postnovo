@@ -6,6 +6,7 @@ import sklearn as sk
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.collections as mcoll
 import sys
 import time
 import datetime
@@ -25,6 +26,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.cluster import Birch
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_curve, average_precision_score
 from os.path import join, basename
 from multiprocessing import Pool, current_process
 from collections import Counter
@@ -32,52 +34,192 @@ from scipy.stats import norm
 
 seq_matching_count = 0
 
-def classify(prediction_df, train, ref_file, cores, alg_list):
+def classify(ref_file, cores, alg_list, min_prob, prediction_df = None):
     verbose_print()
 
-    if train:
-        prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
+    #if run_type[0] in ['train', 'test', 'optimize']:
+        #prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
 
-        verbose_print('setting up subsampling')
-        prediction_df = standardize_prediction_df_cols(prediction_df)
-        save_pkl_objects(test_dir, **{'prediction_df': prediction_df})
-        #prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
+    #verbose_print('formatting data for compatability with model')
+    #prediction_df = standardize_prediction_df_cols(prediction_df)
+    #save_pkl_objects(test_dir, **{'prediction_df': prediction_df})
+    prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
 
+    if run_type[0] in ['train', 'optimize']:
+        
         subsampled_df = subsample_training_data(prediction_df, alg_list, cores)
         save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
         #subsampled_df, = load_pkl_objects(test_dir, 'subsampled_df')
 
         verbose_print('updating training database')
-        training_df = update_training_data(prediction_df)
+        training_df = update_training_data(subsampled_df)
         #training_df, = load_pkl_objects(training_dir, 'training_df')
 
-        make_training_forests(training_df, alg_list, cores)
+        forest_dict = make_training_forests(training_df, alg_list, cores)
         save_pkl_objects(training_dir, **{'forest_dict': forest_dict})
         #forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
 
+    elif run_type[0] in ['predict', 'test']:
+        
+        make_predictions(prediction_df, alg_list, cores, min_prob)
+
+def make_predictions(prediction_df, alg_list, cores, min_prob):
+
+    forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
+
+    alg_group_multiindex_keys = list(product((0, 1), repeat = len(alg_list)))[1:]
+    for multiindex_key in alg_group_multiindex_keys:
+        alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
+
+        alg_group_data = prediction_df.xs(multiindex_key)
+        accuracy_labels = alg_group_data['ref match'].tolist()
+        alg_group_data.drop(['seq', 'ref match'], axis = 1, inplace = True)
+        alg_group_data.dropna(1, inplace = True)
+        forest_dict[alg_group].n_jobs = cores
+        probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
+
+        if run_type[0] == 'test':
+            plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+            plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+
+def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
+
+    true_positive_rate, recall, thresholds = precision_recall_curve(accuracy_labels, probabilities, pos_label = 1)
+    model_auc = average_precision_score(accuracy_labels, probabilities)
+
+    alg_scores_dict = {}
+    for alg in alg_group:
+        if alg == 'novor':
+            alg_scores_dict[alg] = alg_group_data['avg novor aa score']
+        elif alg == 'pn':
+            alg_scores_dict[alg] = alg_group_data['rank score']
+
+    alg_pr_dict = {}
+    alg_auc_dict = {}
+    for alg in alg_scores_dict:
+        alg_pr_dict[alg] = precision_recall_curve(accuracy_labels, alg_scores_dict[alg], pos_label = 1)
+        alg_auc_dict[alg] = average_precision_score(accuracy_labels, alg_scores_dict[alg])
+
+    fig, ax = plt.subplots()
+
+    model_line_collection = colorline(recall, true_positive_rate, thresholds)
+    plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
+    annotation_x = recall[len(recall) // 2]
+    annotation_y = true_positive_rate[len(true_positive_rate) // 2]
+    plt.annotate('random forest\narea = ' + str(round(model_auc, 2)),
+                 xy = (annotation_x, annotation_y),
+                 xycoords='data',
+                 xytext = (annotation_x + 50, annotation_y + 50),
+                 textcoords = 'offset pixels',
+                 arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                 horizontalalignment = 'right', verticalalignment = 'bottom',
+                 )
+
+    for alg in alg_pr_dict:
+        alg_recall = alg_pr_dict[alg][1]
+        alg_tpr = alg_pr_dict[alg][0]
+        alg_thresh = alg_pr_dict[alg][2].argsort() / alg_pr_dict[alg][2].size
+        annotation_x = alg_recall[len(alg_recall) // 2]
+        annotation_y = alg_tpr[len(alg_tpr) // 2]
+        colorline(alg_recall, alg_tpr, alg_thresh)
+        plt.annotate(alg + '\narea = ' + str(round(alg_auc_dict[alg], 2)),
+                     xy = (annotation_x, annotation_y),
+                     xycoords='data',
+                     xytext = (annotation_x - 50, annotation_y - 50),
+                     textcoords = 'offset pixels',
+                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                     horizontalalignment = 'right', verticalalignment = 'top',
+                     )
+
+    if len(alg_group) == 1:
+        plt.title('precision-recall curve: ' + alg_group[0] + ' sequences')
     else:
-        forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
-        alg_group_multiindex_keys = list(product((0, 1), repeat = len(alg_list)))[1:]
-        for multiindex_key in alg_group_multiindex_keys:
-            alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
-            sample_data = prediction_df.xs(multiindex_key)
-            accuracy_labels = sample_data['ref match']
-            sample_data.drop('ref match', axis = 1, inplace = True)
-            class_probabilities = forest_dict[alg_group].predict_proba(sample_data.as_matrix(), n_jobs = cores)
-            fpr, tpr, thresholds = metrics.roc_curve(accuracy_labels, class_probabilities, pos_label = 1)
+        plt.title('precision-recall curve: ' + '-'.join(alg_group) + ' consensus sequences')
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.xlabel('recall (true positive rate) = ' + r'$\frac{T_p}{T_p + F_n}$')
+    plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
+    plt.tight_layout(True)
 
-            fig, ax = plt.subplots()
-            ax.set_title('_'.join(alg_group) + ' roc curve')
-            ax.plot(fpr, tpr, color = 'r')
-            ax.plot([0, 1], [0, 1], linestyle = '--')
-            ax.set_xlabel('false positive rate')
-            ax.set_ylabel('true positive rate')
-            ax.set_xlim([0, 1])
-            ax.set_ylim([0, 1])
-            fig.set_tight_layout(True)
+    save_path = join(test_dir, '_'.join(alg_group) + '_precision_recall.png')
+    fig.savefig(save_path, bbox_inches = 'tight')
 
-            save_path = join(test_dir, '_'.join(alg_group) + '_roc.png')
-            fig.savefig(save_path, bbox_inches = 'tight')
+
+def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
+
+    false_positive_rate, true_positive_rate, thresholds = roc_curve(accuracy_labels, probabilities, pos_label = 1)
+    model_auc = roc_auc_score(accuracy_labels, probabilities)
+
+    alg_scores_dict = {}
+    for alg in alg_group:
+        if alg == 'novor':
+            alg_scores_dict[alg] = alg_group_data['avg novor aa score']
+        elif alg == 'pn':
+            alg_scores_dict[alg] = alg_group_data['rank score']
+
+    alg_roc_dict = {}
+    alg_auc_dict = {}
+    for alg in alg_scores_dict:
+        alg_roc_dict[alg] = roc_curve(accuracy_labels, alg_scores_dict[alg], pos_label = 1)
+        alg_auc_dict[alg] = roc_auc_score(accuracy_labels, alg_scores_dict[alg])
+
+    fig, ax = plt.subplots()
+
+    model_line_collection = colorline(false_positive_rate, true_positive_rate, thresholds)
+    plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
+    annotation_x = false_positive_rate[len(false_positive_rate) // 2]
+    annotation_y = true_positive_rate[len(true_positive_rate) // 2]
+    plt.annotate('random forest: auc = ' + str(round(model_auc, 2)),
+                 xy = (annotation_x, annotation_y),
+                 xycoords='data',
+                 xytext = (annotation_x + 125, annotation_y - 125),
+                 textcoords = 'offset pixels',
+                 arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                 horizontalalignment = 'left', verticalalignment = 'top',
+                 )
+
+    for alg in alg_roc_dict:
+        alg_fpr = alg_roc_dict[alg][0]
+        alg_tpr = alg_roc_dict[alg][1]
+        alg_thresh = alg_roc_dict[alg][2].argsort() / alg_roc_dict[alg][2].size
+        annotation_x = alg_fpr[len(alg_fpr) // 2]
+        annotation_y = alg_tpr[len(alg_tpr) // 2]
+        colorline(alg_fpr, alg_tpr, alg_thresh)
+        plt.annotate(alg + ': auc = ' + str(round(alg_auc_dict[alg], 2)),
+                     xy = (annotation_x, annotation_y),
+                     xycoords='data',
+                     xytext = (annotation_x + 75, annotation_y - 75),
+                     textcoords = 'offset pixels',
+                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                     horizontalalignment = 'left', verticalalignment = 'top',
+                     )
+
+    plt.plot([0, 1], [0, 1], linestyle = '--', c = 'black')
+
+    if len(alg_group) == 1:
+        plt.title('roc curve: ' + alg_group[0] + ' sequences')
+    else:
+        plt.title('roc curve: ' + '-'.join(alg_group) + ' consensus sequences')
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.xlabel('false positive rate = ' + r'$\frac{F_p}{F_p + T_n}$')
+    plt.ylabel('true positive rate = ' + r'$\frac{T_p}{T_p + F_n}$')
+    plt.tight_layout(True)
+
+    save_path = join(test_dir, '_'.join(alg_group) + '_roc.png')
+    fig.savefig(save_path, bbox_inches = 'tight')
+
+def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth = 3, alpha = 1.0):
+
+    z = np.asarray(z)
+
+    points = np.array([x, y]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    line_collection = mcoll.LineCollection(segments, array = z, cmap = cmap, norm = norm, linewidth = linewidth, alpha = alpha)
+
+    ax = plt.gca()
+    ax.add_collection(line_collection)
+    return line_collection
 
 def subsample_training_data(prediction_df_orig, alg_list, cores):
 
@@ -204,8 +346,8 @@ def subsample_training_data(prediction_df_orig, alg_list, cores):
     subsampled_df = prediction_df_orig.loc[sorted(subsample_row_indices)]
     retained_multiindices = subsampled_df.index.names[:-1]
     subsampled_df.reset_index(inplace = True)
-    subsampled_df.drop('unique index', axis = 1, inplace = True)
     subsampled_df.set_index(retained_multiindices, inplace = True)
+    subsampled_df.drop('unique index', axis = 1, inplace = True)
 
     return subsampled_df
 
@@ -249,10 +391,12 @@ def make_training_forests(training_df, alg_list, cores):
 
     train_target_arr_dict = make_train_target_arr_dict(training_df, alg_list)
     
-    verbose_print('optimizing random forest parameters')
-    optimized_params = optimize_model(train_target_arr_dict, cores)
-
-    forest_dict = make_forest_dict(train_target_arr_dict, optimized_params, cores)
+    if run_type == 'train':
+        forest_dict = make_forest_dict(train_target_arr_dict, cores = cores)
+    elif run_type == 'optimize':
+        verbose_print('optimizing random forest parameters')
+        optimized_params = optimize_model(train_target_arr_dict, cores)
+        forest_dict = make_forest_dict(train_target_arr_dict, optimized_params, cores)
 
     return forest_dict
 
@@ -349,14 +493,14 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
     save_path = join(test_dir, alg_key_str + '_error.png')
     fig.savefig(save_path, bbox_inches = 'tight')
 
-def make_forest_dict(train_target_arr_dict, optimized_params, cores):
+def make_forest_dict(train_target_arr_dict, optimized_params = default_optimized_params, cores = 1):
 
     forest_dict = {}.fromkeys(train_target_arr_dict)
     for alg_key in forest_dict:
         if len(alg_key) > 1:
             verbose_print('making random forest for', '-'.join(alg_key), 'consensus sequences')
         else:
-            verbose_print('making random forest for', alg_key, 'sequences')
+            verbose_print('making random forest for', alg_key[0], 'sequences')
 
         train_data = train_target_arr_dict[alg_key]['train']
         target_data = train_target_arr_dict[alg_key]['target']
@@ -420,6 +564,13 @@ def find_target_accuracy(prediction_df, ref_file, cores):
         prediction_df['ref match'] = grouped_by_seq.transform(single_var_match_seq)
 
     else:
+        # Alternate method
+        # Groupby seq
+        # Extract seq groups as a list
+        # Parallelize seq matching
+        # Return tuples of ('seq', match)
+        # 
+
         partitioned_prediction_df_list = []
         partitioned_grouped_by_seq_series_list = []
         total_rows = len(prediction_df)

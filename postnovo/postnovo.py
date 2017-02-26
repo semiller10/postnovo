@@ -8,7 +8,8 @@ import time
 
 from config import (test_dir, user_files_dir,
                     accepted_algs, accepted_mass_tols,
-                    train_consensus_len)
+                    run_type, train_consensus_len,
+                    default_min_prob)
 from utils import (save_pkl_objects, load_pkl_objects,
                    save_json_objects, load_json_objects,
                    verbose)
@@ -31,20 +32,21 @@ def main(argv):
     #                              'alg_tol_dict': alg_tol_dict,
     #                              'alg_list': alg_list})
     #save_pkl_objects(test_dir, **{'alg_list_test': alg_list})
-    alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
-        load_pkl_objects(test_dir, 'alg_df_name_dict',
-                         'tol_df_name_dict',
-                         'alg_tol_dict',
-                         'alg_list')
-    #alg_list, = load_pkl_objects(test_dir, 'alg_list')
+    #alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
+    #    load_pkl_objects(test_dir, 'alg_df_name_dict',
+    #                     'tol_df_name_dict',
+    #                     'alg_tol_dict',
+    #                     'alg_list')
+    alg_list, = load_pkl_objects(test_dir, 'alg_list')
 
     #prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict,
     #                                             user_args['min_len'], user_args['train'], user_args['cores'], alg_list)
 
     #save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
-    prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
+    #prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
-    classifier.classify(prediction_df, user_args['train'], user_args['ref_file'], user_args['cores'], alg_list)
+    #classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, user_args['min_prob'], prediction_df)
+    classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, user_args['min_prob'])
 
     print('total time elapsed: ' + str(time.time() - start_time))
 
@@ -60,12 +62,16 @@ def parse_user_args(argv):
     --pnfiles <"pnfile0.3, pnfile0.5, ...">\n\
     --pntols <"0.3, 0.5, ...">\n\
     --minlen <9>\n\
+    --minprob <0.75>\n\
     --reffile <reffile>\n\
     --cores <3>')
     
     user_args = {}
     user_args['train'] = False
+    user_args['test'] = False
+    user_args['optimize'] = False
     user_args['min_len'] = train_consensus_len
+    user_args['min_prob'] = default_min_prob
     user_args['cores'] = 1
 
     # Take in args
@@ -74,12 +80,12 @@ def parse_user_args(argv):
 
     try:
         opts, args = getopt.getopt(argv,
-                                   'htqn:u:p:v:e:w:l:r:c:',
-                                   ['train', 'quiet',
+                                   'htqson:u:p:v:e:w:l:b:r:c:',
+                                   ['help', 'train', 'quiet', 'test', 'optimize',
                                     'novorfiles=', 'novortols=',
                                     'peaksfiles=', 'peakstols=',
                                     'pnfiles=', 'pntols=',
-                                    'minlen=',
+                                    'minlen=', 'minprob=',
                                     'reffile=',
                                     'cores='])
     except getopt.GetoptError:
@@ -89,16 +95,23 @@ def parse_user_args(argv):
     # Parse each option
     for opt, arg in opts:
 
-        if opt == '-h':
+        if opt in ('-h', '--help'):
             print(help_str)
             sys.exit(0)
 
         elif opt in ('-t', '--train'):
             user_args['train'] = True
+            run_type[0] = 'train'
 
         elif opt in ('-q', '--quiet'):
             user_args['quiet'] = True
             utils.verbose[0] = False
+
+        elif opt in ('-s', '--test'):
+            user_args['test'] = True
+
+        elif opt in ('-o', '--optimize'):
+            user_args['optimize'] = True
 
         elif opt in ('-n', '--novorfiles'):
             novor_files = arg.split(',')
@@ -177,6 +190,17 @@ def parse_user_args(argv):
                 sys.exit(1)
             user_args['min_len'] = min_len
 
+        elif opt in ('b', '--minprob'):
+            try:
+                min_prob = float(arg)
+            except ValueError:
+                print('Minimum reported sequence probability must be a number between 0 and 1')
+                sys.exit(1)
+            if min_prob <= 0 or min_prob >= 1:
+                print('Minimum reported sequence probability must be a number between 0 and 1')
+                sys.exit(1)
+            user_args['min_prob'] = min_prob
+
         elif opt in ('r', '--reffile'):
             if exists(join(user_files_dir, arg)) is False:
                 print(arg + ' must be in postnovo/userfiles')
@@ -192,13 +216,30 @@ def parse_user_args(argv):
                 sys.exit(1)
             user_args['cores'] = int(arg)
 
+    if user_args['test']:
+        if 'ref_file' not in user_args:
+            print('Testing requires a protein reffile')
+            sys.exit(1)
+        if user_args['optimize']:
+            print('Testing and optimization are exclusive')
+            sys.exit(1)
+        # --test overrides --train
+        run_type[0] = 'test'
+
+    if user_args['optimize']:
+        if 'ref_file' not in user_args:
+            print('Model optimization requires a protein reffile')
+            sys.exit(1)
+        # --optimize overrides --train
+        run_type[0] = 'optimize'
+
     if user_args['train']:
         if 'ref_file' not in user_args:
             print('Training requires a protein reffile')
             sys.exit(1)
 
-    if user_args['min_len'] < 6:
-        print('Sequences shorter than length 6 are not supported')
+    if user_args['min_len'] < train_consensus_len:
+        print('Sequences shorter than length ' + str(train_consensus_len) + ' are not supported')
         sys.exit(1)
 
     user_args = order_by_mass_tol(user_args)
