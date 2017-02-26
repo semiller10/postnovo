@@ -38,8 +38,9 @@ seq_matching_count = 0
 def classify(ref_file, cores, alg_list, min_prob, prediction_df = None):
     verbose_print()
 
-    #if run_type[0] in ['train', 'test', 'optimize']:
-        #prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
+    if run_type[0] in ['train', 'test', 'optimize']:
+        prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
+        sys.exit(0)
 
     #verbose_print('formatting data for compatability with model')
     #prediction_df = standardize_prediction_df_cols(prediction_df)
@@ -570,80 +571,42 @@ def make_train_target_arr_dict(training_df, alg_list):
     return train_target_arr_dict
 
 def find_target_accuracy(prediction_df, ref_file, cores):
-
     verbose_print('loading', basename(ref_file))
     ref = load_ref(ref_file)
     verbose_print('finding sequence matches to reffile')
 
     cores = 1
 
-    if cores == 1:
-        grouped_by_seq = prediction_df.groupby('seq')['seq']
-        one_percent_number_seqs = len(grouped_by_seq) / 100
-        single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs)
-        prediction_df['ref match'] = grouped_by_seq.transform(single_var_match_seq)
+    seq_set_list = list(set(prediction_df['seq']))
+    one_percent_number_seqs = len(seq_set_list) / cores / 100
 
-    else:
-        # Alternate method
-        # Groupby seq
-        # Extract seq groups as a list
-        # Parallelize seq matching
-        # Return tuples of ('seq', match)
-        # 
+    multiprocessing_pool = Pool(cores)
+    single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs)
+    seq_set_matches = multiprocessing_pool.map(single_var_match_seq, seq_set_list)
+    multiprocessing_pool.close()
+    multiprocessing_pool.join()
 
-        partitioned_prediction_df_list = []
-        partitioned_grouped_by_seq_series_list = []
-        total_rows = len(prediction_df)
-        first_row_number_split = int(total_rows / cores / 60)
-
-        row_number_splits = [(0, first_row_number_split)]
-        for split_multiple in range(2, cores * 60):
-            row_number_splits.append((row_number_splits[-1][1], first_row_number_split * split_multiple))
-
-        row_number_splits.append(
-            (row_number_splits[-1][1], total_rows))
-
-        total_seqs = 0
-        for row_number_split in row_number_splits:
-            partitioned_prediction_df_list.append(prediction_df.ix[row_number_split[0]: row_number_split[1]])
-            partitioned_grouped_by_seq_series_list.append(partitioned_prediction_df_list[-1].groupby('seq')['seq'])
-            total_seqs += len(partitioned_grouped_by_seq_series_list[-1])
-
-        print('total seqs' + str(total_seqs))
-
-        multiprocessing_pool = Pool(cores)
-        one_percent_number_seqs = total_seqs / cores / 100
-        single_var_match_seq = partial(match_seq_to_ref, ref = ref,
-                                       one_percent_number_seqs = one_percent_number_seqs)
-        multiprocessing_match_seqs_to_ref_for_partitioned_group =\
-            partial(match_seqs_to_ref_for_partitioned_group, single_var_match_seq_fn = single_var_match_seq)
-        partitioned_seq_match_series_list = multiprocessing_pool.map(
-            multiprocessing_match_seqs_to_ref_for_partitioned_group, partitioned_grouped_by_seq_series_list)
-        multiprocessing_pool.close()
-        multiprocessing_pool.join()
-
-        prediction_df['ref match'] = pd.concat(partitioned_seq_match_series_list)
+    seq_match_dict = dict(zip(seq_set_list, seq_set_matches))
+    single_var_get_match_from_dict = partial(get_match_from_dict, seq_match_dict = seq_match_dict)
+    prediction_df['seq match'] = prediction_df['seq'].apply(single_var_get_match_from_dict)
 
     print()
     return prediction_df
 
-def match_seq_to_ref(grouped_by_seq_series, ref, one_percent_number_seqs):
+def match_seq_to_ref(query_seq, ref, one_percent_number_seqs):
+
     global seq_matching_count
-    #if current_process()._identity[0] == 1:
     seq_matching_count += 1
     if int(seq_matching_count % one_percent_number_seqs) == 0:
         verbose_print_over_same_line('reference sequence matching progress: ' + str(int(seq_matching_count / one_percent_number_seqs)) + '%')
 
-    query_seq = grouped_by_seq_series.iloc[0]
     for target_seq in ref:
         if query_seq in target_seq:
             return 1
     return 0
 
-def match_seqs_to_ref_for_partitioned_group(partitioned_grouped_by_seq_series, single_var_match_seq_fn):
-
-    partitioned_seq_match_series = partitioned_grouped_by_seq_series.transform(single_var_match_seq_fn)
-    return partitioned_seq_match_series
+def get_match_from_dict(seq, seq_match_dict):
+    return seq_match_dict[seq]
 
 def load_ref(ref_file):
 

@@ -43,10 +43,10 @@ def main(argv):
     #                                             user_args['min_len'], user_args['train'], user_args['cores'], alg_list)
 
     #save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
-    #prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
+    prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
-    #classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, user_args['min_prob'], prediction_df)
-    classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, user_args['min_prob'])
+    classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, user_args['min_prob'], prediction_df)
+    #classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, user_args['min_prob'])
 
     print('total time elapsed: ' + str(time.time() - start_time))
 
