@@ -61,7 +61,7 @@ def make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict, user_mi
 def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol, cores, tol_alg_dict):
 
     for alg, df in alg_df_dict.items():
-        df = encode_seqs(df, consensus_min_len)
+        encode_seqs(df, consensus_min_len)
 
     combo_level_alg_dict, full_alg_combo_list = get_combo_level_data(alg_df_dict)
     highest_level_alg_combo = full_alg_combo_list[-1]
@@ -71,10 +71,12 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol, cores, tol_a
     ## full_alg_combo_list = [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn'), ('novor', 'peaks', 'pn')]
     ## highest_level_alg_combo = ('novor', 'peaks', 'pn')
 
-    consensus_source_df = setup_consensus_source_df(highest_level_alg_combo, alg_df_dict)
-    scan_list = list(consensus_source_df.index.levels[0])
+    alg_consensus_source_df_dict, consensus_scan_list = make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict)
+    number_consensus_scans = len(consensus_scan_list)
+    consensus_scan_index_list = list(range(number_consensus_scans))
+    one_percent_number_consensus_scans = number_consensus_scans / cores / 100
 
-    scan_consensus_info_dict, scan_generator_fns_dict, scan_common_substrings_info_dict = setup_scan_info_dicts(full_alg_combo_list, consensus_source_df, combo_level_alg_dict)
+    scan_consensus_info_dict, scan_generator_fns_dict, scan_common_substrings_info_dict = setup_scan_info_dicts(full_alg_combo_list, combo_level_alg_dict)
 
     ## Object schema:
     ## scan_consensus_info_dict = odict(2: odict(
@@ -116,71 +118,79 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol, cores, tol_a
 
     #rank_encoded_seqs_lists, max_seq_len_lists = make_scan_info_lists(consensus_source_df, highest_level_alg_combo, cores)
 
-    total_number_scans = len(scan_list)
-    scan_index_list = list(range(total_number_scans))
-    one_percent_number_scans = total_number_scans / cores / 100
     grand_scan_prediction_dict_list = []
     verbose_print('finding', tol, 'Da consensus sequences')
 
     #multiprocessing_pool = Pool(cores)
     #multiprocessing_make_scan_prediction_dicts = partial(
-    #    make_scan_prediction_dicts, scan_list_for_consensus = scan_list_for_consensus, rank_encoded_seqs_lists = rank_encoded_seqs_lists,
-    #    max_seq_len_lists = max_seq_len_lists, consensus_source_df = consensus_source_df, scan_consensus_info_dict = scan_consensus_info_dict,
-    #    scan_generator_fns_dict = scan_generator_fns_dict, scan_common_substrings_info_dict = scan_common_substrings_info_dict,
-    #    consensus_min_len = consensus_min_len, highest_level_alg_combo = highest_level_alg_combo,
+    #    make_scan_prediction_dicts, consensus_scan_list = consensus_scan_list, alg_consensus_source_df_dict = alg_consensus_source_df_dict,
+    #    scan_consensus_info_dict = scan_consensus_info_dict, scan_generator_fns_dict = scan_generator_fns_dict,
+    #    scan_common_substrings_info_dict = scan_common_substrings_info_dict, consensus_min_len = consensus_min_len,
     #    first_seq_second_seq_rank_comparisons_dict = first_seq_second_seq_rank_comparisons_dict,
     #    first_seq_second_seq_max_ranks_dict = first_seq_second_seq_max_ranks_dict,
     #    first_seq_second_seq_alg_positions_dict = first_seq_second_seq_alg_positions_dict,
-    #    one_percent_number_scans = one_percent_number_scans / cores, tol = tol)
+    #    one_percent_number_consensus_scans = one_percent_number_consensus_scans, tol = tol)
     #grand_scan_prediction_dict_list = multiprocessing_pool.map(multiprocessing_make_scan_prediction_dicts, consensus_scan_index_list)
     #multiprocessing_pool.close()
     #multiprocessing_pool.join()
 
-    for scan_index in scan_index_list:
+    for consensus_scan_index in consensus_scan_index_list:
         grand_scan_prediction_dict_list.append(
-            make_scan_prediction_dicts(consensus_scan_index, scan_list_for_consensus, rank_encoded_seqs_lists,
-                                       max_seq_len_lists, consensus_source_df, scan_consensus_info_dict, scan_generator_fns_dict,
-                                       scan_common_substrings_info_dict, consensus_min_len, highest_level_alg_combo,
+            make_scan_prediction_dicts(consensus_scan_index, consensus_scan_list, alg_consensus_source_df_dict,
+                                       scan_consensus_info_dict, scan_generator_fns_dict,
+                                       scan_common_substrings_info_dict, consensus_min_len,
                                        first_seq_second_seq_rank_comparisons_dict, first_seq_second_seq_max_ranks_dict,
-                                       first_seq_second_seq_alg_positions_dict, one_percent_number_scans, tol))
+                                       first_seq_second_seq_alg_positions_dict, one_percent_number_consensus_scans, tol))
 
     scan_prediction_dict_list = [scan_prediction_dict
                                  for scan_prediction_dict_list in grand_scan_prediction_dict_list
                                  for scan_prediction_dict in scan_prediction_dict_list]
+    # if scan_prediction_dict
     tol_prediction_df = pd.DataFrame().from_dict(scan_prediction_dict_list)
     tol_prediction_df[tol] = 1
     
     return tol_prediction_df
 
 def make_scan_prediction_dicts(
-    consensus_scan_index, scan_list_for_consensus, rank_encoded_seqs_lists, max_seq_len_lists,
-    consensus_source_df, scan_consensus_info_dict, scan_generator_fns_dict, scan_common_substrings_info_dict,
-    consensus_min_len, highest_level_alg_combo, first_seq_second_seq_rank_comparisons_dict,
-    first_seq_second_seq_max_ranks_dict, first_seq_second_seq_alg_positions_dict, one_percent_number_scans, tol):
+    consensus_scan_index, consensus_scan_list, alg_consensus_source_df_dict, scan_consensus_info_dict, scan_generator_fns_dict, scan_common_substrings_info_dict,
+    consensus_min_len, first_seq_second_seq_rank_comparisons_dict, first_seq_second_seq_max_ranks_dict, first_seq_second_seq_alg_positions_dict,
+    one_percent_number_consensus_scans, tol):
 
-    if int((consensus_scan_index + 1) % one_percent_number_scans) == 0:
-        verbose_print_over_same_line(tol + ' Da progress: ' + str(int(consensus_scan_index / one_percent_number_scans)) + '%')
-
-    consensus_scan = scan_list_for_consensus[consensus_scan_index]
-    scan_rank_encoded_seqs_tuple = rank_encoded_seqs_lists[consensus_scan_index]
-    scan_max_seq_len_tuple = max_seq_len_lists[consensus_scan_index]
+    if int((consensus_scan_index + 1) % one_percent_number_consensus_scans) == 0:
+        verbose_print_over_same_line(tol + ' Da progress: ' + str(int(consensus_scan_index / one_percent_number_consensus_scans)) + '%')
 
     scan_prediction_dict_list = []
-    scan_consensus_source_df = consensus_source_df.xs(consensus_scan)
 
-    for alg in highest_level_alg_combo:
-        scan_prediction_dict_list.append(
-            make_seq_prediction_dict(scan_consensus_source_df, consensus_scan, alg = alg))
+    consensus_scan = consensus_scan_list[consensus_scan_index]
+    scan_alg_consensus_source_df_dict = {}
+    scan_max_seq_len_list = []
+    no_consensus = False
+    for alg in alg_consensus_source_df_dict:
+        scan_alg_consensus_source_df = alg_consensus_source_df_dict[alg].loc[consensus_scan]
+        if len(scan_alg_consensus_source_df) < seqs_reported_per_alg_dict[alg]:
+            return []
+        scan_max_seq_len_list.append(scan_alg_consensus_source_df['encoded seq'].map(len).max())
+        scan_prediction_dict_list.append(make_seq_prediction_dict(consensus_scan, alg_scan_consensus_source_df = alg_scan_consensus_source_df))
+        if scan_max_seq_len_list[-1] == 0:
+            no_consensus = True
+        elif scan_alg_consensus_source_df.at[0, 'encoded seq'] != []:
+            scan_alg_consensus_source_df_dict[alg] = scan_alg_consensus_source_df
+
+    if no_consensus:
+        return scan_alg_consensus_source_df_dict
 
     for combo_level in scan_consensus_info_dict:
         first_seq_second_seq_alg_positions_for_combo_level_dict = first_seq_second_seq_alg_positions_dict[combo_level]
         first_seq_second_seq_max_ranks_for_combo_level_dict = first_seq_second_seq_max_ranks_dict[combo_level]
         first_seq_second_seq_rank_comparisons_for_combo_level_dict = first_seq_second_seq_rank_comparisons_dict[combo_level]
+        scan_generator_fns_for_combo_level_dict = scan_generator_fns_dict[combo_level]
+        scan_consensus_info_for_combo_level_dict = scan_consensus_info_dict[combo_level]
 
-        for alg_combo in scan_consensus_info_dict[combo_level]:
+        for alg_combo in scan_consensus_info_for_combo_level_dict:
             first_seq_second_seq_alg_positions_for_alg_combo_dict = first_seq_second_seq_alg_positions_for_combo_level_dict[alg_combo]
             first_seq_second_seq_max_ranks_for_alg_combo_list = first_seq_second_seq_max_ranks_for_combo_level_dict[alg_combo]
             first_seq_second_seq_rank_comparisons_list = first_seq_second_seq_rank_comparisons_for_combo_level_dict[alg_combo]
+            scan_consensus_info_for_alg_combo_dict = scan_consensus_info_for_combo_level_dict[alg_combo]
 
             scan_common_substrings_info_dict[combo_level][alg_combo] =\
                 OrderedDict().fromkeys(first_seq_second_seq_rank_comparisons_list)
@@ -192,31 +202,16 @@ def make_scan_prediction_dicts(
                 second_seq_alg = alg_combo[1]
                 second_seq_alg_position_in_scan_info_tuples = first_seq_second_seq_alg_positions_for_alg_combo_dict[second_seq_alg][0]
 
-                #rank_first_encoded_seq_pairs = scan_consensus_source_df[: seqs_reported_per_alg_dict[first_seq_alg]][first_seq_alg]['encoded seq'].to_dict().items()
-                #first_encoded_seq_dict = OrderedDict(
-                #    [((rank,), encoded_seq) for rank, encoded_seq in rank_first_encoded_seq_pairs])
-
-                #rank_encoded_seq_list = next(rank_encoded_seqs[first_seq_alg])
-                #first_encoded_seq_dict = OrderedDict(
-                #    [((rank,), encoded_seq) for rank, encoded_seq in enumerate(rank_encoded_seq_list)])
-
-                alg_rank_encoded_seq_list = scan_rank_encoded_seqs_tuple[first_seq_alg_position_in_scan_info_tuples]
+                alg_rank_encoded_seq_list = scan_alg_consensus_source_df_dict[first_seq_alg]['encoded seq']
                 first_encoded_seq_dict = OrderedDict(
                     [((rank,), encoded_seq) for rank, encoded_seq in enumerate(alg_rank_encoded_seq_list)])
 
-                #rank_second_encoded_seq_pairs = scan_consensus_source_df[: seqs_reported_per_alg_dict[second_seq_alg]][second_seq_alg]['encoded seq'].to_dict().items()
-                #second_encoded_seq_dict = OrderedDict(
-                #    [((rank,), encoded_seq) for rank, encoded_seq in rank_second_encoded_seq_pairs])
-
-                #rank_encoded_seq_list = next(rank_encoded_seqs[second_seq_alg])
-                #second_encoded_seq_dict = OrderedDict(
-                #    [((rank,), encoded_seq) for rank, encoded_seq in enumerate(rank_encoded_seq_list)])
-
-                alg_rank_encoded_seq_list = scan_rank_encoded_seqs_tuple[second_seq_alg_position_in_scan_info_tuples]
+                alg_rank_encoded_seq_list = scan_alg_consensus_source_df_dict[second_seq_alg]['encoded seq']
                 second_encoded_seq_dict = OrderedDict(
                     [((rank,), encoded_seq) for rank, encoded_seq in enumerate(alg_rank_encoded_seq_list)])
 
-                max_possible_cs_len = min(scan_max_seq_len_tuple)
+                max_possible_cs_len = min(scan_max_seq_len_list[first_seq_alg_position_in_scan_info_tuples],
+                                          scan_max_seq_len_list[second_seq_alg_position_in_scan_info_tuples])
 
             else:
                 # scan_common_substrings_info_dict[combo_level - 1][some_alg_combo]
@@ -237,13 +232,13 @@ def make_scan_prediction_dicts(
                 pass
 
             seq_comparison_generator = do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensus_min_len)
-            scan_generator_fns_dict[combo_level][alg_combo] = seq_comparison_generator
+            scan_generator_fns_for_combo_level_dict[alg_combo] = seq_comparison_generator
             longest_cs_len = 0
             min_cs_rank_sum = 1000
 
-            longest_cs_dict = scan_consensus_info_dict[combo_level][alg_combo]['longest_cs']
+            longest_cs_dict = scan_consensus_info_for_alg_combo_dict['longest_cs']
             longest_cs_dict = longest_cs_dict.fromkeys(longest_cs_dict, None)
-            top_rank_cs_dict = scan_consensus_info_dict[combo_level][alg_combo]['top_rank_cs']
+            top_rank_cs_dict = scan_consensus_info_for_alg_combo_dict['top_rank_cs']
             top_rank_cs_dict = top_rank_cs_dict.fromkeys(top_rank_cs_dict, None)
 
             for first_seq_cs_start_position, second_seq_cs_start_position, cs_len, first_seq_rank_index, second_seq_rank_index in seq_comparison_generator:
@@ -283,7 +278,7 @@ def make_scan_prediction_dicts(
 
                 if longest_cs_dict['alg_ranks'] == top_rank_cs_dict['alg_ranks']:
                     cs_prediction_dict, longest_cs_dict = make_seq_prediction_dict(
-                        scan_consensus_source_df, consensus_scan, cs_info_dict = longest_cs_dict,
+                        consensus_scan, scan_alg_consensus_source_df_dict, cs_info_dict = longest_cs_dict,
                         cs_type_list = ['longest', 'top rank'], alg_combo = alg_combo,
                         first_seq_second_seq_alg_positions_subdict = first_seq_second_seq_alg_positions_subdict)
                     scan_prediction_dict_list.append(cs_prediction_dict)
@@ -291,11 +286,11 @@ def make_scan_prediction_dicts(
 
                 else:
                     longest_cs_prediction_dict, longest_cs_dict = make_seq_prediction_dict(
-                        scan_consensus_source_df, consensus_scan, cs_info_dict = longest_cs_dict,
+                        consensus_scan, scan_alg_consensus_source_df_dict, cs_info_dict = longest_cs_dict,
                         cs_type_list = ['longest'], alg_combo = alg_combo,
                         first_seq_second_seq_alg_positions_subdict = first_seq_second_seq_alg_positions_subdict)
                     top_rank_cs_prediction_dict, top_rank_cs_dict = make_seq_prediction_dict(
-                        scan_consensus_source_df, consensus_scan, cs_info_dict = top_rank_cs_dict,
+                        consensus_scan, scan_alg_consensus_source_df_dict, cs_info_dict = top_rank_cs_dict,
                         cs_type_list = ['top rank'], alg_combo = alg_combo,
                         first_seq_second_seq_alg_positions_subdict = first_seq_second_seq_alg_positions_subdict)
                     scan_prediction_dict_list.append(longest_cs_prediction_dict)
@@ -303,7 +298,7 @@ def make_scan_prediction_dicts(
 
     return scan_prediction_dict_list
 
-def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info_dict = None, cs_type_list = None, alg_combo = None, first_seq_second_seq_alg_positions_subdict = None):
+def make_seq_prediction_dict(consensus_scan, scan_alg_consensus_source_df_dict = None, alg_scan_consensus_source_df = None, alg = None, cs_info_dict = None, cs_type_list = None, alg_combo = None, first_seq_second_seq_alg_positions_subdict = None):
 
     if cs_info_dict is None:
         prediction_dict = {}.fromkeys(single_alg_prediction_dict_cols['general'])
@@ -313,9 +308,9 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
             elif k == 'is top rank single alg':
                 prediction_dict['is top rank single alg'] = 1
             elif k == 'seq':
-                prediction_dict['seq'] = scan_consensus_source_df.at[0, (alg, 'seq')]
+                prediction_dict['seq'] = alg_scan_consensus_source_df.at[0, 'seq']
             elif k == 'len':
-                prediction_dict['len'] = scan_consensus_source_df.at[0, (alg, 'encoded seq')].size
+                prediction_dict['len'] = alg_scan_consensus_source_df.at[0, 'encoded seq'].size
             elif k == 'avg rank':
                 prediction_dict['avg rank'] = 0
         
@@ -323,11 +318,11 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
         if alg == 'novor':
             for k in alg_prediction_dict:
                 if k == 'retention time':
-                    alg_prediction_dict['retention time'] = scan_consensus_source_df.at[0, (alg, 'retention time')]
+                    alg_prediction_dict['retention time'] = alg_scan_consensus_source_df.at[0, 'retention time']
                 elif k == 'is novor seq':
                     alg_prediction_dict['is novor seq'] = 1
                 elif k == 'avg novor aa score':
-                    alg_prediction_dict['avg novor aa score'] = scan_consensus_source_df.at[0, (alg, 'avg aa score')]
+                    alg_prediction_dict['avg novor aa score'] = alg_scan_consensus_source_df.at[0, 'avg aa score']
         elif alg == 'peaks':
             pass
         elif alg == 'pn':
@@ -335,27 +330,29 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
                 if k == 'is pn seq':
                     alg_prediction_dict['is pn seq'] = 1
                 elif k == 'rank score':
-                    alg_prediction_dict['rank score'] = scan_consensus_source_df.at[0, (alg, 'rank score')]
+                    alg_prediction_dict['rank score'] = alg_scan_consensus_source_df.at[0, 'rank score']
                 elif k == 'pn score':
-                    alg_prediction_dict['pn score'] = scan_consensus_source_df.at[0, (alg, 'pn score')]
+                    alg_prediction_dict['pn score'] = alg_scan_consensus_source_df.at[0, 'pn score']
                 elif k == 'pn rank':
                     alg_prediction_dict['pn rank'] = 0
                 elif k == 'sqs':
-                    alg_prediction_dict['sqs'] = scan_consensus_source_df.at[0, (alg, 'sqs')]
+                    alg_prediction_dict['sqs'] = alg_scan_consensus_source_df.at[0, 'sqs']
         prediction_dict.update(alg_prediction_dict)
 
         return prediction_dict
 
     else:
+        
+        last_alg_consensus_source_df = scan_alg_consensus_source_df_dict[alg_combo[-1]]
         prediction_dict = {}.fromkeys(consensus_prediction_dict_cols['general'])
         selection_seq_start = cs_info_dict['seq_starts'][1]
         selection_seq_end = selection_seq_start + cs_info_dict['consensus_len']
         for k in prediction_dict:
             if k == 'scan':
-                prediction_dict['scan'] = scan
+                prediction_dict['scan'] = consensus_scan
             elif k == 'seq':
-                cs_info_dict['encoded_consensus_seq'] = scan_consensus_source_df.at[cs_info_dict['alg_ranks'][1][0], (alg_combo[-1], 'encoded seq')][selection_seq_start: selection_seq_end]
-                prediction_dict['seq'] = cs_info_dict['consensus_seq'] = scan_consensus_source_df.at[cs_info_dict['alg_ranks'][1][0], (alg_combo[-1], 'seq')][selection_seq_start: selection_seq_end]
+                cs_info_dict['encoded_consensus_seq'] = last_alg_consensus_source_df.at[cs_info_dict['alg_ranks'][1][0], 'encoded seq'][selection_seq_start: selection_seq_end]
+                prediction_dict['seq'] = cs_info_dict['consensus_seq'] = last_alg_consensus_source_df.at[cs_info_dict['alg_ranks'][1][0], 'seq'][selection_seq_start: selection_seq_end]
             elif k == 'len':
                 prediction_dict['len'] = cs_info_dict['consensus_len']
             elif k == 'avg rank':
@@ -375,49 +372,60 @@ def make_seq_prediction_dict(scan_consensus_source_df, scan, alg = None, cs_info
             alg_rank = cs_info_dict['alg_ranks'][first_seq_second_seq_alg_positions_subdict[alg][0]][first_seq_second_seq_alg_positions_subdict[alg][1]]
             alg_prediction_dict = {}.fromkeys(consensus_prediction_dict_cols[alg])
             if alg == 'novor':
+                novor_consensus_source_df = scan_alg_consensus_source_df_dict['novor']
                 for k in alg_prediction_dict:
                     if k == 'retention time':
-                        alg_prediction_dict['retention time'] = scan_consensus_source_df.at[alg_rank, (alg, 'retention time')]
+                        alg_prediction_dict['retention time'] = novor_consensus_source_df.at[alg_rank, 'retention time']
                     elif k == 'is novor seq':
                         alg_prediction_dict['is novor seq'] = 1
                     elif k == 'fraction novor parent len':
-                        alg_prediction_dict['fraction novor parent len'] = cs_info_dict['consensus_len'] / scan_consensus_source_df.at[alg_rank, (alg, 'encoded seq')].size
+                        alg_prediction_dict['fraction novor parent len'] = cs_info_dict['consensus_len'] / novor_consensus_source_df.at[alg_rank, 'encoded seq'].size
                     elif k == 'avg novor aa score':
-                        alg_prediction_dict['avg novor aa score'] = sum(scan_consensus_source_df.at[alg_rank, (alg, 'aa score')][selection_seq_start: selection_seq_end]) / cs_info_dict['consensus_len']
+                        alg_prediction_dict['avg novor aa score'] = sum(novor_consensus_source_df.at[alg_rank, 'aa score'][selection_seq_start: selection_seq_end]) / cs_info_dict['consensus_len']
             elif alg == 'peaks':
                 pass
             elif alg == 'pn':
+                pn_consensus_source_df = scan_alg_consensus_source_df_dict['pn']
                 for k in alg_prediction_dict:
                     if k == 'is pn seq':
                         alg_prediction_dict['is pn seq'] = 1
                     elif k == 'fraction pn parent len':
-                        alg_prediction_dict['fraction pn parent len'] = cs_info_dict['consensus_len'] / scan_consensus_source_df.at[alg_rank, (alg, 'encoded seq')].size
+                        alg_prediction_dict['fraction pn parent len'] = cs_info_dict['consensus_len'] / pn_consensus_source_df.at[alg_rank, 'encoded seq'].size
                     elif k == 'rank score':
-                        alg_prediction_dict['rank score'] = scan_consensus_source_df.at[alg_rank, (alg, 'rank score')]
+                        alg_prediction_dict['rank score'] = pn_consensus_source_df.at[alg_rank, 'rank score']
                     elif k == 'pn score':
-                        alg_prediction_dict['pn score'] = scan_consensus_source_df.at[alg_rank, (alg, 'pn score')]
+                        alg_prediction_dict['pn score'] = pn_consensus_source_df.at[alg_rank, 'pn score']
                     elif k == 'pn rank':
                         alg_prediction_dict['pn rank'] = alg_rank
                     elif k == 'sqs':
-                        alg_prediction_dict['sqs'] = scan_consensus_source_df.at[alg_rank, (alg, 'sqs')]
+                        alg_prediction_dict['sqs'] = pn_consensus_source_df.at[alg_rank, 'sqs']
             prediction_dict.update(alg_prediction_dict)
 
         return prediction_dict, cs_info_dict
 
     return
 
-def setup_consensus_source_df(highest_level_alg_combo, alg_df_dict):
+def make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict):
 
-    alg = highest_level_alg_combo[0]
-    consensus_source_df = alg_df_dict[alg][prediction_dict_source_cols[alg]]
-    consensus_source_df.columns = [[alg] * len(prediction_dict_source_cols[alg]),
-                                   consensus_source_df.columns]
+    alg_consensus_source_df_dict = {}.fromkeys(highest_level_alg_combo)
+    for alg in alg_consensus_source_df_dict:
+        alg_consensus_source_df_dict[alg] = alg_df_dict[alg][prediction_dict_source_cols[alg]]
 
+    consensus_scan_list = alg_consensus_source_df_dict[highest_level_alg_combo[0]].index.get_level_values('scan')
     for alg in highest_level_alg_combo[1:]:
-        right_join_df = alg_df_dict[alg][prediction_dict_source_cols[alg]]
-        right_join_df.columns = [[alg] * len(prediction_dict_source_cols[alg]),
-                                 right_join_df.columns]
-        consensus_source_df = consensus_source_df.join(right_join_df, how = 'outer')
+        consensus_scan_list = consensus_scan_list.intersection(alg_consensus_source_df_dict[alg].index.get_level_values('scan'))
+    consensus_scan_list = list(set(consensus_scan_list))
+
+    #alg = highest_level_alg_combo[0]
+    #consensus_source_df = alg_df_dict[alg][prediction_dict_source_cols[alg]]
+    #consensus_source_df.columns = [[alg] * len(prediction_dict_source_cols[alg]),
+    #                               consensus_source_df.columns]
+
+    #for alg in highest_level_alg_combo[1:]:
+    #    right_join_df = alg_df_dict[alg][prediction_dict_source_cols[alg]]
+    #    right_join_df.columns = [[alg] * len(prediction_dict_source_cols[alg]),
+    #                             right_join_df.columns]
+    #    consensus_source_df = consensus_source_df.join(right_join_df, how = 'outer')
 
     #for alg in highest_level_alg_combo:
     #    seqs_reported_per_alg = seqs_reported_per_alg_dict[alg]
@@ -428,9 +436,9 @@ def setup_consensus_source_df(highest_level_alg_combo, alg_df_dict):
     #    consensus_source_df.set_index(
     #        pd.MultiIndex.from_tuples(consensus_source_df.index.values, names = ['scan', 'rank']), inplace = True)
 
-    return consensus_source_df
+    return alg_consensus_source_df_dict, consensus_scan_list
 
-def setup_scan_info_dicts(full_alg_combo_list, consensus_source_df, combo_level_alg_dict):
+def setup_scan_info_dicts(full_alg_combo_list, combo_level_alg_dict):
 
     scan_consensus_info_dict = OrderedDict().fromkeys(combo_level_alg_dict)
     scan_generator_fns_dict = OrderedDict().fromkeys(combo_level_alg_dict)
@@ -649,8 +657,6 @@ def encode_seqs(df, consensus_min_len):
     map_ord = partial(map, ord)
     df['encoded seq'] = df['encoded seq'].apply(map_ord).apply(list)
     df['encoded seq'] = df['encoded seq'].apply(np.array).apply(lambda x: x - unicode_decimal_A)
-
-    return df
 
 def get_combo_level_data(alg_df_dict):
 
