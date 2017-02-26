@@ -13,6 +13,7 @@ import datetime
 import warnings
 warnings.filterwarnings('ignore')
 import os
+import os.path
 
 from utils import (save_pkl_objects, load_pkl_objects,
                    save_json_objects, load_json_objects,
@@ -61,26 +62,45 @@ def classify(ref_file, cores, alg_list, min_prob, prediction_df = None):
 
     elif run_type[0] in ['predict', 'test']:
         
-        make_predictions(prediction_df, alg_list, cores, min_prob)
+        reported_prediction_df = make_predictions(prediction_df, alg_list, cores, min_prob)
+        reported_prediction_df.to_csv(os.path.join(output_dir, 'best_predictions.csv'))
 
 def make_predictions(prediction_df, alg_list, cores, min_prob):
 
     forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
 
+    prediction_df['probability'] = np.nan
     alg_group_multiindex_keys = list(product((0, 1), repeat = len(alg_list)))[1:]
     for multiindex_key in alg_group_multiindex_keys:
         alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
 
         alg_group_data = prediction_df.xs(multiindex_key)
         accuracy_labels = alg_group_data['ref match'].tolist()
-        alg_group_data.drop(['seq', 'ref match'], axis = 1, inplace = True)
+        alg_group_data.drop(['seq', 'ref match', 'probability'], axis = 1, inplace = True)
         alg_group_data.dropna(1, inplace = True)
         forest_dict[alg_group].n_jobs = cores
         probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
 
-        if run_type[0] == 'test':
-            plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
-            plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+        #if run_type[0] == 'test':
+        #    verbose_print('making', '_'.join(alg_group), 'test plots')
+        #    plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+        #    plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+
+        prediction_df.loc[multiindex_key, 'probability'] = probabilities
+
+    max_probabilities = prediction_df.groupby(prediction_df.index.get_level_values('scan'))['probability'].transform(max)
+    best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
+    reported_prediction_df = best_prediction_df[best_prediction_df['probability'] >= min_prob]
+    reported_prediction_df.reset_index(inplace = True)
+    reported_prediction_df.set_index('scan', inplace = True)
+    
+    reported_cols_in_order = []
+    for reported_df_col in reported_df_cols:
+        if reported_df_col in reported_prediction_df.columns:
+            reported_cols_in_order.append(reported_df_col)
+    reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
+
+    return reported_prediction_df
 
 def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
 

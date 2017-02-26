@@ -15,6 +15,7 @@ postnovo_par_dir = dirname(dirname(realpath(__file__)))
 test_dir = join(postnovo_par_dir, 'test')
 training_dir = join(postnovo_par_dir, 'training')
 user_files_dir = join(postnovo_par_dir, 'userfiles')
+output_dir = join(postnovo_par_dir, 'output')
 
 # program constraints
 accepted_algs = ['novor', 'peaks', 'pn']
@@ -75,3 +76,13 @@ features_ordered_by_importance = ['rank score', 'pn score', 'avg novor aa score'
 
 # reference matching
 seq_matching_multiprocessing_splits = 300
+
+# report
+reported_df_cols = ['seq', 'probability', 'ref match',
+                    'is novor seq', 'is peaks seq', 'is pn seq',
+                    '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
+                    'avg novor aa score', 'rank score', 'pn score',
+                    'avg rank', 'peaks rank', 'pn rank',
+                    'len', 'fraction novor parent len', 'fraction peaks parent len', 'fraction pn parent len',
+                    'is longest consensus', 'is top rank consensus', 'is top rank single alg',
+                    'sqs', 'retention time']
