@@ -574,10 +574,8 @@ def find_target_accuracy(prediction_df, ref_file, cores):
     ref = load_ref(ref_file)
     verbose_print('finding sequence matches to reffile')
 
-    cores = 1
-
     seq_set_list = list(set(prediction_df['seq']))
-    one_percent_number_seqs = len(seq_set_list) / cores / 100
+    one_percent_number_seqs = len(seq_set_list) / 100 / cores
 
     multiprocessing_pool = Pool(cores)
     single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs)
@@ -594,10 +592,13 @@ def find_target_accuracy(prediction_df, ref_file, cores):
 
 def match_seq_to_ref(query_seq, ref, one_percent_number_seqs):
 
-    global seq_matching_count
-    seq_matching_count += 1
-    if int(seq_matching_count % one_percent_number_seqs) == 0:
-        verbose_print_over_same_line('reference sequence matching progress: ' + str(int(seq_matching_count / one_percent_number_seqs)) + '%')
+    if current_process()._identity[0] % cores == 1:
+        global seq_matching_count
+        seq_matching_count += 1
+        if int(seq_matching_count % one_percent_number_seqs) == 0:
+            verbose_print_over_same_line('reference sequence matching progress: ' + str(int(seq_matching_count / one_percent_number_seqs)) + '%')
+
+    query_seq = seq_set_list[seq_index]
 
     for target_seq in ref:
         if query_seq in target_seq:
