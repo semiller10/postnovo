@@ -7,7 +7,7 @@ from itertools import product
 
 
 # run level settings: predict (default), train, test, optimize
-run_type = ['test']
+run_type = ['optimize']
 default_min_prob = 0.5
 
 # directories

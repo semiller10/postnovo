@@ -253,3 +253,5 @@ ModelManifest.xml
 /postnovo/novor_feature_importances.png
 /postnovo/novor_error.png
 *.json
+/postnovo/ppt_figs
+*.pdf
