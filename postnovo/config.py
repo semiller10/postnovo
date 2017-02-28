@@ -40,12 +40,12 @@ pn_dropped_chars = {ord(char): None for char in
                        ''.join([str(i) for i in range(10)] + ['+', '-', '.'])}
 
 # training constants
-train_consensus_len = 6
+train_consensus_len = 9
 
 n_estimators = 150
 default_optimized_params = {alg_combo: {'max_depth': 15, 'max_features': 'sqrt'} for alg_combo in possible_alg_combos}
 
-subsample_size = 10000
+subsample_size = 20000
 accuracy_divisor = 10
 accuracy_distribution_lower_bound = 0
 accuracy_distribution_upper_bound = 3

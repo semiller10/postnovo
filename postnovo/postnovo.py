@@ -12,7 +12,7 @@ from config import (test_dir, user_files_dir,
                     default_min_prob)
 from utils import (save_pkl_objects, load_pkl_objects,
                    save_json_objects, load_json_objects,
-                   verbose)
+                   verbose_print)
 
 from os.path import join, exists
 from multiprocessing import cpu_count
@@ -25,7 +25,19 @@ def main(argv):
     #save_json_objects(test_dir, **{'user_args': user_args})
     user_args, = load_json_objects(test_dir, 'user_args')
 
-    #alg_list, alg_df_name_dict, tol_df_name_dict, alg_tol_dict = input.load_files(user_args)
+    alg_list, alg_df_name_dict, tol_df_name_dict, alg_tol_dict = input.load_files(user_args)
+
+    save_pkl_objects(test_dir, **{'alg_df_name_dict': alg_df_name_dict,
+                                  'tol_df_name_dict': tol_df_name_dict,
+                                  'alg_tol_dict': alg_tol_dict,
+                                  'alg_list': alg_list})
+    #save_pkl_objects(test_dir, **{'alg_list_test': alg_list})
+    #alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
+    #    load_pkl_objects(test_dir, 'alg_df_name_dict',
+    #                     'tol_df_name_dict',
+    #                     'alg_tol_dict',
+    #                     'alg_list')
+    #alg_list, = load_pkl_objects(test_dir, 'alg_list')
 
     ## Object schema:
     ## alg_df_name_dict = odict('novor': novor input df, 'pn': pn input df)
@@ -33,28 +45,16 @@ def main(argv):
     ##alg_tol_dict = odict('novor': odict('0.4': 'proteome-0.4.novor.csv', '0.5': 'proteome-0.5.novor.csv'),
     ##                     'pn': odict('0.4': 'proteome-0.4.mgf.out', '0.5': 'proteome-0.5.mgf.out'))
 
-    #save_pkl_objects(test_dir, **{'alg_df_name_dict': alg_df_name_dict,
-    #                              'tol_df_name_dict': tol_df_name_dict,
-    #                              'alg_tol_dict': alg_tol_dict,
-    #                              'alg_list': alg_list})
-    #save_pkl_objects(test_dir, **{'alg_list_test': alg_list})
-    alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
-        load_pkl_objects(test_dir, 'alg_df_name_dict',
-                         'tol_df_name_dict',
-                         'alg_tol_dict',
-                         'alg_list')
-    #alg_list, = load_pkl_objects(test_dir, 'alg_list')
-
     prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict,
                                                  user_args['min_len'], user_args['cores'], alg_list)
 
-    #save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
-    prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
+    save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
+    #prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
-    classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, user_args['min_prob'], prediction_df)
-    #classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, user_args['min_prob'])
+    classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, min_prob = user_args['min_prob'], prediction_df = prediction_df)
+    #classifier.classify(user_args['ref_file'], user_args['cores'], alg_list)
 
-    print('total time elapsed: ' + str(time.time() - start_time))
+    verbose_print('total time elapsed:', time.time() - start_time)
 
 def parse_user_args(argv):
     ''' Return command line args as dict '''
@@ -243,6 +243,14 @@ def parse_user_args(argv):
         if 'ref_file' not in user_args:
             print('Training requires a protein reffile')
             sys.exit(1)
+
+    if 'novor_files' not in user_args:
+        print('Novor input is required')
+        sys.exit(1)
+
+    if 'pn_files' not in user_args:
+        print('PepNovo+ input is required')
+        sys.exit(1)
 
     if user_args['min_len'] < train_consensus_len:
         print('Sequences shorter than length ' + str(train_consensus_len) + ' are not supported')

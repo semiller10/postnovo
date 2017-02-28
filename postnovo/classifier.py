@@ -35,25 +35,26 @@ from scipy.stats import norm
 
 seq_matching_count = 0
 
-def classify(ref_file, cores, alg_list, min_prob, prediction_df = None):
+def classify(ref_file, cores, alg_list, min_prob = default_min_prob, prediction_df = None):
     verbose_print()
 
-    #if run_type[0] in ['train', 'test', 'optimize']:
-    #    prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
+    if run_type[0] in ['train', 'test', 'optimize']:
+        prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
 
-    #verbose_print('formatting data for compatability with model')
-    #prediction_df = standardize_prediction_df_cols(prediction_df)
-    #save_pkl_objects(test_dir, **{'prediction_df': prediction_df})
-    prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
+    verbose_print('formatting data for compatability with model')
+    prediction_df = standardize_prediction_df_cols(prediction_df)
+    save_pkl_objects(test_dir, **{'prediction_df': prediction_df})
+    #prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
 
     if run_type[0] in ['train', 'optimize']:
         
-        subsampled_df = subsample_training_data(prediction_df, alg_list, cores)
-        save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
+        #subsampled_df = subsample_training_data(prediction_df, alg_list, cores)
+        #save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
         #subsampled_df, = load_pkl_objects(test_dir, 'subsampled_df')
 
         verbose_print('updating training database')
-        training_df = update_training_data(subsampled_df)
+        ### CHANGED ### !!!!!!!
+        training_df = update_training_data(prediction_df)
         #training_df, = load_pkl_objects(training_dir, 'training_df')
 
         forest_dict = make_training_forests(training_df, alg_list, cores)
@@ -81,10 +82,10 @@ def make_predictions(prediction_df, alg_list, cores, min_prob):
         forest_dict[alg_group].n_jobs = cores
         probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
 
-        #if run_type[0] == 'test':
-        #    verbose_print('making', '_'.join(alg_group), 'test plots')
-        #    plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
-        #    plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+        if run_type[0] == 'test':
+            verbose_print('making', '_'.join(alg_group), 'test plots')
+            plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+            plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
 
         prediction_df.loc[multiindex_key, 'probability'] = probabilities
 
@@ -128,8 +129,8 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
     annotation_y = true_positive_rate[len(true_positive_rate) // 2]
     plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
                  xy = (annotation_x, annotation_y),
-                 xycoords='data',
-                 xytext = (annotation_x + 50, annotation_y + 50),
+                 xycoords = 'data',
+                 xytext = (annotation_x + 25, annotation_y + 25),
                  textcoords = 'offset pixels',
                  arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
                  horizontalalignment = 'right', verticalalignment = 'bottom',
@@ -142,10 +143,10 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
         annotation_x = alg_recall[len(alg_recall) // 2]
         annotation_y = alg_tpr[len(alg_tpr) // 2]
         colorline(alg_recall, alg_tpr, alg_thresh)
-        plt.annotate(alg + '\narea = ' + str(round(alg_auc_dict[alg], 2)),
+        plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
                      xy = (annotation_x, annotation_y),
-                     xycoords='data',
-                     xytext = (annotation_x - 50, annotation_y - 50),
+                     xycoords = 'data',
+                     xytext = (annotation_x - 25, annotation_y - 25),
                      textcoords = 'offset pixels',
                      arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
                      horizontalalignment = 'right', verticalalignment = 'top',
@@ -161,7 +162,7 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
     plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
     plt.tight_layout(True)
 
-    save_path = join(test_dir, '_'.join(alg_group) + '_precision_recall.png')
+    save_path = join(test_dir, '_'.join(alg_group) + '_precision_recall.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 
@@ -189,10 +190,10 @@ def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
     plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
     annotation_x = false_positive_rate[len(false_positive_rate) // 2]
     annotation_y = true_positive_rate[len(true_positive_rate) // 2]
-    plt.annotate('random forest: auc = ' + str(round(model_auc, 2)),
+    plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
                  xy = (annotation_x, annotation_y),
                  xycoords='data',
-                 xytext = (annotation_x + 125, annotation_y - 125),
+                 xytext = (annotation_x + 50, annotation_y - 50),
                  textcoords = 'offset pixels',
                  arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
                  horizontalalignment = 'left', verticalalignment = 'top',
@@ -205,10 +206,10 @@ def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
         annotation_x = alg_fpr[len(alg_fpr) // 2]
         annotation_y = alg_tpr[len(alg_tpr) // 2]
         colorline(alg_fpr, alg_tpr, alg_thresh)
-        plt.annotate(alg + ': auc = ' + str(round(alg_auc_dict[alg], 2)),
+        plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
                      xy = (annotation_x, annotation_y),
                      xycoords='data',
-                     xytext = (annotation_x + 75, annotation_y - 75),
+                     xytext = (annotation_x + 50, annotation_y - 50),
                      textcoords = 'offset pixels',
                      arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
                      horizontalalignment = 'left', verticalalignment = 'top',
@@ -226,7 +227,7 @@ def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
     plt.ylabel('true positive rate = ' + r'$\frac{T_p}{T_p + F_n}$')
     plt.tight_layout(True)
 
-    save_path = join(test_dir, '_'.join(alg_group) + '_roc.png')
+    save_path = join(test_dir, '_'.join(alg_group) + '_roc.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth = 3, alpha = 1.0):
@@ -366,8 +367,8 @@ def subsample_training_data(prediction_df_orig, alg_list, cores):
     subsampled_df = prediction_df_orig.loc[sorted(subsample_row_indices)]
     retained_multiindices = subsampled_df.index.names[:-1]
     subsampled_df.reset_index(inplace = True)
-    subsampled_df.set_index(retained_multiindices, inplace = True)
     subsampled_df.drop('unique index', axis = 1, inplace = True)
+    subsampled_df.set_index(retained_multiindices, inplace = True)
 
     return subsampled_df
 
@@ -411,9 +412,9 @@ def make_training_forests(training_df, alg_list, cores):
 
     train_target_arr_dict = make_train_target_arr_dict(training_df, alg_list)
     
-    if run_type == 'train':
+    if run_type[0] == 'train':
         forest_dict = make_forest_dict(train_target_arr_dict, cores = cores)
-    elif run_type == 'optimize':
+    elif run_type[0] == 'optimize':
         verbose_print('optimizing random forest parameters')
         optimized_params = optimize_model(train_target_arr_dict, cores)
         forest_dict = make_forest_dict(train_target_arr_dict, optimized_params, cores)
@@ -434,7 +435,9 @@ def optimize_model(train_target_arr_dict, cores):
         forest_grid.fit(data_train_split, target_train_split)
         optimized_forest = forest_grid.best_estimator_
         optimized_params[alg_key]['max_depth'] = optimized_forest.max_depth
+        verbose_print(alg_key, 'optimized max depth:', optimized_forest.max_depth)
         optimized_params[alg_key]['max_features'] = optimized_forest.max_features
+        verbose_print(alg_key, 'optimized max features:', optimized_forest.max_features)
 
         plot_feature_importances(optimized_forest, alg_key, train_target_arr_dict[alg_key]['feature_names'])
         plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key, cores)
@@ -463,7 +466,7 @@ def plot_feature_importances(forest, alg_key, feature_names):
     fig.set_tight_layout(True)
 
     alg_key_str = '_'.join(alg_key)
-    save_path = join(test_dir, alg_key_str + '_feature_importances.png')
+    save_path = join(test_dir, alg_key_str + '_feature_importances.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 def plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key, cores):
@@ -510,7 +513,7 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
     fig.set_tight_layout(True)
 
     alg_key_str = '_'.join(alg_key)
-    save_path = join(test_dir, alg_key_str + '_error.png')
+    save_path = join(test_dir, alg_key_str + '_error.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 def make_forest_dict(train_target_arr_dict, optimized_params = default_optimized_params, cores = 1):
@@ -578,27 +581,27 @@ def find_target_accuracy(prediction_df, ref_file, cores):
     one_percent_number_seqs = len(seq_set_list) / 100 / cores
 
     multiprocessing_pool = Pool(cores)
-    single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs)
+    single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs, cores = cores)
     seq_set_matches = multiprocessing_pool.map(single_var_match_seq, seq_set_list)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
     seq_match_dict = dict(zip(seq_set_list, seq_set_matches))
     single_var_get_match_from_dict = partial(get_match_from_dict, seq_match_dict = seq_match_dict)
-    prediction_df['seq match'] = prediction_df['seq'].apply(single_var_get_match_from_dict)
+    prediction_df['ref match'] = prediction_df['seq'].apply(single_var_get_match_from_dict)
 
     verbose_print()
     return prediction_df
 
-def match_seq_to_ref(query_seq, ref, one_percent_number_seqs):
+def match_seq_to_ref(query_seq, ref, one_percent_number_seqs, cores):
 
     if current_process()._identity[0] % cores == 1:
         global seq_matching_count
         seq_matching_count += 1
         if int(seq_matching_count % one_percent_number_seqs) == 0:
-            verbose_print_over_same_line('reference sequence matching progress: ' + str(int(seq_matching_count / one_percent_number_seqs)) + '%')
-
-    query_seq = seq_set_list[seq_index]
+            percent_complete = int(seq_matching_count / one_percent_number_seqs)
+            if percent_complete <= 100:
+                verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
 
     for target_seq in ref:
         if query_seq in target_seq:
