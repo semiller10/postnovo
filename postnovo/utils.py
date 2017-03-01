@@ -4,12 +4,10 @@ import pickle as pkl
 import json
 import sys
 
-from config import test_dir
+from config import test_dir, _verbose
 
 from os.path import realpath, dirname, join
 from collections import OrderedDict
-
-verbose = [True]
 
 def save_pkl_objects(dir, **kwargs):
     for obj_name, obj in kwargs.items():
@@ -46,12 +44,12 @@ def invert_dict_of_lists(d):
     return invert_d
 
 def verbose_print(*args):
-    if verbose[0]:
+    if _verbose[0]:
         for arg in args:
             print(arg, end = ' ')
         print()
 
 def verbose_print_over_same_line(output_str):
-    if verbose[0]:
+    if _verbose[0]:
         sys.stdout.write(output_str + '\r')
         sys.stdout.flush()

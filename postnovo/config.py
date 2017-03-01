@@ -5,10 +5,13 @@ import numpy as np
 from os.path import join, dirname, realpath
 from itertools import product
 
-
+# universal settings
 # run level settings: predict (default), train, test, optimize
-run_type = ['optimize']
-default_min_prob = 0.5
+_run_type = ['predict']
+_verbose = [True]
+_min_prob = [0.5]
+_min_len = [6]
+_cores = [1]
 
 # directories
 postnovo_par_dir = dirname(dirname(realpath(__file__)))
@@ -40,7 +43,7 @@ pn_dropped_chars = {ord(char): None for char in
                        ''.join([str(i) for i in range(10)] + ['+', '-', '.'])}
 
 # training constants
-train_consensus_len = 9
+train_consensus_len = 6
 
 n_estimators = 150
 default_optimized_params = {alg_combo: {'max_depth': 15, 'max_features': 'sqrt'} for alg_combo in possible_alg_combos}

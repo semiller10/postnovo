@@ -35,20 +35,20 @@ from scipy.stats import norm
 
 seq_matching_count = 0
 
-def classify(ref_file, cores, alg_list, min_prob = default_min_prob, prediction_df = None):
+def classify(ref_file, alg_list, prediction_df = None):
     verbose_print()
 
-    if run_type[0] in ['train', 'test', 'optimize']:
-        prediction_df = find_target_accuracy(prediction_df, ref_file, cores)
+    if _run_type[0] in ['train', 'test', 'optimize']:
+        prediction_df = find_target_accuracy(prediction_df, ref_file)
 
     verbose_print('formatting data for compatability with model')
     prediction_df = standardize_prediction_df_cols(prediction_df)
     save_pkl_objects(test_dir, **{'prediction_df': prediction_df})
     #prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
 
-    if run_type[0] in ['train', 'optimize']:
+    if _run_type[0] in ['train', 'optimize']:
         
-        subsampled_df = subsample_training_data(prediction_df, alg_list, cores)
+        subsampled_df = subsample_training_data(prediction_df, alg_list)
         save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
         #subsampled_df, = load_pkl_objects(test_dir, 'subsampled_df')
 
@@ -56,16 +56,16 @@ def classify(ref_file, cores, alg_list, min_prob = default_min_prob, prediction_
         training_df = update_training_data(subsampled_df)
         #training_df, = load_pkl_objects(training_dir, 'training_df')
 
-        forest_dict = make_training_forests(training_df, alg_list, cores)
+        forest_dict = make_training_forests(training_df, alg_list)
         save_pkl_objects(training_dir, **{'forest_dict': forest_dict})
         #forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
 
-    elif run_type[0] in ['predict', 'test']:
+    elif _run_type[0] in ['predict', 'test']:
         
-        reported_prediction_df = make_predictions(prediction_df, alg_list, cores, min_prob)
+        reported_prediction_df = make_predictions(prediction_df, alg_list)
         reported_prediction_df.to_csv(os.path.join(output_dir, 'best_predictions.csv'))
 
-def make_predictions(prediction_df, alg_list, cores, min_prob):
+def make_predictions(prediction_df, alg_list):
 
     forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
 
@@ -78,22 +78,22 @@ def make_predictions(prediction_df, alg_list, cores, min_prob):
         accuracy_labels = alg_group_data['ref match'].tolist()
         alg_group_data.drop(['seq', 'ref match', 'probability'], axis = 1, inplace = True)
         alg_group_data.dropna(1, inplace = True)
-        forest_dict[alg_group].n_jobs = cores
+        forest_dict[alg_group].n_jobs = _cores[0]
         probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
 
-        if run_type[0] == 'test':
+        if _run_type[0] == 'test':
             verbose_print('making', '_'.join(alg_group), 'test plots')
-            #plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+            plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
             plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
 
         prediction_df.loc[multiindex_key, 'probability'] = probabilities
 
-    #if run_type[0] == 'test':
-    #    plot_precision_yield(alg_group_multiindex_keys, prediction_df, alg_list)
+    if _run_type[0] == 'test':
+        plot_precision_yield(alg_group_multiindex_keys, prediction_df, alg_list)
 
     max_probabilities = prediction_df.groupby(prediction_df.index.get_level_values('scan'))['probability'].transform(max)
     best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
-    reported_prediction_df = best_prediction_df[best_prediction_df['probability'] >= min_prob]
+    reported_prediction_df = best_prediction_df[best_prediction_df['probability'] >= _min_prob[0]]
     reported_prediction_df.reset_index(inplace = True)
     reported_prediction_df.set_index('scan', inplace = True)
     
@@ -348,7 +348,7 @@ def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth =
     ax.add_collection(line_collection)
     return line_collection
 
-def subsample_training_data(prediction_df_orig, alg_list, cores):
+def subsample_training_data(prediction_df_orig, alg_list):
 
     subsample_row_indices = []
     train_target_arr_dict = list(product((0, 1), repeat = len(alg_list)))[1:]
@@ -514,20 +514,20 @@ def update_training_data(prediction_df):
 
     return training_df
 
-def make_training_forests(training_df, alg_list, cores):
+def make_training_forests(training_df, alg_list):
 
     train_target_arr_dict = make_train_target_arr_dict(training_df, alg_list)
     
-    if run_type[0] == 'train':
-        forest_dict = make_forest_dict(train_target_arr_dict, cores = cores)
-    elif run_type[0] == 'optimize':
+    if _run_type[0] == 'train':
+        forest_dict = make_forest_dict(train_target_arr_dict)
+    elif _run_type[0] == 'optimize':
         verbose_print('optimizing random forest parameters')
-        optimized_params = optimize_model(train_target_arr_dict, cores)
-        forest_dict = make_forest_dict(train_target_arr_dict, optimized_params, cores)
+        optimized_params = optimize_model(train_target_arr_dict)
+        forest_dict = make_forest_dict(train_target_arr_dict, optimized_params)
 
     return forest_dict
 
-def optimize_model(train_target_arr_dict, cores):
+def optimize_model(train_target_arr_dict):
 
     optimized_params = {}
     for alg_key in train_target_arr_dict:
@@ -537,7 +537,7 @@ def optimize_model(train_target_arr_dict, cores):
             train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
         forest_grid = GridSearchCV(RandomForestClassifier(n_estimators = 150, oob_score = True),
                               {'max_features': ['sqrt', None], 'max_depth': [depth for depth in range(11, 20)]},
-                              n_jobs = cores)
+                              n_jobs = _cores[0])
         forest_grid.fit(data_train_split, target_train_split)
         optimized_forest = forest_grid.best_estimator_
         optimized_params[alg_key]['max_depth'] = optimized_forest.max_depth
@@ -546,7 +546,7 @@ def optimize_model(train_target_arr_dict, cores):
         verbose_print(alg_key, 'optimized max features:', optimized_forest.max_features)
 
         plot_feature_importances(optimized_forest, alg_key, train_target_arr_dict[alg_key]['feature_names'])
-        plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key, cores)
+        plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key)
 
     return optimized_params
 
@@ -575,7 +575,7 @@ def plot_feature_importances(forest, alg_key, feature_names):
     save_path = join(test_dir, alg_key_str + '_feature_importances.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
-def plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key, cores):
+def plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key):
     if len(alg_key) > 1:
         verbose_print('plotting errors vs tree size for', '-'.join(alg_key), 'consensus sequences')
     else:
@@ -583,9 +583,9 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
 
     ensemble_clfs = [
         ('max_features=\'sqrt\'',
-         RandomForestClassifier(warm_start = True, max_features = 'sqrt', oob_score = True, max_depth = 15, n_jobs = cores, random_state = 1)),
+         RandomForestClassifier(warm_start = True, max_features = 'sqrt', oob_score = True, max_depth = 15, n_jobs = _cores[0], random_state = 1)),
         ('max_features=None',
-         RandomForestClassifier(warm_start = True, max_features = None, oob_score = True, max_depth = 15, n_jobs = cores, random_state = 1))
+         RandomForestClassifier(warm_start = True, max_features = None, oob_score = True, max_depth = 15, n_jobs = _cores[0], random_state = 1))
     ]
 
     oob_errors = OrderedDict((label, []) for label, _ in ensemble_clfs)
@@ -622,7 +622,7 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
     save_path = join(test_dir, alg_key_str + '_error.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
-def make_forest_dict(train_target_arr_dict, optimized_params = default_optimized_params, cores = 1):
+def make_forest_dict(train_target_arr_dict, optimized_params = default_optimized_params):
 
     forest_dict = {}.fromkeys(train_target_arr_dict)
     for alg_key in forest_dict:
@@ -637,7 +637,7 @@ def make_forest_dict(train_target_arr_dict, optimized_params = default_optimized
                                         max_depth = optimized_params[alg_key]['max_depth'],
                                         max_features = optimized_params[alg_key]['max_features'],
                                         oob_score = True,
-                                        n_jobs = cores)
+                                        n_jobs = _cores[0])
         forest.fit(train_data, target_data)
         forest_dict[alg_key] = forest
 
@@ -678,16 +678,16 @@ def make_train_target_arr_dict(training_df, alg_list):
 
     return train_target_arr_dict
 
-def find_target_accuracy(prediction_df, ref_file, cores):
+def find_target_accuracy(prediction_df, ref_file):
     verbose_print('loading', basename(ref_file))
     ref = load_ref(ref_file)
     verbose_print('finding sequence matches to reffile')
 
     seq_set_list = list(set(prediction_df['seq']))
-    one_percent_number_seqs = len(seq_set_list) / 100 / cores
+    one_percent_number_seqs = len(seq_set_list) / 100 / _cores[0]
 
-    multiprocessing_pool = Pool(cores)
-    single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs, cores = cores)
+    multiprocessing_pool = Pool(_cores[0])
+    single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs, cores = _cores[0])
     seq_set_matches = multiprocessing_pool.map(single_var_match_seq, seq_set_list)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
