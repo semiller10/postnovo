@@ -17,8 +17,8 @@ def main(argv):
     start_time = time.time()
 
     #user_args = parse_user_args(argv)
-    #save_json_objects(_test_dir, **{'user_args': user_args})
-    user_args, = load_json_objects(_test_dir, 'user_args')
+    #save_json_objects(test_dir, **{'user_args': user_args})
+    user_args, = load_json_objects(test_dir, 'user_args')
 
     set_global_vars(user_args)
 
@@ -26,13 +26,13 @@ def main(argv):
     ## example:
     ## alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
 
-    save_pkl_objects(_test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
-    #alg_basename_dfs_dict = load_pkl_objects(_test_dir, 'alg_basename_dfs_dict')
+    save_pkl_objects(test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
+    #alg_basename_dfs_dict = load_pkl_objects(test_dir, 'alg_basename_dfs_dict')
 
     prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
 
-    save_pkl_objects(_test_dir, **{'consensus_prediction_df': prediction_df})
-    #prediction_df, = load_pkl_objects(_test_dir, 'consensus_prediction_df')
+    save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
+    #prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
     classifier.classify(prediction_df = prediction_df)
     #classifier.classify()
@@ -42,65 +42,77 @@ def main(argv):
 def set_global_vars(user_args):
 
     if 'train' in user_args:
-        _run_type[0] = 'train'
+        run_type[0] = 'train'
     elif 'optimize' in user_args:
-        _run_type[0] = 'optimize'
+        run_type[0] = 'optimize'
     elif 'test' in user_args:
-        _run_type[0] = 'test'
+        run_type[0] = 'test'
 
     if 'quiet' in user_args:
-        _verbose[0] = False
+        verbose[0] = False
 
     if 'novor_files' in user_args:
-        _novor_files, _novor_tols = _order_inputs(
+        novor_files_local, novor_tols_local = order_inputs(
             user_args['novor_files'], user_args['novor_tols'])
+        for novor_file in novor_files_local:
+            novor_files.append(novor_file)
+        for novor_tol in novor_tols_local:
+            novor_tols.append(novor_tol)
 
-        _alg_list.append('novor')
-        _alg_tols_dict['novor'] = OrderedDict(
-            zip(_novor_tols,
-                [basename(novor_file) for novor_file in _novor_files]))
+        alg_list.append('novor')
+        alg_tols_dict['novor'] = OrderedDict(
+            zip(novor_tols,
+                [basename(novor_file) for novor_file in novor_files]))
 
     if 'peaks_files' in user_args:
-        _peaks_files, _peaks_tols = _order_inputs(
+        peaks_files_local, peaks_tols_local = order_inputs(
             user_args['peaks_files'], user_args['peaks_tols'])
+        for peaks_file in peaks_files_local:
+            peaks_files.append(peaks_file)
+        for peaks_tol in peaks_tols_local:
+            peaks_tols.append(peaks_tol)
 
-        _alg_list.append('peaks')
-        _alg_tols_dict['peaks'] = OrderedDict(
-            zip(_peaks_tols,
-                [basename(peaks_file) for peaks_file in _peaks_files]))
+        alg_list.append('peaks')
+        alg_tols_dict['peaks'] = OrderedDict(
+            zip(peaks_tols,
+                [basename(peaks_file) for peaks_file in peaks_files]))
 
     if 'pn_files' in user_args:
-        _pn_files, _pn_tols = _order_inputs(
+        pn_files_local, pn_tols_local = order_inputs(
             user_args['pn_files'], user_args['pn_tols'])
+        for pn_file in pn_files_local:
+            pn_files.append(pn_file)
+        for pn_tol in pn_tols_local:
+            pn_tols.append(pn_tol)
 
-        _alg_list.append('pn')
-        _alg_tols_dict['peaks'] = OrderedDict(
-            zip(_pn_tols,
-                [basename(pn_file) for pn_file in _pn_files]))
+        alg_list.append('pn')
+        alg_tols_dict['pn'] = OrderedDict(
+            zip(pn_tols,
+                [basename(pn_file) for pn_file in pn_files]))
 
-    _tol_alg_dict = invert_dict_of_lists(_alg_tols_dict)
+    tol_alg_dict = invert_dict_of_lists(alg_tols_dict)
 
-    for alg in _alg_list:
-        for tol in _alg_tols_dict[alg].keys():
-            if tol not in _tol_list:
-                _tol_list.append(tol)
-    _tol_list.sort()
+    for alg in alg_list:
+        for tol in alg_tols_dict[alg].keys():
+            if tol not in tol_list:
+                tol_list.append(tol)
+    tol_list.sort()
 
-    _tol_basenames_dict.fromkeys([(tol, []) for tol in _tol_list])
-    for alg in _alg_tols_dict:
-        for tol in _alg_tols_dict[alg]:
-            _tol_basenames_dict[tol] += _alg_tols_dict[alg][tol]
+    tol_basenames_dict = OrderedDict([(tol, []) for tol in tol_list])
+    for alg in alg_tols_dict:
+        for tol in alg_tols_dict[alg]:
+            tol_basenames_dict[tol] += [alg_tols_dict[alg][tol]]
 
     if 'min_len' in user_args:
-        _min_len[0] = user_args['min_len']
+        min_len[0] = user_args['min_len']
     if 'min_prob' in user_args:
-        _min_prob[0] = user_args['min_prob']
+        min_prob[0] = user_args['min_prob']
 
     if 'ref_file' in user_args:
-        _ref_file[0] = user_args['ref_file']
+        ref_file[0] = user_args['ref_file']
 
     if 'cores' in user_args:
-        _cores[0] = user_args['cores']
+        cores[0] = user_args['cores']
 
 def parse_user_args(argv):
     ''' Return command line args as dict '''
@@ -164,17 +176,17 @@ def parse_user_args(argv):
                 if '.novor.csv' not in file_name:
                     print(file_name + ' must have novor.csv file extension')
                     sys.exit(1)
-                elif exists(join(_userfiles_dir, file_name)) is False:
+                elif exists(join(userfiles_dir, file_name)) is False:
                     print(file_name + ' must be in postnovo/userfiles')
                     sys.exit(1)
-                novor_files[i] = join(_userfiles_dir, file_name)
+                novor_files[i] = join(userfiles_dir, file_name)
             user_args['novor_files'] = novor_files
 
         elif opt in ('u', '--novortols'):
             novor_tols = arg.split(',')
             novor_tols = [tol.strip() for tol in novor_tols]
             for tol in novor_tols:
-                if tol not in _accepted_mass_tols:
+                if tol not in accepted_mass_tols:
                     print(tol + ' must be in list of accepted fragment mass tolerances: ' + \
                         ' '.join(novor_tols))
                     sys.exit(1)
@@ -187,17 +199,17 @@ def parse_user_args(argv):
                 if '.csv' not in file_name:
                     print(file_name + ' must have csv file extension')
                     sys.exit(1)
-                elif exists(join(_userfiles_dir, file_name)) is False:
+                elif exists(join(userfiles_dir, file_name)) is False:
                     print(file_name + ' must be in postnovo/userfiles')
                     sys.exit(1)
-                peaks_files[i] = join(_userfiles_dir, file_name)
+                peaks_files[i] = join(userfiles_dir, file_name)
             user_args['peaks_files'] = peaks_files
 
         elif opt in ('v', '--peakstols'):
             peaks_tols = arg.split(',')
             peaks_tols = [tol.strip() for tol in peaks_tols]
             for tol in peaks_tols:
-                if tol not in _accepted_mass_tols:
+                if tol not in accepted_mass_tols:
                     print(tol + ' must be in list of accepted fragment mass tolerances: ' + \
                         ' '.join(novor_tols))
                     sys.exit(1)
@@ -210,17 +222,17 @@ def parse_user_args(argv):
                 if '.mgf.out' not in file_name:
                     print(file_name + ' must have mgf.out file extension')
                     sys.exit(1)
-                elif exists(join(_userfiles_dir, file_name)) is False:
+                elif exists(join(userfiles_dir, file_name)) is False:
                     print(file_name + ' must be in postnovo/userfiles')
                     sys.exit(1)
-                pn_files[i] = join(_userfiles_dir, file_name)
+                pn_files[i] = join(userfiles_dir, file_name)
             user_args['pn_files'] = pn_files
 
         elif opt in ('w', '--pntols'):
             pn_tols = arg.split(',')
             pn_tols = [tol.strip() for tol in pn_tols]
             for tol in pn_tols:
-                if tol not in _accepted_mass_tols:
+                if tol not in accepted_mass_tols:
                     print(tol + ' must be in list of accepted fragment mass tolerances: ' + \
                         ' '.join(pn_tols))
                     sys.exit(1)
@@ -232,8 +244,8 @@ def parse_user_args(argv):
             except ValueError:
                 print('Minimum reported sequence length must be an integer >0')
                 sys.exit(1)
-            if user_args['min_len'] < _train_consensus_len:
-                print('Sequences shorter than length ' + str(_train_consensus_len) + ' are not supported')
+            if user_args['min_len'] < train_consensus_len:
+                print('Sequences shorter than length ' + str(train_consensus_len) + ' are not supported')
                 sys.exit(1)
             user_args['min_len'] = min_len
 
@@ -249,10 +261,10 @@ def parse_user_args(argv):
             user_args['min_prob'] = min_prob
 
         elif opt in ('r', '--reffile'):
-            if exists(join(_userfiles_dir, arg)) is False:
+            if exists(join(userfiles_dir, arg)) is False:
                 print(arg + ' must be in postnovo/userfiles')
                 sys.exit(1)
-            user_args['ref_file'] = join(_userfiles_dir, arg)
+            user_args['ref_file'] = join(userfiles_dir, arg)
 
         elif opt in ('c', '--cores'):
             if not float(arg).is_integer():
@@ -299,7 +311,7 @@ def parse_user_args(argv):
 
 def order_by_mass_tol(user_args):
 
-    for alg in _accepted_algs:
+    for alg in accepted_algs:
         for arg in user_args:
             if alg in arg:
                 user_args[alg + '_files'], user_args[alg + '_tols'] =\
