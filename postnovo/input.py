@@ -12,12 +12,9 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-def load_files(user_args):
-
-    alg_list = []
+def load_files():
 
     if _novor_files:
-        alg_list.append('novor')
         novor_dfs = OrderedDict.fromkeys(
             [basename(novor_file) for novor_file in _novor_files])
         for i, novor_file in enumerate(_novor_files):
@@ -33,7 +30,6 @@ def load_files(user_args):
         novor_tols_files_dict = OrderedDict()
     
     if _peaks_files:
-        alg_list.append('peaks')
         peaks_dfs = OrderedDict.fromkeys(
             [basename(peaks_file) for peaks_file in _peaks_files])
         for i, peaks_file in enumerate(_peaks_files):
@@ -48,7 +44,6 @@ def load_files(user_args):
         peaks_tols_files_dict = OrderedDict()
 
     if _pn_files:
-        alg_list.append('pn')
         pn_dfs = OrderedDict.fromkeys(
             [basename(pn_file) for pn_file in _pn_files])
         for i, pn_file in enumerate(_pn_files):
@@ -71,7 +66,7 @@ def load_files(user_args):
     verbose_print('cleaning up input data')
     alg_df_name_dict, tol_df_name_dict = filter_shared_scans(alg_df_name_dict, alg_tol_dict)
 
-    return alg_list, alg_df_name_dict, tol_df_name_dict, alg_tol_dict
+    return alg_df_name_dict, tol_df_name_dict, alg_tol_dict
 
 def load_novor_file(novor_file):
     

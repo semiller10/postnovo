@@ -16,7 +16,7 @@ from multiprocessing import Pool, current_process
 scan_count = 0
 
 
-def make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list):
+def make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict):
     verbose_print()
 
     if _run_type[0] in ['train', 'optimize']:
@@ -50,7 +50,7 @@ def make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_lis
         prediction_df[tol].fillna(0, inplace = True)
 
     alg_combo_group_col_list = []
-    for alg in alg_list:
+    for alg in _alg_list:
         is_alg_col_name = 'is ' + alg + ' seq'
         prediction_df[is_alg_col_name].fillna(0, inplace = True)
         prediction_df[is_alg_col_name] = prediction_df[is_alg_col_name].astype(int)

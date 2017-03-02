@@ -35,7 +35,7 @@ from scipy.stats import norm
 
 seq_matching_count = 0
 
-def classify(alg_list, prediction_df = None):
+def classify(prediction_df = None):
     verbose_print()
 
     if _run_type[0] in ['train', 'test', 'optimize']:
@@ -48,7 +48,7 @@ def classify(alg_list, prediction_df = None):
 
     if _run_type[0] in ['train', 'optimize']:
         
-        subsampled_df = subsample_training_data(prediction_df, alg_list)
+        subsampled_df = subsample_training_data(prediction_df)
         save_pkl_objects(_test_dir, **{'subsampled_df': subsampled_df})
         #subsampled_df, = load_pkl_objects(_test_dir, 'subsampled_df')
 
@@ -56,23 +56,23 @@ def classify(alg_list, prediction_df = None):
         training_df = update_training_data(subsampled_df)
         #training_df, = load_pkl_objects(_training_dir, 'training_df')
 
-        forest_dict = make_training_forests(training_df, alg_list)
+        forest_dict = make_training_forests(training_df)
         save_pkl_objects(_training_dir, **{'forest_dict': forest_dict})
         #forest_dict, = load_pkl_objects(_training_dir, 'forest_dict')
 
     elif _run_type[0] in ['predict', 'test']:
         
-        reported_prediction_df = make_predictions(prediction_df, alg_list)
+        reported_prediction_df = make_predictions(prediction_df)
         reported_prediction_df.to_csv(os.path.join(_output_dir, 'best_predictions.csv'))
 
-def make_predictions(prediction_df, alg_list):
+def make_predictions(prediction_df):
 
     forest_dict, = load_pkl_objects(_training_dir, 'forest_dict')
 
     prediction_df['probability'] = np.nan
-    alg_group_multiindex_keys = list(product((0, 1), repeat = len(alg_list)))[1:]
+    alg_group_multiindex_keys = list(product((0, 1), repeat = len(_alg_list)))[1:]
     for multiindex_key in alg_group_multiindex_keys:
-        alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
+        alg_group = tuple([alg for i, alg in enumerate(_alg_list) if multiindex_key[i]])
 
         alg_group_data = prediction_df.xs(multiindex_key)
         accuracy_labels = alg_group_data['ref match'].tolist()
@@ -89,7 +89,7 @@ def make_predictions(prediction_df, alg_list):
         prediction_df.loc[multiindex_key, 'probability'] = probabilities
 
     if _run_type[0] == 'test':
-        plot_precision_yield(alg_group_multiindex_keys, prediction_df, alg_list)
+        plot_precision_yield(alg_group_multiindex_keys, prediction_df)
 
     max_probabilities = prediction_df.groupby(prediction_df.index.get_level_values('scan'))['probability'].transform(max)
     best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
@@ -105,7 +105,7 @@ def make_predictions(prediction_df, alg_list):
 
     return reported_prediction_df
 
-def plot_precision_yield(alg_group_multiindex_keys, prediction_df, alg_list):
+def plot_precision_yield(alg_group_multiindex_keys, prediction_df):
 
     fig, ax = plt.subplots()
     plt.title('precision vs sequence yield')
@@ -125,7 +125,7 @@ def plot_precision_yield(alg_group_multiindex_keys, prediction_df, alg_list):
         plt.xlabel('sequence yield')
         plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
 
-        alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
+        alg_group = tuple([alg for i, alg in enumerate(_alg_list) if multiindex_key[i]])
 
         alg_group_data = prediction_df.xs(multiindex_key)
         sample_size_list = list(range(1, len(alg_group_data) + 1))
@@ -348,10 +348,10 @@ def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth =
     ax.add_collection(line_collection)
     return line_collection
 
-def subsample_training_data(prediction_df_orig, alg_list):
+def subsample_training_data(prediction_df_orig):
 
     subsample_row_indices = []
-    train_target_arr_dict = list(product((0, 1), repeat = len(alg_list)))[1:]
+    train_target_arr_dict = list(product((0, 1), repeat = len(_alg_list)))[1:]
     prediction_df_orig['unique index'] = [i for i in range(prediction_df_orig.shape[0])]
     prediction_df_orig.set_index('unique index', append = True, inplace = True)
     prediction_df = prediction_df_orig.copy()
@@ -375,7 +375,7 @@ def subsample_training_data(prediction_df_orig, alg_list):
 
     for multiindex_key in train_target_arr_dict:
         multiindex_list = list(multiindex_key)
-        alg_group_df_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
+        alg_group_df_key = tuple([alg for i, alg in enumerate(_alg_list) if multiindex_key[i]])
         if sum(multiindex_key) == 1:
             verbose_print('subsampling', alg_group_df_key[0], 'top-ranking sequences')
         else:
@@ -514,9 +514,9 @@ def update_training_data(prediction_df):
 
     return training_df
 
-def make_training_forests(training_df, alg_list):
+def make_training_forests(training_df):
 
-    train_target_arr_dict = make_train_target_arr_dict(training_df, alg_list)
+    train_target_arr_dict = make_train_target_arr_dict(training_df)
     
     if _run_type[0] == 'train':
         forest_dict = make_forest_dict(train_target_arr_dict)
@@ -655,14 +655,14 @@ def standardize_prediction_df_cols(prediction_df):
     prediction_df.sort_index(1, inplace = True)
     return prediction_df
 
-def make_train_target_arr_dict(training_df, alg_list):
+def make_train_target_arr_dict(training_df):
 
     training_df.sort_index(inplace = True)
-    multiindex_groups = list(product((0, 1), repeat = len(alg_list)))[1:]
+    multiindex_groups = list(product((0, 1), repeat = len(_alg_list)))[1:]
     model_keys_used = []
     train_target_arr_dict = {}
     for multiindex in multiindex_groups:
-        model_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
+        model_key = tuple([alg for i, alg in enumerate(_alg_list) if multiindex[i]])
         model_keys_used.append(model_key)
         train_target_arr_dict[model_keys_used[-1]] = {}.fromkeys(['train', 'target'])
         try:

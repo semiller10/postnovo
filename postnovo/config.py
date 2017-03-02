@@ -21,6 +21,8 @@ _min_len = [6]
 _ref_file = []
 _cores = [1]
 
+_alg_list = []
+
 # directories
 _postnovo_parent_dir = dirname(dirname(realpath(__file__)))
 _test_dir = join(_postnovo_parent_dir, 'test')

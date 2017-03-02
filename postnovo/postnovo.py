@@ -25,19 +25,15 @@ def main(argv):
 
     set_global_vars(user_args)
 
-    alg_list, alg_df_name_dict, tol_df_name_dict, alg_tol_dict = input.load_files(user_args)
+    alg_df_name_dict, tol_df_name_dict, alg_tol_dict = input.load_files()
 
     save_pkl_objects(_test_dir, **{'alg_df_name_dict': alg_df_name_dict,
                                   'tol_df_name_dict': tol_df_name_dict,
-                                  'alg_tol_dict': alg_tol_dict,
-                                  'alg_list': alg_list})
-    #save_pkl_objects(_test_dir, **{'alg_list_test': alg_list})
-    #alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
+                                  'alg_tol_dict': alg_tol_dict})
+    #alg_df_name_dict, tol_df_name_dict, alg_tol_dict =\
     #    load_pkl_objects(_test_dir, 'alg_df_name_dict',
     #                     'tol_df_name_dict',
-    #                     'alg_tol_dict',
-    #                     'alg_list')
-    #alg_list, = load_pkl_objects(_test_dir, 'alg_list')
+    #                     'alg_tol_dict')
 
     ## Object schema:
     ## alg_df_name_dict = odict('novor': novor input df, 'pn': pn input df)
@@ -45,13 +41,13 @@ def main(argv):
     ## alg_tol_dict = odict('novor': odict('0.4': 'proteome-0.4.novor.csv', '0.5': 'proteome-0.5.novor.csv'),
     ##                     'pn': odict('0.4': 'proteome-0.4.mgf.out', '0.5': 'proteome-0.5.mgf.out'))
 
-    prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list)
+    prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict)
 
     save_pkl_objects(_test_dir, **{'consensus_prediction_df': prediction_df})
     #prediction_df, = load_pkl_objects(_test_dir, 'consensus_prediction_df')
 
-    classifier.classify(alg_list, prediction_df = prediction_df)
-    #classifier.classify(alg_list)
+    classifier.classify(prediction_df = prediction_df)
+    #classifier.classify()
 
     verbose_print('total time elapsed:', time.time() - start_time)
 
@@ -70,14 +66,17 @@ def set_global_vars(user_args):
     if 'novor_files' in user_args:
         _novor_files = user_args['novor_files']
         _novor_tols = user_args['novor_tols']
+        _alg_list.append('novor')
 
     if 'peaks_files' in user_args:
-        _peaks_files = user_args['peaks_files']
+        _peaks_files = user_args['peaks_files'] 
         _peaks_tols = user_args['peaks_tols']
+        _alg_list.append('peaks')
 
     if 'pn_files' in user_args:
         _pn_files = user_args['pn_files']
         _pn_tols = user_args['pn_tols']
+        _alg_list.append('pn')
 
     if 'min_len' in user_args:
         _min_len[0] = user_args['min_len']
