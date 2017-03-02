@@ -14,29 +14,30 @@ from utils import (save_pkl_objects, load_pkl_objects,
 from os.path import join, exists
 from multiprocessing import cpu_count
 
+
 def main(argv):
     start_time = time.time()
 
     #user_args = parse_user_args(argv)
 
-    #save_json_objects(test_dir, **{'user_args': user_args})
-    user_args, = load_json_objects(test_dir, 'user_args')
+    #save_json_objects(_test_dir, **{'user_args': user_args})
+    user_args, = load_json_objects(_test_dir, 'user_args')
 
     set_global_vars(user_args)
 
     alg_list, alg_df_name_dict, tol_df_name_dict, alg_tol_dict = input.load_files(user_args)
 
-    save_pkl_objects(test_dir, **{'alg_df_name_dict': alg_df_name_dict,
+    save_pkl_objects(_test_dir, **{'alg_df_name_dict': alg_df_name_dict,
                                   'tol_df_name_dict': tol_df_name_dict,
                                   'alg_tol_dict': alg_tol_dict,
                                   'alg_list': alg_list})
-    #save_pkl_objects(test_dir, **{'alg_list_test': alg_list})
+    #save_pkl_objects(_test_dir, **{'alg_list_test': alg_list})
     #alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list =\
-    #    load_pkl_objects(test_dir, 'alg_df_name_dict',
+    #    load_pkl_objects(_test_dir, 'alg_df_name_dict',
     #                     'tol_df_name_dict',
     #                     'alg_tol_dict',
     #                     'alg_list')
-    #alg_list, = load_pkl_objects(test_dir, 'alg_list')
+    #alg_list, = load_pkl_objects(_test_dir, 'alg_list')
 
     ## Object schema:
     ## alg_df_name_dict = odict('novor': novor input df, 'pn': pn input df)
@@ -46,18 +47,15 @@ def main(argv):
 
     prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict, alg_list)
 
-    save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
-    #prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
+    save_pkl_objects(_test_dir, **{'consensus_prediction_df': prediction_df})
+    #prediction_df, = load_pkl_objects(_test_dir, 'consensus_prediction_df')
 
-    classifier.classify(user_args['ref_file'], user_args['cores'], alg_list, prediction_df = prediction_df)
-    #classifier.classify(user_args['ref_file'], user_args['cores'], alg_list)
+    classifier.classify(alg_list, prediction_df = prediction_df)
+    #classifier.classify(alg_list)
 
     verbose_print('total time elapsed:', time.time() - start_time)
 
 def set_global_vars(user_args):
-
-    if 'min_prob' in user_args:
-        _min_prob[0] = user_args['min_prob']
 
     if 'train' in user_args:
         _run_type[0] = 'train'
@@ -69,8 +67,25 @@ def set_global_vars(user_args):
     if 'quiet' in user_args:
         _verbose[0] = False
 
+    if 'novor_files' in user_args:
+        _novor_files = user_args['novor_files']
+        _novor_tols = user_args['novor_tols']
+
+    if 'peaks_files' in user_args:
+        _peaks_files = user_args['peaks_files']
+        _peaks_tols = user_args['peaks_tols']
+
+    if 'pn_files' in user_args:
+        _pn_files = user_args['pn_files']
+        _pn_tols = user_args['pn_tols']
+
     if 'min_len' in user_args:
         _min_len[0] = user_args['min_len']
+    if 'min_prob' in user_args:
+        _min_prob[0] = user_args['min_prob']
+
+    if 'ref_file' in user_args:
+        _ref_file[0] = user_args['ref_file']
 
     if 'cores' in user_args:
         _cores[0] = user_args['cores']
@@ -137,17 +152,17 @@ def parse_user_args(argv):
                 if '.novor.csv' not in file_name:
                     print(file_name + ' must have novor.csv file extension')
                     sys.exit(1)
-                elif exists(join(user_files_dir, file_name)) is False:
+                elif exists(join(_userfiles_dir, file_name)) is False:
                     print(file_name + ' must be in postnovo/userfiles')
                     sys.exit(1)
-                novor_files[i] = join(user_files_dir, file_name)
+                novor_files[i] = join(_userfiles_dir, file_name)
             user_args['novor_files'] = novor_files
 
         elif opt in ('u', '--novortols'):
             novor_tols = arg.split(',')
             novor_tols = [tol.strip() for tol in novor_tols]
             for tol in novor_tols:
-                if tol not in accepted_mass_tols:
+                if tol not in _accepted_mass_tols:
                     print(tol + ' must be in list of accepted fragment mass tolerances: ' + \
                         ' '.join(novor_tols))
                     sys.exit(1)
@@ -160,17 +175,17 @@ def parse_user_args(argv):
                 if '.csv' not in file_name:
                     print(file_name + ' must have csv file extension')
                     sys.exit(1)
-                elif exists(join(user_files_dir, file_name)) is False:
+                elif exists(join(_userfiles_dir, file_name)) is False:
                     print(file_name + ' must be in postnovo/userfiles')
                     sys.exit(1)
-                peaks_files[i] = join(user_files_dir, file_name)
+                peaks_files[i] = join(_userfiles_dir, file_name)
             user_args['peaks_files'] = peaks_files
 
         elif opt in ('v', '--peakstols'):
             peaks_tols = arg.split(',')
             peaks_tols = [tol.strip() for tol in peaks_tols]
             for tol in peaks_tols:
-                if tol not in accepted_mass_tols:
+                if tol not in _accepted_mass_tols:
                     print(tol + ' must be in list of accepted fragment mass tolerances: ' + \
                         ' '.join(novor_tols))
                     sys.exit(1)
@@ -183,17 +198,17 @@ def parse_user_args(argv):
                 if '.mgf.out' not in file_name:
                     print(file_name + ' must have mgf.out file extension')
                     sys.exit(1)
-                elif exists(join(user_files_dir, file_name)) is False:
+                elif exists(join(_userfiles_dir, file_name)) is False:
                     print(file_name + ' must be in postnovo/userfiles')
                     sys.exit(1)
-                pn_files[i] = join(user_files_dir, file_name)
+                pn_files[i] = join(_userfiles_dir, file_name)
             user_args['pn_files'] = pn_files
 
         elif opt in ('w', '--pntols'):
             pn_tols = arg.split(',')
             pn_tols = [tol.strip() for tol in pn_tols]
             for tol in pn_tols:
-                if tol not in accepted_mass_tols:
+                if tol not in _accepted_mass_tols:
                     print(tol + ' must be in list of accepted fragment mass tolerances: ' + \
                         ' '.join(pn_tols))
                     sys.exit(1)
@@ -205,8 +220,8 @@ def parse_user_args(argv):
             except ValueError:
                 print('Minimum reported sequence length must be an integer >0')
                 sys.exit(1)
-            if user_args['min_len'] < train_consensus_len:
-                print('Sequences shorter than length ' + str(train_consensus_len) + ' are not supported')
+            if user_args['min_len'] < _train_consensus_len:
+                print('Sequences shorter than length ' + str(_train_consensus_len) + ' are not supported')
                 sys.exit(1)
             user_args['min_len'] = min_len
 
@@ -222,10 +237,10 @@ def parse_user_args(argv):
             user_args['min_prob'] = min_prob
 
         elif opt in ('r', '--reffile'):
-            if exists(join(user_files_dir, arg)) is False:
+            if exists(join(_userfiles_dir, arg)) is False:
                 print(arg + ' must be in postnovo/userfiles')
                 sys.exit(1)
-            user_args['ref_file'] = join(user_files_dir, arg)
+            user_args['ref_file'] = join(_userfiles_dir, arg)
 
         elif opt in ('c', '--cores'):
             if not float(arg).is_integer():
@@ -272,7 +287,7 @@ def parse_user_args(argv):
 
 def order_by_mass_tol(user_args):
 
-    for alg in accepted_algs:
+    for alg in _accepted_algs:
         for arg in user_args:
             if alg in arg:
                 user_args[alg + '_files'], user_args[alg + '_tols'] =\

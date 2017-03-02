@@ -35,39 +35,39 @@ from scipy.stats import norm
 
 seq_matching_count = 0
 
-def classify(ref_file, alg_list, prediction_df = None):
+def classify(alg_list, prediction_df = None):
     verbose_print()
 
     if _run_type[0] in ['train', 'test', 'optimize']:
-        prediction_df = find_target_accuracy(prediction_df, ref_file)
+        prediction_df = find_target_accuracy(prediction_df)
 
     verbose_print('formatting data for compatability with model')
     prediction_df = standardize_prediction_df_cols(prediction_df)
-    save_pkl_objects(test_dir, **{'prediction_df': prediction_df})
-    #prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
+    save_pkl_objects(_test_dir, **{'prediction_df': prediction_df})
+    #prediction_df, = load_pkl_objects(_test_dir, 'prediction_df')
 
     if _run_type[0] in ['train', 'optimize']:
         
         subsampled_df = subsample_training_data(prediction_df, alg_list)
-        save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
-        #subsampled_df, = load_pkl_objects(test_dir, 'subsampled_df')
+        save_pkl_objects(_test_dir, **{'subsampled_df': subsampled_df})
+        #subsampled_df, = load_pkl_objects(_test_dir, 'subsampled_df')
 
         verbose_print('updating training database')
         training_df = update_training_data(subsampled_df)
-        #training_df, = load_pkl_objects(training_dir, 'training_df')
+        #training_df, = load_pkl_objects(_training_dir, 'training_df')
 
         forest_dict = make_training_forests(training_df, alg_list)
-        save_pkl_objects(training_dir, **{'forest_dict': forest_dict})
-        #forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
+        save_pkl_objects(_training_dir, **{'forest_dict': forest_dict})
+        #forest_dict, = load_pkl_objects(_training_dir, 'forest_dict')
 
     elif _run_type[0] in ['predict', 'test']:
         
         reported_prediction_df = make_predictions(prediction_df, alg_list)
-        reported_prediction_df.to_csv(os.path.join(output_dir, 'best_predictions.csv'))
+        reported_prediction_df.to_csv(os.path.join(_output_dir, 'best_predictions.csv'))
 
 def make_predictions(prediction_df, alg_list):
 
-    forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
+    forest_dict, = load_pkl_objects(_training_dir, 'forest_dict')
 
     prediction_df['probability'] = np.nan
     alg_group_multiindex_keys = list(product((0, 1), repeat = len(alg_list)))[1:]
@@ -98,7 +98,7 @@ def make_predictions(prediction_df, alg_list):
     reported_prediction_df.set_index('scan', inplace = True)
     
     reported_cols_in_order = []
-    for reported_df_col in reported_df_cols:
+    for reported_df_col in _reported_df_cols:
         if reported_df_col in reported_prediction_df.columns:
             reported_cols_in_order.append(reported_df_col)
     reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
@@ -183,12 +183,12 @@ def plot_precision_yield(alg_group_multiindex_keys, prediction_df, alg_list):
                 plt.xlim([x_min, x_max])
 
         plt.tight_layout(True)
-        save_path = join(test_dir, '_'.join(alg_group) + '_precision_yield.pdf')
+        save_path = join(_test_dir, '_'.join(alg_group) + '_precision_yield.pdf')
         fig.savefig(save_path, bbox_inches = 'tight')
         plt.close()
         
     #plt.tight_layout(True)
-    #save_path = join(test_dir, 'all_precision_yield.pdf')
+    #save_path = join(_test_dir, 'all_precision_yield.pdf')
     #fig.savefig(save_path, bbox_inches = 'tight')
 
     sys.exit(0)
@@ -266,7 +266,7 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
     plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
     plt.tight_layout(True)
 
-    save_path = join(test_dir, '_'.join(alg_group) + '_precision_recall.pdf')
+    save_path = join(_test_dir, '_'.join(alg_group) + '_precision_recall.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 
@@ -333,7 +333,7 @@ def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
     plt.ylabel('true positive rate = ' + r'$\frac{T_p}{T_p + F_n}$')
     plt.tight_layout(True)
 
-    save_path = join(test_dir, '_'.join(alg_group) + '_roc.pdf')
+    save_path = join(_test_dir, '_'.join(alg_group) + '_roc.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth = 3, alpha = 1.0):
@@ -357,20 +357,20 @@ def subsample_training_data(prediction_df_orig, alg_list):
     prediction_df = prediction_df_orig.copy()
     prediction_df.drop(['is top rank single alg', 'seq'], axis = 1, inplace = True)
 
-    accuracy_bins = sorted([round(x / accuracy_divisor, 1) for x in range(accuracy_divisor)], reverse = True)
+    accuracy_bins = sorted([round(x / _subsample_accuracy_divisor, 1) for x in range(_subsample_accuracy_divisor)], reverse = True)
     
-    lower = accuracy_distribution_lower_bound
-    upper = accuracy_distribution_upper_bound
-    weight_bins = np.arange(lower, upper + (upper - lower) / accuracy_divisor, (upper - lower) / accuracy_divisor)
-    sigma = accuracy_distribution_sigma
-    mu_location = accuracy_distribution_mu_location
-    accuracy_weights = (norm.cdf(weight_bins[1: 1 + accuracy_divisor], loc = mu_location, scale = sigma)
-                        - norm.cdf(weight_bins[: accuracy_divisor], loc = mu_location, scale = sigma))\
+    lower = _subsample_accuracy_distribution_lower_bound
+    upper = _subsample_accuracy_distribution_upper_bound
+    weight_bins = np.arange(lower, upper + (upper - lower) / _subsample_accuracy_divisor, (upper - lower) / _subsample_accuracy_divisor)
+    sigma = _subsample_accuracy_distribution_sigma
+    mu_location = _subsample_accuracy_distribution_mu_location
+    accuracy_weights = (norm.cdf(weight_bins[1: 1 + _subsample_accuracy_divisor], loc = mu_location, scale = sigma)
+                        - norm.cdf(weight_bins[: _subsample_accuracy_divisor], loc = mu_location, scale = sigma))\
                             / (norm.cdf(upper, loc = mu_location, scale = sigma)
                                - norm.cdf(lower, loc = mu_location, scale = sigma))
     accuracy_subsample_weights = {acc_bin: weight for acc_bin, weight in zip(accuracy_bins, accuracy_weights)}
-    accuracy_subsample_sizes = {acc_bin: int(weight * subsample_size) for acc_bin, weight in accuracy_subsample_weights.items()}
-    while sum(accuracy_subsample_sizes.values()) != subsample_size:
+    accuracy_subsample_sizes = {acc_bin: int(weight * _subsample_size) for acc_bin, weight in accuracy_subsample_weights.items()}
+    while sum(accuracy_subsample_sizes.values()) != _subsample_size:
         accuracy_subsample_sizes[accuracy_bins[0]] += 1
 
     for multiindex_key in train_target_arr_dict:
@@ -387,12 +387,12 @@ def subsample_training_data(prediction_df_orig, alg_list):
         alg_group_df.dropna(1, inplace = True)
         ref_match_col = alg_group_df['ref match'].copy()
 
-        retained_features_target = round(clustering_feature_retention_factor_dict[sum(multiindex_key)] / alg_group_df.shape[0], 0)
-        if retained_features_target < min_retained_features_target:
-            retained_features_target = min_retained_features_target
+        retained_features_target = round(_clustering_feature_retention_factor_dict[sum(multiindex_key)] / alg_group_df.shape[0], 0)
+        if retained_features_target < _clustering_min_retained_features:
+            retained_features_target = _clustering_min_retained_features
         retained_features_list = []
         retained_feature_count = 0
-        for feature in features_ordered_by_importance:
+        for feature in _features_ordered_by_importance:
             if feature in alg_group_df.columns:
                 retained_features_list.append(feature)
                 retained_feature_count += 1
@@ -400,10 +400,10 @@ def subsample_training_data(prediction_df_orig, alg_list):
                 break
         alg_group_df = alg_group_df[retained_features_list]
 
-        if alg_group_df.shape[0] > subsample_size:
+        if alg_group_df.shape[0] > _subsample_size:
 
             pipe = make_pipeline(StandardScaler(),
-                                 Birch(threshold = birch_threshold, n_clusters = None))
+                                 Birch(threshold = _clustering_birch_threshold, n_clusters = None))
             cluster_assignments = pipe.fit_predict(alg_group_df.as_matrix())
 
             cluster_assignment_accuracies = zip(cluster_assignments, ref_match_col)
@@ -434,7 +434,7 @@ def subsample_training_data(prediction_df_orig, alg_list):
                 accuracy_row_indices_dict[acc_row_indices_tuple[0]] += acc_row_indices_tuple[1]
 
             alg_group_subsample_indices = []
-            remaining_subsample_size = subsample_size
+            remaining_subsample_size = _subsample_size
             remaining_accuracy_bins = [acc_bin for acc_bin in accuracy_bins]
             remaining_accuracy_subsample_sizes = {acc_bin: size for acc_bin, size in accuracy_subsample_sizes.items()}
             loop_remaining_accuracy_bins = [acc_bin for acc_bin in remaining_accuracy_bins]
@@ -495,22 +495,22 @@ def redistribute_residual_subsample(residual, remaining_accuracy_bins, accuracy_
 def update_training_data(prediction_df):
 
     try:
-        training_df, = load_pkl_objects(training_dir, 'training_df')
+        training_df, = load_pkl_objects(_training_dir, 'training_df')
         training_df = pd.concat([training_df, prediction_df])
     except FileNotFoundError:
         training_df = prediction_df
-    save_pkl_objects(training_dir, **{'training_df': training_df})
+    save_pkl_objects(_training_dir, **{'training_df': training_df})
 
     prediction_df_csv = prediction_df.copy()
     prediction_df_csv['timestamp'] = str(datetime.datetime.now()).split('.')[0]
     prediction_df_csv.reset_index(inplace = True)
     try:
-        training_df_csv = pd.read_csv(join(training_dir, 'training_df.csv'))
+        training_df_csv = pd.read_csv(join(_training_dir, 'training_df.csv'))
         training_df_csv = pd.concat([training_df_csv, prediction_df_csv])
     except FileNotFoundError:
         training_df_csv = prediction_df_csv
     training_df_csv.set_index(['timestamp', 'scan'], inplace = True)
-    training_df_csv.to_csv(join(training_dir, 'training_df.csv'))
+    training_df_csv.to_csv(join(_training_dir, 'training_df.csv'))
 
     return training_df
 
@@ -572,7 +572,7 @@ def plot_feature_importances(forest, alg_key, feature_names):
     fig.set_tight_layout(True)
 
     alg_key_str = '_'.join(alg_key)
-    save_path = join(test_dir, alg_key_str + '_feature_importances.pdf')
+    save_path = join(_test_dir, alg_key_str + '_feature_importances.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 def plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key):
@@ -619,10 +619,10 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
     fig.set_tight_layout(True)
 
     alg_key_str = '_'.join(alg_key)
-    save_path = join(test_dir, alg_key_str + '_error.pdf')
+    save_path = join(_test_dir, alg_key_str + '_error.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
-def make_forest_dict(train_target_arr_dict, optimized_params = default_optimized_params):
+def make_forest_dict(train_target_arr_dict, optimized_params = _rf_default_optimized_params):
 
     forest_dict = {}.fromkeys(train_target_arr_dict)
     for alg_key in forest_dict:
@@ -633,7 +633,7 @@ def make_forest_dict(train_target_arr_dict, optimized_params = default_optimized
 
         train_data = train_target_arr_dict[alg_key]['train']
         target_data = train_target_arr_dict[alg_key]['target']
-        forest = RandomForestClassifier(n_estimators = n_estimators,
+        forest = RandomForestClassifier(n_estimators = _rf_n_estimators,
                                         max_depth = optimized_params[alg_key]['max_depth'],
                                         max_features = optimized_params[alg_key]['max_features'],
                                         oob_score = True,
@@ -645,7 +645,7 @@ def make_forest_dict(train_target_arr_dict, optimized_params = default_optimized
 
 def standardize_prediction_df_cols(prediction_df):
 
-    for accepted_mass_tol in accepted_mass_tols:
+    for accepted_mass_tol in _accepted_mass_tols:
         if accepted_mass_tol not in prediction_df.columns:
             prediction_df[accepted_mass_tol] = 0
     prediction_df.drop('is top rank single alg', inplace = True)
@@ -678,9 +678,9 @@ def make_train_target_arr_dict(training_df, alg_list):
 
     return train_target_arr_dict
 
-def find_target_accuracy(prediction_df, ref_file):
-    verbose_print('loading', basename(ref_file))
-    ref = load_ref(ref_file)
+def find_target_accuracy(prediction_df):
+    verbose_print('loading', basename(_ref_file[0]))
+    ref = load_ref(_ref_file[0])
     verbose_print('finding sequence matches to reffile')
 
     seq_set_list = list(set(prediction_df['seq']))

@@ -4,10 +4,11 @@ import pickle as pkl
 import json
 import sys
 
-from config import test_dir, _verbose
+from config import *
 
 from os.path import realpath, dirname, join
 from collections import OrderedDict
+
 
 def save_pkl_objects(dir, **kwargs):
     for obj_name, obj in kwargs.items():

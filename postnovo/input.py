@@ -1,6 +1,4 @@
-from config import (proton_mass, seconds_in_min,
-                    novor_dropped_chars, pn_dropped_chars,
-                    accepted_algs)
+from config import *
 from utils import verbose_print
 
 import pandas as pd
@@ -13,59 +11,62 @@ from itertools import combinations
 import warnings
 warnings.filterwarnings('ignore')
 
+
 def load_files(user_args):
 
     alg_list = []
 
-    if 'novor_files' in user_args:
+    if _novor_files:
         alg_list.append('novor')
         novor_dfs = OrderedDict.fromkeys(
-            [basename(novor_file) for novor_file in user_args['novor_files']])
-        for i, novor_file in enumerate(user_args['novor_files']):
+            [basename(novor_file) for novor_file in _novor_files])
+        for i, novor_file in enumerate(_novor_files):
             verbose_print('loading', basename(novor_file))
 
-            check_file_mass_tol(novor_file, user_args['novor_tols'][i])
+            check_file_mass_tol(novor_file, _novor_tols[i])
             novor_dfs[basename(novor_file)] = load_novor_file(novor_file)
 
-            novor_tols = OrderedDict(
-                zip(user_args['novor_tols'], novor_dfs.keys()))
+            novor_tols_files_dict = OrderedDict(
+                zip(_novor_tols, novor_dfs.keys()))
     else:
         novor_dfs = OrderedDict()
-        novor_tols = OrderedDict()
+        novor_tols_files_dict = OrderedDict()
     
-    if 'peaks_files' in user_args:
+    if _peaks_files:
         alg_list.append('peaks')
         peaks_dfs = OrderedDict.fromkeys(
-            [basename(peaks_file) for peaks_file in user_args['peaks_files']])
-        for i, peaks_file in enumerate(user_args['peaks_files']):
+            [basename(peaks_file) for peaks_file in _peaks_files])
+        for i, peaks_file in enumerate(_peaks_files):
             verbose_print('loading', basename(peaks_file))
 
             peaks_dfs[basename(peaks_file)] = load_peaks_file(peaks_file)
 
-        peaks_tols = OrderedDict(
-            zip(user_args['peaks_tols'], peaks_dfs.keys()))
+        peaks_tols_files_dict = OrderedDict(
+            zip(_peaks_tols, peaks_dfs.keys()))
     else:
         peaks_dfs = OrderedDict()
-        peaks_tols = OrderedDict()
+        peaks_tols_files_dict = OrderedDict()
 
-    if 'pn_files' in user_args:
+    if _pn_files:
         alg_list.append('pn')
         pn_dfs = OrderedDict.fromkeys(
-            [basename(pn_file) for pn_file in user_args['pn_files']])
-        for i, pn_file in enumerate(user_args['pn_files']):
+            [basename(pn_file) for pn_file in _pn_files])
+        for i, pn_file in enumerate(_pn_files):
             verbose_print('loading', basename(pn_file))
 
             pn_dfs[basename(pn_file)] = load_pn_file(pn_file)
 
-        pn_tols = OrderedDict(
-            zip(user_args['pn_tols'], pn_dfs.keys()))
+        pn_tols_files_dict = OrderedDict(
+            zip(_pn_tols, pn_dfs.keys()))
 
     else:
         pn_dfs = OrderedDict()
-        pn_tols = OrderedDict()
+        pn_tols_files_dict = OrderedDict()
 
     alg_df_name_dict = OrderedDict([('novor', novor_dfs), ('peaks', peaks_dfs), ('pn', pn_dfs)])
-    alg_tol_dict = OrderedDict([('novor', novor_tols), ('peaks', peaks_tols), ('pn', pn_tols)])
+    alg_tol_dict = OrderedDict([('novor', novor_tols_files_dict),
+                                ('peaks', peaks_tols_files_dict),
+                                ('pn', pn_tols_files_dict)])
 
     verbose_print('cleaning up input data')
     alg_df_name_dict, tol_df_name_dict = filter_shared_scans(alg_df_name_dict, alg_tol_dict)
@@ -98,13 +99,13 @@ def load_novor_file(novor_file):
                   'm/z', 'charge', 'novor seq mass',
                   'seq mass error']].apply(pd.to_numeric)
 
-    novor_df['retention time'] /= seconds_in_min
+    novor_df['retention time'] /= _seconds_in_min
 
     novor_df['novor seq mass'] = (novor_df['novor seq mass'] +
-                                  proton_mass * novor_df['charge'])
+                                  _proton_mass * novor_df['charge'])
     
     novor_df['seq'] = novor_df['seq'].apply(
-        lambda seq: seq.translate(novor_dropped_chars))
+        lambda seq: seq.translate(_novor_dropped_chars))
 
     novor_df['aa score'] = novor_df['aa score'].apply(
         lambda score_string: score_string.split('-')).apply(
@@ -175,13 +176,13 @@ def load_pn_file(pn_file):
 
     pn_df.drop('group', axis = 1, inplace = True)
 
-    pn_df['[m+h]'] = (pn_df['[m+h]'] + (pn_df['charge'] - 1) * proton_mass) / pn_df['charge']
+    pn_df['[m+h]'] = (pn_df['[m+h]'] + (pn_df['charge'] - 1) * _proton_mass) / pn_df['charge']
     pn_df.rename(columns = {'[m+h]': 'm/z'}, inplace = True)
 
     pn_df['seq'].replace(
         to_replace = np.nan, value = '', inplace = True)
     pn_df['seq'] = pn_df['seq'].apply(
-        lambda seq: seq.translate(pn_dropped_chars))
+        lambda seq: seq.translate(_pn_dropped_chars))
 
     pn_df_cols = ['scan', 'rank', 'm/z',
                   'charge', 'n-gap', 'c-gap',
@@ -221,8 +222,8 @@ def filter_shared_scans(alg_df_name_dict, alg_tol_dict):
                 df2 = alg_df_name_dict[alg2][df_name2]
 
                 tol_df_name_dict[tol] +=\
-                    [(accepted_algs.index(alg1), df_name1)] +\
-                    [(accepted_algs.index(alg2), df_name2)]
+                    [(_accepted_algs.index(alg1), df_name1)] +\
+                    [(_accepted_algs.index(alg2), df_name2)]
 
                 common = df1.iloc[:, :1].join(
                     df2.iloc[:, :1], lsuffix = '_l', rsuffix = '_r')
