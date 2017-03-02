@@ -4,9 +4,7 @@ import sys
 import time
 
 from config import *
-from utils import (invert_dict_of_lists, save_pkl_objects,
-                   load_pkl_objects, verbose_print,
-                   verbose_print_over_same_line)
+from utils import *
 
 from itertools import groupby, combinations, product
 from collections import OrderedDict
@@ -16,7 +14,7 @@ from multiprocessing import Pool, current_process
 scan_count = 0
 
 
-def make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict):
+def make_prediction_df(alg_basename_dfs_dict):
     verbose_print()
 
     if _run_type[0] in ['train', 'optimize']:
@@ -24,29 +22,24 @@ def make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict):
     elif _run_type[0] in ['predict', 'test']:
         consensus_min_len = _min_len[0]
 
-    tol_alg_dict = invert_dict_of_lists(alg_tol_dict)
-
-    ## Object schema:
-    ## tol_alg_dict = odict('0.4': ['novor', 'pn'], '0.5': ['novor', 'pn'])
-
     tol_prediction_df_list = []
-    for tol in tol_alg_dict:
+    for tol in _tol_list:
         verbose_print('setting up', tol, 'Da consensus comparison')
-        alg_compar_list = tol_alg_dict[tol]
+        alg_compar_list = _tol_alg_dict[tol]
 
         if len(alg_compar_list) > 1:
-            df_name_compar_list = tol_df_name_dict[tol]
-            alg_df_dict = OrderedDict([(alg, alg_df_name_dict[alg][df_name_compar_list[i]])
+            df_name_compar_list = tol_basenames_dict[tol]
+            alg_df_dict = OrderedDict([(alg, alg_basename_dfs_dict[alg][df_name_compar_list[i]])
                                        for i, alg in enumerate(alg_compar_list)])
 
-            tol_prediction_df = make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol, tol_alg_dict)
+            tol_prediction_df = make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol)
             tol_prediction_df_list.append(tol_prediction_df)
 
     prediction_df = pd.concat(tol_prediction_df_list)
     grouped_by_scan = prediction_df.groupby(['scan'])
     prediction_df['retention time'] = grouped_by_scan['retention time'].transform(max)
 
-    for tol in tol_alg_dict:
+    for tol in _tol_list:
         prediction_df[tol].fillna(0, inplace = True)
 
     alg_combo_group_col_list = []
@@ -60,7 +53,7 @@ def make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict):
 
     return prediction_df
 
-def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol, tol_alg_dict):
+def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
 
     for alg, df in alg_df_dict.items():
         encode_seqs(df, consensus_min_len)
@@ -68,7 +61,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol, tol_alg_dict
     combo_level_alg_dict, full_alg_combo_list = get_combo_level_data(alg_df_dict)
     highest_level_alg_combo = full_alg_combo_list[-1]
 
-    ## Object schema:
+    ## examples
     ## combo_level_alg_dict = odict(2: [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn')], 3: [('novor', 'peaks', 'pn')])
     ## full_alg_combo_list = [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn'), ('novor', 'peaks', 'pn')]
     ## highest_level_alg_combo = ('novor', 'peaks', 'pn')

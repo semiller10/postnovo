@@ -4,9 +4,16 @@ import numpy as np
 
 from os.path import join, dirname, realpath
 from itertools import product
+from collections import OrderedDict
 
 
-# global variables across modules
+# standard constants
+_proton_mass = 1.007276
+_seconds_in_min = 60
+# ms_aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+_unicode_decimal_A = 65
+
+# user args
 # run level settings: predict (default), train, test, optimize
 _run_type = ['predict']
 _verbose = [True]
@@ -20,8 +27,6 @@ _min_prob = [0.5]
 _min_len = [6]
 _ref_file = []
 _cores = [1]
-
-_alg_list = []
 
 # directories
 _postnovo_parent_dir = dirname(dirname(realpath(__file__)))
@@ -38,11 +43,20 @@ for numerical_alg_combo in list(product((0, 1), repeat = len(_accepted_algs)))[1
 _seqs_reported_per_alg_dict = {'novor': 1, 'peaks': 20, 'pn': 20}
 _accepted_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
 
-# standard constants
-_proton_mass = 1.007276
-_seconds_in_min = 60
-# ms_aa_list = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
-_unicode_decimal_A = 65
+# global info from user input
+_alg_list = []
+_tol_list = []
+_alg_tols_dict = OrderedDict()
+## example
+## _alg_tols_dict = odict('novor': odict('0.4': 'proteome-0.4.novor.csv', '0.5': 'proteome-0.5.novor.csv'),
+##                     'pn': odict('0.4': 'proteome-0.4.mgf.out', '0.5': 'proteome-0.5.mgf.out'))
+_tol_alg_dict = OrderedDict()
+## example
+## tol_alg_dict = odict('0.4': ['novor', 'pn'], '0.5': ['novor', 'pn'])
+_tol_basenames_dict = OrderedDict()
+## example
+## _tol_basenames_dict = odict('0.4': ['proteome-0.4.novor.csv', 'proteome-0.4.mgf.out'],
+##                              '0.5': ['proteome-0.5.novor.csv', 'proteome-0.5.mgf.out'])
 
 # de novo output characteristics
 _novor_dropped_chars = {ord(char): None for char in

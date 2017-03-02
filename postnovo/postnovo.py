@@ -7,11 +7,9 @@ import sys
 import time
 
 from config import *
-from utils import (save_pkl_objects, load_pkl_objects,
-                   save_json_objects, load_json_objects,
-                   verbose_print)
+from utils import *
 
-from os.path import join, exists
+from os.path import join, exists, basename
 from multiprocessing import cpu_count
 
 
@@ -19,29 +17,19 @@ def main(argv):
     start_time = time.time()
 
     #user_args = parse_user_args(argv)
-
     #save_json_objects(_test_dir, **{'user_args': user_args})
     user_args, = load_json_objects(_test_dir, 'user_args')
 
     set_global_vars(user_args)
 
-    alg_df_name_dict, tol_df_name_dict, alg_tol_dict = input.load_files()
+    alg_basename_dfs_dict = input.load_files()
+    ## example:
+    ## alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
 
-    save_pkl_objects(_test_dir, **{'alg_df_name_dict': alg_df_name_dict,
-                                  'tol_df_name_dict': tol_df_name_dict,
-                                  'alg_tol_dict': alg_tol_dict})
-    #alg_df_name_dict, tol_df_name_dict, alg_tol_dict =\
-    #    load_pkl_objects(_test_dir, 'alg_df_name_dict',
-    #                     'tol_df_name_dict',
-    #                     'alg_tol_dict')
+    save_pkl_objects(_test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
+    #alg_basename_dfs_dict = load_pkl_objects(_test_dir, 'alg_basename_dfs_dict')
 
-    ## Object schema:
-    ## alg_df_name_dict = odict('novor': novor input df, 'pn': pn input df)
-    ## tol_df_name_dict = odict('0.4': ['proteome-0.4.novor.csv', 'proteome-0.4.mgf.out'], '0.5': ['proteome-0.5.novor.csv', 'proteome-0.5.mgf.out'])
-    ## alg_tol_dict = odict('novor': odict('0.4': 'proteome-0.4.novor.csv', '0.5': 'proteome-0.5.novor.csv'),
-    ##                     'pn': odict('0.4': 'proteome-0.4.mgf.out', '0.5': 'proteome-0.5.mgf.out'))
-
-    prediction_df = consensus.make_prediction_df(alg_df_name_dict, tol_df_name_dict, alg_tol_dict)
+    prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
 
     save_pkl_objects(_test_dir, **{'consensus_prediction_df': prediction_df})
     #prediction_df, = load_pkl_objects(_test_dir, 'consensus_prediction_df')
@@ -64,19 +52,44 @@ def set_global_vars(user_args):
         _verbose[0] = False
 
     if 'novor_files' in user_args:
-        _novor_files = user_args['novor_files']
-        _novor_tols = user_args['novor_tols']
+        _novor_files, _novor_tols = _order_inputs(
+            user_args['novor_files'], user_args['novor_tols'])
+
         _alg_list.append('novor')
+        _alg_tols_dict['novor'] = OrderedDict(
+            zip(_novor_tols,
+                [basename(novor_file) for novor_file in _novor_files]))
 
     if 'peaks_files' in user_args:
-        _peaks_files = user_args['peaks_files'] 
-        _peaks_tols = user_args['peaks_tols']
+        _peaks_files, _peaks_tols = _order_inputs(
+            user_args['peaks_files'], user_args['peaks_tols'])
+
         _alg_list.append('peaks')
+        _alg_tols_dict['peaks'] = OrderedDict(
+            zip(_peaks_tols,
+                [basename(peaks_file) for peaks_file in _peaks_files]))
 
     if 'pn_files' in user_args:
-        _pn_files = user_args['pn_files']
-        _pn_tols = user_args['pn_tols']
+        _pn_files, _pn_tols = _order_inputs(
+            user_args['pn_files'], user_args['pn_tols'])
+
         _alg_list.append('pn')
+        _alg_tols_dict['peaks'] = OrderedDict(
+            zip(_pn_tols,
+                [basename(pn_file) for pn_file in _pn_files]))
+
+    _tol_alg_dict = invert_dict_of_lists(_alg_tols_dict)
+
+    for alg in _alg_list:
+        for tol in _alg_tols_dict[alg].keys():
+            if tol not in _tol_list:
+                _tol_list.append(tol)
+    _tol_list.sort()
+
+    _tol_basenames_dict.fromkeys([(tol, []) for tol in _tol_list])
+    for alg in _alg_tols_dict:
+        for tol in _alg_tols_dict[alg]:
+            _tol_basenames_dict[tol] += _alg_tols_dict[alg][tol]
 
     if 'min_len' in user_args:
         _min_len[0] = user_args['min_len']

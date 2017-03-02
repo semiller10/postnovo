@@ -14,59 +14,33 @@ warnings.filterwarnings('ignore')
 
 def load_files():
 
+    alg_basename_dfs_dict = OrderedDict()
+
     if _novor_files:
-        novor_dfs = OrderedDict.fromkeys(
+        alg_basename_dfs_dict['novor'] = OrderedDict.fromkeys(
             [basename(novor_file) for novor_file in _novor_files])
         for i, novor_file in enumerate(_novor_files):
             verbose_print('loading', basename(novor_file))
-
             check_file_mass_tol(novor_file, _novor_tols[i])
             novor_dfs[basename(novor_file)] = load_novor_file(novor_file)
-
-            novor_tols_files_dict = OrderedDict(
-                zip(_novor_tols, novor_dfs.keys()))
-    else:
-        novor_dfs = OrderedDict()
-        novor_tols_files_dict = OrderedDict()
     
     if _peaks_files:
-        peaks_dfs = OrderedDict.fromkeys(
+        alg_basename_dfs_dict['peaks'] = OrderedDict.fromkeys(
             [basename(peaks_file) for peaks_file in _peaks_files])
         for i, peaks_file in enumerate(_peaks_files):
             verbose_print('loading', basename(peaks_file))
-
             peaks_dfs[basename(peaks_file)] = load_peaks_file(peaks_file)
 
-        peaks_tols_files_dict = OrderedDict(
-            zip(_peaks_tols, peaks_dfs.keys()))
-    else:
-        peaks_dfs = OrderedDict()
-        peaks_tols_files_dict = OrderedDict()
-
     if _pn_files:
-        pn_dfs = OrderedDict.fromkeys(
+        alg_basename_dfs_dict['pn'] = OrderedDict.fromkeys(
             [basename(pn_file) for pn_file in _pn_files])
         for i, pn_file in enumerate(_pn_files):
             verbose_print('loading', basename(pn_file))
-
             pn_dfs[basename(pn_file)] = load_pn_file(pn_file)
 
-        pn_tols_files_dict = OrderedDict(
-            zip(_pn_tols, pn_dfs.keys()))
-
-    else:
-        pn_dfs = OrderedDict()
-        pn_tols_files_dict = OrderedDict()
-
-    alg_df_name_dict = OrderedDict([('novor', novor_dfs), ('peaks', peaks_dfs), ('pn', pn_dfs)])
-    alg_tol_dict = OrderedDict([('novor', novor_tols_files_dict),
-                                ('peaks', peaks_tols_files_dict),
-                                ('pn', pn_tols_files_dict)])
-
     verbose_print('cleaning up input data')
-    alg_df_name_dict, tol_df_name_dict = filter_shared_scans(alg_df_name_dict, alg_tol_dict)
-
-    return alg_df_name_dict, tol_df_name_dict, alg_tol_dict
+    alg_basename_dfs_dict = filter_shared_scans(alg_basename_dfs_dict)
+    return alg_basename_dfs_dict
 
 def load_novor_file(novor_file):
     
@@ -195,30 +169,18 @@ def load_pn_file(pn_file):
 
     return pn_df
 
-def filter_shared_scans(alg_df_name_dict, alg_tol_dict):
+def filter_shared_scans(alg_basename_dfs_dict):
 
-    tol_list = sorted(list(set(alg_tol_dict['novor'].keys()).union(
-        alg_tol_dict['peaks'].keys()).union(
-            alg_tol_dict['pn'].keys())))
+    for tol in _tol_list:
 
-    tol_df_name_dict = OrderedDict()
+        for alg1, alg2 in combinations(_alg_tols_dict.keys(), 2):
+            if (tol in _alg_tols_dict[alg1].keys()
+                and tol in _alg_tols_dict[alg2].keys()):
 
-    for tol in tol_list:
-
-        tol_df_name_dict[tol] = []
-
-        for alg1, alg2 in combinations(alg_tol_dict.keys(), 2):
-            if (tol in alg_tol_dict[alg1].keys()
-                and tol in alg_tol_dict[alg2].keys()):
-
-                df_name1 = alg_tol_dict[alg1][tol]
-                df_name2 = alg_tol_dict[alg2][tol]
-                df1 = alg_df_name_dict[alg1][df_name1]
-                df2 = alg_df_name_dict[alg2][df_name2]
-
-                tol_df_name_dict[tol] +=\
-                    [(_accepted_algs.index(alg1), df_name1)] +\
-                    [(_accepted_algs.index(alg2), df_name2)]
+                df_name1 = _alg_tols_dict[alg1][tol]
+                df_name2 = _alg_tols_dict[alg2][tol]
+                df1 = alg_basename_dfs_dict[alg1][df_name1]
+                df2 = alg_basename_dfs_dict[alg2][df_name2]
 
                 common = df1.iloc[:, :1].join(
                     df2.iloc[:, :1], lsuffix = '_l', rsuffix = '_r')
@@ -227,7 +189,4 @@ def filter_shared_scans(alg_df_name_dict, alg_tol_dict):
                 df2 = df2[df2.index.get_level_values(0).isin(
                     common.index.get_level_values(0))]
 
-        tol_df_name_dict[tol] = [df_name for (alg_index, df_name)
-                                 in sorted(tol_df_name_dict[tol])]
-
-    return alg_df_name_dict, tol_df_name_dict
+    return alg_basename_dfs_dict

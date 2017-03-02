@@ -54,3 +54,11 @@ def verbose_print_over_same_line(output_str):
     if _verbose[0]:
         sys.stdout.write(output_str + '\r')
         sys.stdout.flush()
+
+def _order_inputs(file_names, tols):
+    tol_index = [i for i in range(len(tols))]
+    ordered_index, ordered_tols = zip(*sorted(
+        zip(tol_index, tols), key = lambda x: x[1]))
+    ordered_file_names = list(zip(*sorted(
+        zip(ordered_index, file_names), key = lambda x: x[0])))[1]
+    return ordered_file_names, ordered_tols
