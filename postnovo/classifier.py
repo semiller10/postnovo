@@ -242,7 +242,6 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
         alg_thresh = alg_pr_dict[alg][2].argsort() / alg_pr_dict[alg][2].size
         annotation_x = alg_recall[int(len(alg_recall) / arrow_position)]
         annotation_y = alg_tpr[int(len(alg_tpr) / arrow_position)]
-        arrow_position -= 1
         colorline(alg_recall, alg_tpr, alg_thresh)
         plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
                      xy = (annotation_x, annotation_y),
@@ -693,7 +692,6 @@ def find_target_accuracy(prediction_df):
     single_var_get_match_from_dict = partial(get_match_from_dict, seq_match_dict = seq_match_dict)
     prediction_df['ref match'] = prediction_df['seq'].apply(single_var_get_match_from_dict)
 
-    verbose_print()
     return prediction_df
 
 def match_seq_to_ref(query_seq, ref, one_percent_number_seqs, cores):

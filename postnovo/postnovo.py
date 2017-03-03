@@ -90,7 +90,9 @@ def set_global_vars(user_args):
             zip(pn_tols,
                 [basename(pn_file) for pn_file in pn_files]))
 
-    tol_alg_dict = invert_dict_of_lists(alg_tols_dict)
+    tol_alg_dict_local = invert_dict_of_lists(alg_tols_dict)
+    for k, v in tol_alg_dict_local.items():
+        tol_alg_dict[k] = v
 
     for alg in alg_list:
         for tol in alg_tols_dict[alg].keys():
@@ -98,7 +100,8 @@ def set_global_vars(user_args):
                 tol_list.append(tol)
     tol_list.sort()
 
-    tol_basenames_dict = OrderedDict([(tol, []) for tol in tol_list])
+    for tol in tol_list:
+        tol_basenames_dict[tol] = []
     for alg in alg_tols_dict:
         for tol in alg_tols_dict[alg]:
             tol_basenames_dict[tol] += [alg_tols_dict[alg][tol]]
