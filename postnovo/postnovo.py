@@ -1,3 +1,5 @@
+''' Command line script: this module processes user input '''
+
 import input
 import consensus
 import classifier
@@ -25,12 +27,10 @@ def main(argv):
     alg_basename_dfs_dict = input.load_files()
     ## example:
     ## alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
-
     save_pkl_objects(test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
     #alg_basename_dfs_dict = load_pkl_objects(test_dir, 'alg_basename_dfs_dict')
 
     prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
-
     save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
     #prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
@@ -38,84 +38,6 @@ def main(argv):
     #classifier.classify()
 
     verbose_print('total time elapsed:', time.time() - start_time)
-
-def set_global_vars(user_args):
-
-    if 'train' in user_args:
-        run_type[0] = 'train'
-    elif 'optimize' in user_args:
-        run_type[0] = 'optimize'
-    elif 'test' in user_args:
-        run_type[0] = 'test'
-
-    if 'quiet' in user_args:
-        verbose[0] = False
-
-    if 'novor_files' in user_args:
-        novor_files_local, novor_tols_local = order_inputs(
-            user_args['novor_files'], user_args['novor_tols'])
-        for novor_file in novor_files_local:
-            novor_files.append(novor_file)
-        for novor_tol in novor_tols_local:
-            novor_tols.append(novor_tol)
-
-        alg_list.append('novor')
-        alg_tols_dict['novor'] = OrderedDict(
-            zip(novor_tols,
-                [basename(novor_file) for novor_file in novor_files]))
-
-    if 'peaks_files' in user_args:
-        peaks_files_local, peaks_tols_local = order_inputs(
-            user_args['peaks_files'], user_args['peaks_tols'])
-        for peaks_file in peaks_files_local:
-            peaks_files.append(peaks_file)
-        for peaks_tol in peaks_tols_local:
-            peaks_tols.append(peaks_tol)
-
-        alg_list.append('peaks')
-        alg_tols_dict['peaks'] = OrderedDict(
-            zip(peaks_tols,
-                [basename(peaks_file) for peaks_file in peaks_files]))
-
-    if 'pn_files' in user_args:
-        pn_files_local, pn_tols_local = order_inputs(
-            user_args['pn_files'], user_args['pn_tols'])
-        for pn_file in pn_files_local:
-            pn_files.append(pn_file)
-        for pn_tol in pn_tols_local:
-            pn_tols.append(pn_tol)
-
-        alg_list.append('pn')
-        alg_tols_dict['pn'] = OrderedDict(
-            zip(pn_tols,
-                [basename(pn_file) for pn_file in pn_files]))
-
-    tol_alg_dict_local = invert_dict_of_lists(alg_tols_dict)
-    for k, v in tol_alg_dict_local.items():
-        tol_alg_dict[k] = v
-
-    for alg in alg_list:
-        for tol in alg_tols_dict[alg].keys():
-            if tol not in tol_list:
-                tol_list.append(tol)
-    tol_list.sort()
-
-    for tol in tol_list:
-        tol_basenames_dict[tol] = []
-    for alg in alg_tols_dict:
-        for tol in alg_tols_dict[alg]:
-            tol_basenames_dict[tol] += [alg_tols_dict[alg][tol]]
-
-    if 'min_len' in user_args:
-        min_len[0] = user_args['min_len']
-    if 'min_prob' in user_args:
-        min_prob[0] = user_args['min_prob']
-
-    if 'ref_file' in user_args:
-        ref_file[0] = user_args['ref_file']
-
-    if 'cores' in user_args:
-        cores[0] = user_args['cores']
 
 def parse_user_args(argv):
     ''' Return command line args as dict '''
@@ -309,11 +231,87 @@ def parse_user_args(argv):
         sys.exit(1)
 
     user_args = order_by_mass_tol(user_args)
-
     return user_args
 
-def order_by_mass_tol(user_args):
+def set_global_vars(user_args):
 
+    if 'train' in user_args:
+        run_type[0] = 'train'
+    elif 'optimize' in user_args:
+        run_type[0] = 'optimize'
+    elif 'test' in user_args:
+        run_type[0] = 'test'
+
+    if 'quiet' in user_args:
+        verbose[0] = False
+
+    if 'novor_files' in user_args:
+        novor_files_local, novor_tols_local = order_inputs(
+            user_args['novor_files'], user_args['novor_tols'])
+        for novor_file in novor_files_local:
+            novor_files.append(novor_file)
+        for novor_tol in novor_tols_local:
+            novor_tols.append(novor_tol)
+
+        alg_list.append('novor')
+        alg_tols_dict['novor'] = OrderedDict(
+            zip(novor_tols,
+                [basename(novor_file) for novor_file in novor_files]))
+
+    if 'peaks_files' in user_args:
+        peaks_files_local, peaks_tols_local = order_inputs(
+            user_args['peaks_files'], user_args['peaks_tols'])
+        for peaks_file in peaks_files_local:
+            peaks_files.append(peaks_file)
+        for peaks_tol in peaks_tols_local:
+            peaks_tols.append(peaks_tol)
+
+        alg_list.append('peaks')
+        alg_tols_dict['peaks'] = OrderedDict(
+            zip(peaks_tols,
+                [basename(peaks_file) for peaks_file in peaks_files]))
+
+    if 'pn_files' in user_args:
+        pn_files_local, pn_tols_local = order_inputs(
+            user_args['pn_files'], user_args['pn_tols'])
+        for pn_file in pn_files_local:
+            pn_files.append(pn_file)
+        for pn_tol in pn_tols_local:
+            pn_tols.append(pn_tol)
+
+        alg_list.append('pn')
+        alg_tols_dict['pn'] = OrderedDict(
+            zip(pn_tols,
+                [basename(pn_file) for pn_file in pn_files]))
+
+    tol_alg_dict_local = invert_dict_of_lists(alg_tols_dict)
+    for k, v in tol_alg_dict_local.items():
+        tol_alg_dict[k] = v
+
+    for alg in alg_list:
+        for tol in alg_tols_dict[alg].keys():
+            if tol not in tol_list:
+                tol_list.append(tol)
+    tol_list.sort()
+
+    for tol in tol_list:
+        tol_basenames_dict[tol] = []
+    for alg in alg_tols_dict:
+        for tol in alg_tols_dict[alg]:
+            tol_basenames_dict[tol] += [alg_tols_dict[alg][tol]]
+
+    if 'min_len' in user_args:
+        min_len[0] = user_args['min_len']
+    if 'min_prob' in user_args:
+        min_prob[0] = user_args['min_prob']
+
+    if 'ref_file' in user_args:
+        ref_file[0] = user_args['ref_file']
+
+    if 'cores' in user_args:
+        cores[0] = user_args['cores']
+
+def order_by_mass_tol(user_args):
     for alg in accepted_algs:
         for arg in user_args:
             if alg in arg:
@@ -321,8 +319,21 @@ def order_by_mass_tol(user_args):
                     zip(*(sorted(zip(user_args[alg + '_files'],
                                      user_args[alg + '_tols']),
                                  key = lambda x: x[1])))
-        
     return user_args
+
+def order_inputs(file_names, tols):
+    tol_index = [i for i in range(len(tols))]
+    ordered_index, ordered_tols = zip(*sorted(
+        zip(tol_index, tols), key = lambda x: x[1]))
+    ordered_file_names = list(zip(*sorted(
+        zip(ordered_index, file_names), key = lambda x: x[0])))[1]
+    return list(ordered_file_names), list(ordered_tols)
+
+def invert_dict_of_lists(d):
+    values = set(a for b in d.values() for a in b)
+    values = sorted(list(values))
+    invert_d = OrderedDict((new_k, [k for k, v in d.items() if new_k in v]) for new_k in values)
+    return invert_d
 
 if __name__ == '__main__':
     main(sys.argv[1:])

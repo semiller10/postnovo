@@ -1,3 +1,5 @@
+''' Load de novo sequence data '''
+
 from config import *
 from utils import verbose_print
 

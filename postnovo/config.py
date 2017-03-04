@@ -1,7 +1,5 @@
 ''' Variables used across project '''
 
-import numpy as np
-
 from os.path import join, dirname, realpath
 from itertools import product
 from collections import OrderedDict

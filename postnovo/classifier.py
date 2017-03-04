@@ -1,3 +1,5 @@
+''' Sequence accuracy classification model '''
+
 from config import *
 from utils import *
 
@@ -5,15 +7,14 @@ import pandas as pd
 import numpy as np
 import sklearn as sk
 import matplotlib
+# Set backend to make image files on server
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.collections as mcoll
 import sys
-import time
 import datetime
 import warnings
 warnings.filterwarnings('ignore')
-import os
 import os.path
 
 from functools import partial
@@ -30,7 +31,7 @@ from multiprocessing import Pool, current_process
 from collections import Counter
 from scipy.stats import norm
 
-seq_matching_count = 0
+multiprocessing_seq_matching_count = 0
 
 def classify(prediction_df = None):
     verbose_print()
@@ -62,287 +63,73 @@ def classify(prediction_df = None):
         reported_prediction_df = make_predictions(prediction_df)
         reported_prediction_df.to_csv(os.path.join(output_dir, 'best_predictions.csv'))
 
-def make_predictions(prediction_df):
+def find_target_accuracy(prediction_df):
+    verbose_print('loading', basename(ref_file[0]))
+    ref = load_ref(ref_file[0])
+    verbose_print('finding sequence matches to reffile')
 
-    forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
+    seq_set_list = list(set(prediction_df['seq']))
+    one_percent_number_seqs = len(seq_set_list) / 100 / cores[0]
 
-    prediction_df['probability'] = np.nan
-    alg_group_multiindex_keys = list(product((0, 1), repeat = len(alg_list)))[1:]
-    for multiindex_key in alg_group_multiindex_keys:
-        alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
+    multiprocessing_pool = Pool(cores[0])
+    single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs, cores = cores[0])
+    seq_set_matches = multiprocessing_pool.map(single_var_match_seq, seq_set_list)
+    multiprocessing_pool.close()
+    multiprocessing_pool.join()
 
-        alg_group_data = prediction_df.xs(multiindex_key)
-        accuracy_labels = alg_group_data['ref match'].tolist()
-        alg_group_data.drop(['seq', 'ref match', 'probability'], axis = 1, inplace = True)
-        alg_group_data.dropna(1, inplace = True)
-        forest_dict[alg_group].n_jobs = cores[0]
-        probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
+    seq_match_dict = dict(zip(seq_set_list, seq_set_matches))
+    single_var_get_match_from_dict = partial(get_match_from_dict, seq_match_dict = seq_match_dict)
+    prediction_df['ref match'] = prediction_df['seq'].apply(single_var_get_match_from_dict)
 
-        if run_type[0] == 'test':
-            verbose_print('making', '_'.join(alg_group), 'test plots')
-            plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
-            plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+    return prediction_df
 
-        prediction_df.loc[multiindex_key, 'probability'] = probabilities
+def match_seq_to_ref(query_seq, ref, one_percent_number_seqs, cores):
 
-    if run_type[0] == 'test':
-        plot_precision_yield(alg_group_multiindex_keys, prediction_df)
+    if current_process()._identity[0] % cores == 1:
+        global multiprocessing_seq_matching_count
+        multiprocessing_seq_matching_count += 1
+        if int(multiprocessing_seq_matching_count % one_percent_number_seqs) == 0:
+            percent_complete = int(multiprocessing_seq_matching_count / one_percent_number_seqs)
+            if percent_complete <= 100:
+                verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
 
-    max_probabilities = prediction_df.groupby(prediction_df.index.get_level_values('scan'))['probability'].transform(max)
-    best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
-    reported_prediction_df = best_prediction_df[best_prediction_df['probability'] >= min_prob[0]]
-    reported_prediction_df.reset_index(inplace = True)
-    reported_prediction_df.set_index('scan', inplace = True)
-    
-    reported_cols_in_order = []
-    for reported_df_col in reported_df_cols:
-        if reported_df_col in reported_prediction_df.columns:
-            reported_cols_in_order.append(reported_df_col)
-    reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
+    for target_seq in ref:
+        if query_seq in target_seq:
+            return 1
+    return 0
 
-    return reported_prediction_df
+def get_match_from_dict(seq, seq_match_dict):
+    return seq_match_dict[seq]
 
-def plot_precision_yield(alg_group_multiindex_keys, prediction_df):
+def load_ref(ref_file):
 
-    fig, ax = plt.subplots()
-    plt.title('precision vs sequence yield')
-    x_min = 1
-    x_max = 0
-    plt.ylim([0, 1])
-    plt.xlabel('sequence yield')
-    plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
+    with open(ref_file) as f:
+        lines = f.readlines()
 
-    for multiindex_key in alg_group_multiindex_keys:
+    ref = []
+    for line in lines:
+        if line[0] == '>':
+            next_seq_in_next_line = True
+        elif line != '\n':
+            if next_seq_in_next_line:
+                ref.append(line.strip().replace('I', 'L'))
+                next_seq_in_next_line = False
+            else:
+                ref[-1] += line.strip().replace('I', 'L')
 
-        fig, ax = plt.subplots()
-        plt.title('precision vs sequence yield')
-        x_min = 1
-        x_max = 0
-        plt.ylim([0, 1])
-        plt.xlabel('sequence yield')
-        plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
+    return ref
 
-        alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
+def standardize_prediction_df_cols(prediction_df):
 
-        alg_group_data = prediction_df.xs(multiindex_key)
-        sample_size_list = list(range(1, len(alg_group_data) + 1))
-
-        precision = make_precision_col(alg_group_data, 'probability')
-        alg_group_data['random forest precision'] = precision
-
-        x = sample_size_list[::100]
-        y = precision[::100]
-        z = (alg_group_data['probability'].argsort() / alg_group_data['probability'].size).tolist()[::100]
-        model_line_collection = colorline(x, y, z)
-        plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
-        annotation_x = x[len(x) // 2]
-        annotation_y = y[len(y) // 2]
-        plt.annotate('_'.join(alg_group) + '\n' + 'random forest',
-                     xy = (annotation_x, annotation_y),
-                     xycoords = 'data',
-                     xytext = (25, 25),
-                     textcoords = 'offset pixels',
-                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                     horizontalalignment = 'left', verticalalignment = 'bottom',
-                     )
-
-        if x[-1] > x_max:
-            x_max = x[-1]
-            plt.xlim([x_min, x_max])
-
-        arrow_position = 2.5
-        for i, alg in enumerate(alg_group):
-            if alg == 'novor':
-                score_str = 'avg novor aa score'
-            elif alg == 'pn':
-                score_str = 'rank score'
-            precision = make_precision_col(alg_group_data, score_str)
-            alg_group_data[alg + ' precision'] = precision
-
-            x = sample_size_list[::100]
-            y = precision[::100]
-            z = (alg_group_data[score_str].argsort() / alg_group_data[score_str].size).tolist()[::100]
-            colorline(x, y, z)
-            annotation_x = x[int(len(x) / arrow_position)]
-            annotation_y = y[int(len(y) / arrow_position)]
-            arrow_position -= 1
-            plt.annotate('_'.join(alg_group) + '\n' + score_str,
-                         xy = (annotation_x, annotation_y),
-                         xycoords = 'data',
-                         xytext = (-25, -25),
-                         textcoords = 'offset pixels',
-                         arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                         horizontalalignment = 'right', verticalalignment = 'top',
-                         )
-
-            if x[-1] > x_max:
-                x_max = x[-1]
-                plt.xlim([x_min, x_max])
-
-        plt.tight_layout(True)
-        save_path = join(test_dir, '_'.join(alg_group) + '_precision_yield.pdf')
-        fig.savefig(save_path, bbox_inches = 'tight')
-        plt.close()
-        
-    #plt.tight_layout(True)
-    #save_path = join(test_dir, 'all_precision_yield.pdf')
-    #fig.savefig(save_path, bbox_inches = 'tight')
-
-    sys.exit(0)
-
-def make_precision_col(df, sort_col):
-    df.sort_values(sort_col, ascending = False, inplace = True)
-    ref_matches = df['ref match']
-    cumulative_ref_matches = [ref_matches.iat[0]]
-    precision = [cumulative_ref_matches[0] / 1]
-    for i, ref_match in enumerate(ref_matches[1:]):
-        cumulative_ref_match_sum = cumulative_ref_matches[-1] + ref_match
-        cumulative_ref_matches.append(cumulative_ref_match_sum)
-        precision.append(cumulative_ref_match_sum / (i + 2))
-
-    return precision
-
-def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
-
-    true_positive_rate, recall, thresholds = precision_recall_curve(accuracy_labels, probabilities, pos_label = 1)
-    model_auc = average_precision_score(accuracy_labels, probabilities)
-
-    alg_scores_dict = {}
-    for alg in alg_group:
-        if alg == 'novor':
-            alg_scores_dict[alg] = alg_group_data['avg novor aa score']
-        elif alg == 'pn':
-            alg_scores_dict[alg] = alg_group_data['rank score']
-
-    alg_pr_dict = {}
-    alg_auc_dict = {}
-    for alg in alg_scores_dict:
-        alg_pr_dict[alg] = precision_recall_curve(accuracy_labels, alg_scores_dict[alg], pos_label = 1)
-        alg_auc_dict[alg] = average_precision_score(accuracy_labels, alg_scores_dict[alg])
-
-    fig, ax = plt.subplots()
-
-    model_line_collection = colorline(recall, true_positive_rate, thresholds)
-    plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
-    annotation_x = recall[int(len(recall) / 1.2)]
-    annotation_y = true_positive_rate[int(len(true_positive_rate) / 1.2)]
-    plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
-                 xy = (annotation_x, annotation_y),
-                 xycoords = 'data',
-                 xytext = (annotation_x + 25, annotation_y + 25),
-                 textcoords = 'offset pixels',
-                 arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                 horizontalalignment = 'right', verticalalignment = 'bottom',
-                 )
-
-    arrow_position = 1.2
-    for alg in alg_pr_dict:
-        alg_recall = alg_pr_dict[alg][1]
-        alg_tpr = alg_pr_dict[alg][0]
-        alg_thresh = alg_pr_dict[alg][2].argsort() / alg_pr_dict[alg][2].size
-        annotation_x = alg_recall[int(len(alg_recall) / arrow_position)]
-        annotation_y = alg_tpr[int(len(alg_tpr) / arrow_position)]
-        colorline(alg_recall, alg_tpr, alg_thresh)
-        plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
-                     xy = (annotation_x, annotation_y),
-                     xycoords = 'data',
-                     xytext = (annotation_x - 25, annotation_y - 25),
-                     textcoords = 'offset pixels',
-                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                     horizontalalignment = 'right', verticalalignment = 'top',
-                     )
-
-    if len(alg_group) == 1:
-        plt.title('precision-recall curve: ' + alg_group[0] + ' sequences')
-    else:
-        plt.title('precision-recall curve: ' + '-'.join(alg_group) + ' consensus sequences')
-    plt.xlim([0, 1])
-    plt.ylim([0, 1])
-    plt.xlabel('recall (true positive rate) = ' + r'$\frac{T_p}{T_p + F_n}$')
-    plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
-    plt.tight_layout(True)
-
-    save_path = join(test_dir, '_'.join(alg_group) + '_precision_recall.pdf')
-    fig.savefig(save_path, bbox_inches = 'tight')
-
-
-def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
-
-    false_positive_rate, true_positive_rate, thresholds = roc_curve(accuracy_labels, probabilities, pos_label = 1)
-    model_auc = roc_auc_score(accuracy_labels, probabilities)
-
-    alg_scores_dict = {}
-    for alg in alg_group:
-        if alg == 'novor':
-            alg_scores_dict[alg] = alg_group_data['avg novor aa score']
-        elif alg == 'pn':
-            alg_scores_dict[alg] = alg_group_data['rank score']
-
-    alg_roc_dict = {}
-    alg_auc_dict = {}
-    for alg in alg_scores_dict:
-        alg_roc_dict[alg] = roc_curve(accuracy_labels, alg_scores_dict[alg], pos_label = 1)
-        alg_auc_dict[alg] = roc_auc_score(accuracy_labels, alg_scores_dict[alg])
-
-    fig, ax = plt.subplots()
-
-    model_line_collection = colorline(false_positive_rate, true_positive_rate, thresholds)
-    plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
-    annotation_x = false_positive_rate[len(false_positive_rate) // 2]
-    annotation_y = true_positive_rate[len(true_positive_rate) // 2]
-    plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
-                 xy = (annotation_x, annotation_y),
-                 xycoords='data',
-                 xytext = (annotation_x + 50, annotation_y - 50),
-                 textcoords = 'offset pixels',
-                 arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                 horizontalalignment = 'left', verticalalignment = 'top',
-                 )
-
-    arrow_position = 3
-    for alg in alg_roc_dict:
-        alg_fpr = alg_roc_dict[alg][0]
-        alg_tpr = alg_roc_dict[alg][1]
-        alg_thresh = alg_roc_dict[alg][2].argsort() / alg_roc_dict[alg][2].size
-        annotation_x = alg_fpr[len(alg_fpr) // arrow_position]
-        annotation_y = alg_tpr[len(alg_tpr) // arrow_position]
-        arrow_position -= 1
-        colorline(alg_fpr, alg_tpr, alg_thresh)
-        plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
-                     xy = (annotation_x, annotation_y),
-                     xycoords='data',
-                     xytext = (annotation_x + 50, annotation_y - 50),
-                     textcoords = 'offset pixels',
-                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                     horizontalalignment = 'left', verticalalignment = 'top',
-                     )
-
-    plt.plot([0, 1], [0, 1], linestyle = '--', c = 'black')
-
-    if len(alg_group) == 1:
-        plt.title('roc curve: ' + alg_group[0] + ' sequences')
-    else:
-        plt.title('roc curve: ' + '-'.join(alg_group) + ' consensus sequences')
-    plt.xlim([0, 1])
-    plt.ylim([0, 1])
-    plt.xlabel('false positive rate = ' + r'$\frac{F_p}{F_p + T_n}$')
-    plt.ylabel('true positive rate = ' + r'$\frac{T_p}{T_p + F_n}$')
-    plt.tight_layout(True)
-
-    save_path = join(test_dir, '_'.join(alg_group) + '_roc.pdf')
-    fig.savefig(save_path, bbox_inches = 'tight')
-
-def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth = 3, alpha = 1.0):
-
-    z = np.asarray(z)
-
-    points = np.array([x, y]).T.reshape(-1, 1, 2)
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    line_collection = mcoll.LineCollection(segments, array = z, cmap = cmap, norm = norm, linewidth = linewidth, alpha = alpha)
-
-    ax = plt.gca()
-    ax.add_collection(line_collection)
-    return line_collection
+    for accepted_mass_tol in accepted_mass_tols:
+        if accepted_mass_tol not in prediction_df.columns:
+            prediction_df[accepted_mass_tol] = 0
+    prediction_df.drop('is top rank single alg', inplace = True)
+    min_retention_time = prediction_df['retention time'].min()
+    max_retention_time = prediction_df['retention time'].max()
+    prediction_df['retention time'] = (prediction_df['retention time'] - min_retention_time) / (max_retention_time - min_retention_time)
+    prediction_df.sort_index(1, inplace = True)
+    return prediction_df
 
 def subsample_training_data(prediction_df_orig):
 
@@ -510,6 +297,46 @@ def update_training_data(prediction_df):
 
     return training_df
 
+def make_predictions(prediction_df):
+
+    forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
+
+    prediction_df['probability'] = np.nan
+    alg_group_multiindex_keys = list(product((0, 1), repeat = len(alg_list)))[1:]
+    for multiindex_key in alg_group_multiindex_keys:
+        alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
+
+        alg_group_data = prediction_df.xs(multiindex_key)
+        accuracy_labels = alg_group_data['ref match'].tolist()
+        alg_group_data.drop(['seq', 'ref match', 'probability'], axis = 1, inplace = True)
+        alg_group_data.dropna(1, inplace = True)
+        forest_dict[alg_group].n_jobs = cores[0]
+        probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
+
+        if run_type[0] == 'test':
+            verbose_print('making', '_'.join(alg_group), 'test plots')
+            plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+            plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+
+        prediction_df.loc[multiindex_key, 'probability'] = probabilities
+
+    if run_type[0] == 'test':
+        plot_precision_yield(alg_group_multiindex_keys, prediction_df)
+
+    max_probabilities = prediction_df.groupby(prediction_df.index.get_level_values('scan'))['probability'].transform(max)
+    best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
+    reported_prediction_df = best_prediction_df[best_prediction_df['probability'] >= min_prob[0]]
+    reported_prediction_df.reset_index(inplace = True)
+    reported_prediction_df.set_index('scan', inplace = True)
+    
+    reported_cols_in_order = []
+    for reported_df_col in reported_df_cols:
+        if reported_df_col in reported_prediction_df.columns:
+            reported_cols_in_order.append(reported_df_col)
+    reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
+
+    return reported_prediction_df
+
 def make_training_forests(training_df):
 
     train_target_arr_dict = make_train_target_arr_dict(training_df)
@@ -520,6 +347,50 @@ def make_training_forests(training_df):
         verbose_print('optimizing random forest parameters')
         optimized_params = optimize_model(train_target_arr_dict)
         forest_dict = make_forest_dict(train_target_arr_dict, optimized_params)
+
+    return forest_dict
+
+def make_train_target_arr_dict(training_df):
+
+    training_df.sort_index(inplace = True)
+    multiindex_groups = list(product((0, 1), repeat = len(alg_list)))[1:]
+    model_keys_used = []
+    train_target_arr_dict = {}
+    for multiindex in multiindex_groups:
+        model_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
+        model_keys_used.append(model_key)
+        train_target_arr_dict[model_keys_used[-1]] = {}.fromkeys(['train', 'target'])
+        try:
+            alg_group_df = training_df.xs(multiindex).reset_index().set_index(['scan', 'seq'])
+            alg_group_df.dropna(1, inplace = True)
+            train_columns = alg_group_df.columns.tolist()
+            train_columns.remove('ref match')
+            train_target_arr_dict[model_key]['train'] = alg_group_df.as_matrix(train_columns)
+            train_target_arr_dict[model_key]['target'] = alg_group_df['ref match'].tolist()
+            train_target_arr_dict[model_key]['feature_names'] = train_columns
+        except KeyError:
+            print(str(model_keys_used[-1]) + ' predictions were not found')
+
+    return train_target_arr_dict
+
+def make_forest_dict(train_target_arr_dict, rf_params):
+
+    forest_dict = {}.fromkeys(train_target_arr_dict)
+    for alg_key in forest_dict:
+        if len(alg_key) > 1:
+            verbose_print('making random forest for', '-'.join(alg_key), 'consensus sequences')
+        else:
+            verbose_print('making random forest for', alg_key[0], 'sequences')
+
+        train_data = train_target_arr_dict[alg_key]['train']
+        target_data = train_target_arr_dict[alg_key]['target']
+        forest = RandomForestClassifier(n_estimators = rf_n_estimators,
+                                        max_depth = rf_params[alg_key]['max_depth'],
+                                        max_features = rf_params[alg_key]['max_features'],
+                                        oob_score = True,
+                                        n_jobs = cores[0])
+        forest.fit(train_data, target_data)
+        forest_dict[alg_key] = forest
 
     return forest_dict
 
@@ -618,114 +489,244 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
     save_path = join(test_dir, alg_key_str + '_error.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
-def make_forest_dict(train_target_arr_dict, rf_params):
 
-    forest_dict = {}.fromkeys(train_target_arr_dict)
-    for alg_key in forest_dict:
-        if len(alg_key) > 1:
-            verbose_print('making random forest for', '-'.join(alg_key), 'consensus sequences')
-        else:
-            verbose_print('making random forest for', alg_key[0], 'sequences')
+def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
 
-        train_data = train_target_arr_dict[alg_key]['train']
-        target_data = train_target_arr_dict[alg_key]['target']
-        forest = RandomForestClassifier(n_estimators = rf_n_estimators,
-                                        max_depth = rf_params[alg_key]['max_depth'],
-                                        max_features = rf_params[alg_key]['max_features'],
-                                        oob_score = True,
-                                        n_jobs = cores[0])
-        forest.fit(train_data, target_data)
-        forest_dict[alg_key] = forest
+    false_positive_rate, true_positive_rate, thresholds = roc_curve(accuracy_labels, probabilities, pos_label = 1)
+    model_auc = roc_auc_score(accuracy_labels, probabilities)
 
-    return forest_dict
+    alg_scores_dict = {}
+    for alg in alg_group:
+        if alg == 'novor':
+            alg_scores_dict[alg] = alg_group_data['avg novor aa score']
+        elif alg == 'pn':
+            alg_scores_dict[alg] = alg_group_data['rank score']
 
-def standardize_prediction_df_cols(prediction_df):
+    alg_roc_dict = {}
+    alg_auc_dict = {}
+    for alg in alg_scores_dict:
+        alg_roc_dict[alg] = roc_curve(accuracy_labels, alg_scores_dict[alg], pos_label = 1)
+        alg_auc_dict[alg] = roc_auc_score(accuracy_labels, alg_scores_dict[alg])
 
-    for accepted_mass_tol in accepted_mass_tols:
-        if accepted_mass_tol not in prediction_df.columns:
-            prediction_df[accepted_mass_tol] = 0
-    prediction_df.drop('is top rank single alg', inplace = True)
-    min_retention_time = prediction_df['retention time'].min()
-    max_retention_time = prediction_df['retention time'].max()
-    prediction_df['retention time'] = (prediction_df['retention time'] - min_retention_time) / (max_retention_time - min_retention_time)
-    prediction_df.sort_index(1, inplace = True)
-    return prediction_df
+    fig, ax = plt.subplots()
 
-def make_train_target_arr_dict(training_df):
+    model_line_collection = colorline(false_positive_rate, true_positive_rate, thresholds)
+    plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
+    annotation_x = false_positive_rate[len(false_positive_rate) // 2]
+    annotation_y = true_positive_rate[len(true_positive_rate) // 2]
+    plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
+                 xy = (annotation_x, annotation_y),
+                 xycoords='data',
+                 xytext = (annotation_x + 50, annotation_y - 50),
+                 textcoords = 'offset pixels',
+                 arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                 horizontalalignment = 'left', verticalalignment = 'top',
+                 )
 
-    training_df.sort_index(inplace = True)
-    multiindex_groups = list(product((0, 1), repeat = len(alg_list)))[1:]
-    model_keys_used = []
-    train_target_arr_dict = {}
-    for multiindex in multiindex_groups:
-        model_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
-        model_keys_used.append(model_key)
-        train_target_arr_dict[model_keys_used[-1]] = {}.fromkeys(['train', 'target'])
-        try:
-            alg_group_df = training_df.xs(multiindex).reset_index().set_index(['scan', 'seq'])
-            alg_group_df.dropna(1, inplace = True)
-            train_columns = alg_group_df.columns.tolist()
-            train_columns.remove('ref match')
-            train_target_arr_dict[model_key]['train'] = alg_group_df.as_matrix(train_columns)
-            train_target_arr_dict[model_key]['target'] = alg_group_df['ref match'].tolist()
-            train_target_arr_dict[model_key]['feature_names'] = train_columns
-        except KeyError:
-            print(str(model_keys_used[-1]) + ' predictions were not found')
+    arrow_position = 3
+    for alg in alg_roc_dict:
+        alg_fpr = alg_roc_dict[alg][0]
+        alg_tpr = alg_roc_dict[alg][1]
+        alg_thresh = alg_roc_dict[alg][2].argsort() / alg_roc_dict[alg][2].size
+        annotation_x = alg_fpr[len(alg_fpr) // arrow_position]
+        annotation_y = alg_tpr[len(alg_tpr) // arrow_position]
+        arrow_position -= 1
+        colorline(alg_fpr, alg_tpr, alg_thresh)
+        plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
+                     xy = (annotation_x, annotation_y),
+                     xycoords='data',
+                     xytext = (annotation_x + 50, annotation_y - 50),
+                     textcoords = 'offset pixels',
+                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                     horizontalalignment = 'left', verticalalignment = 'top',
+                     )
 
-    return train_target_arr_dict
+    plt.plot([0, 1], [0, 1], linestyle = '--', c = 'black')
 
-def find_target_accuracy(prediction_df):
-    verbose_print('loading', basename(ref_file[0]))
-    ref = load_ref(ref_file[0])
-    verbose_print('finding sequence matches to reffile')
+    if len(alg_group) == 1:
+        plt.title('roc curve: ' + alg_group[0] + ' sequences')
+    else:
+        plt.title('roc curve: ' + '-'.join(alg_group) + ' consensus sequences')
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.xlabel('false positive rate = ' + r'$\frac{F_p}{F_p + T_n}$')
+    plt.ylabel('true positive rate = ' + r'$\frac{T_p}{T_p + F_n}$')
+    plt.tight_layout(True)
 
-    seq_set_list = list(set(prediction_df['seq']))
-    one_percent_number_seqs = len(seq_set_list) / 100 / cores[0]
+    save_path = join(test_dir, '_'.join(alg_group) + '_roc.pdf')
+    fig.savefig(save_path, bbox_inches = 'tight')
 
-    multiprocessing_pool = Pool(cores[0])
-    single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs, cores = cores[0])
-    seq_set_matches = multiprocessing_pool.map(single_var_match_seq, seq_set_list)
-    multiprocessing_pool.close()
-    multiprocessing_pool.join()
+def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
 
-    seq_match_dict = dict(zip(seq_set_list, seq_set_matches))
-    single_var_get_match_from_dict = partial(get_match_from_dict, seq_match_dict = seq_match_dict)
-    prediction_df['ref match'] = prediction_df['seq'].apply(single_var_get_match_from_dict)
+    true_positive_rate, recall, thresholds = precision_recall_curve(accuracy_labels, probabilities, pos_label = 1)
+    model_auc = average_precision_score(accuracy_labels, probabilities)
 
-    return prediction_df
+    alg_scores_dict = {}
+    for alg in alg_group:
+        if alg == 'novor':
+            alg_scores_dict[alg] = alg_group_data['avg novor aa score']
+        elif alg == 'pn':
+            alg_scores_dict[alg] = alg_group_data['rank score']
 
-def match_seq_to_ref(query_seq, ref, one_percent_number_seqs, cores):
+    alg_pr_dict = {}
+    alg_auc_dict = {}
+    for alg in alg_scores_dict:
+        alg_pr_dict[alg] = precision_recall_curve(accuracy_labels, alg_scores_dict[alg], pos_label = 1)
+        alg_auc_dict[alg] = average_precision_score(accuracy_labels, alg_scores_dict[alg])
 
-    if current_process()._identity[0] % cores == 1:
-        global seq_matching_count
-        seq_matching_count += 1
-        if int(seq_matching_count % one_percent_number_seqs) == 0:
-            percent_complete = int(seq_matching_count / one_percent_number_seqs)
-            if percent_complete <= 100:
-                verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
+    fig, ax = plt.subplots()
 
-    for target_seq in ref:
-        if query_seq in target_seq:
-            return 1
-    return 0
+    model_line_collection = colorline(recall, true_positive_rate, thresholds)
+    plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
+    annotation_x = recall[int(len(recall) / 1.2)]
+    annotation_y = true_positive_rate[int(len(true_positive_rate) / 1.2)]
+    plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
+                 xy = (annotation_x, annotation_y),
+                 xycoords = 'data',
+                 xytext = (annotation_x + 25, annotation_y + 25),
+                 textcoords = 'offset pixels',
+                 arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                 horizontalalignment = 'right', verticalalignment = 'bottom',
+                 )
 
-def get_match_from_dict(seq, seq_match_dict):
-    return seq_match_dict[seq]
+    arrow_position = 1.2
+    for alg in alg_pr_dict:
+        alg_recall = alg_pr_dict[alg][1]
+        alg_tpr = alg_pr_dict[alg][0]
+        alg_thresh = alg_pr_dict[alg][2].argsort() / alg_pr_dict[alg][2].size
+        annotation_x = alg_recall[int(len(alg_recall) / arrow_position)]
+        annotation_y = alg_tpr[int(len(alg_tpr) / arrow_position)]
+        colorline(alg_recall, alg_tpr, alg_thresh)
+        plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
+                     xy = (annotation_x, annotation_y),
+                     xycoords = 'data',
+                     xytext = (annotation_x - 25, annotation_y - 25),
+                     textcoords = 'offset pixels',
+                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                     horizontalalignment = 'right', verticalalignment = 'top',
+                     )
 
-def load_ref(ref_file):
+    if len(alg_group) == 1:
+        plt.title('precision-recall curve: ' + alg_group[0] + ' sequences')
+    else:
+        plt.title('precision-recall curve: ' + '-'.join(alg_group) + ' consensus sequences')
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.xlabel('recall (true positive rate) = ' + r'$\frac{T_p}{T_p + F_n}$')
+    plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
+    plt.tight_layout(True)
 
-    with open(ref_file) as f:
-        lines = f.readlines()
+    save_path = join(test_dir, '_'.join(alg_group) + '_precision_recall.pdf')
+    fig.savefig(save_path, bbox_inches = 'tight')
 
-    ref = []
-    for line in lines:
-        if line[0] == '>':
-            next_seq_in_next_line = True
-        elif line != '\n':
-            if next_seq_in_next_line:
-                ref.append(line.strip().replace('I', 'L'))
-                next_seq_in_next_line = False
-            else:
-                ref[-1] += line.strip().replace('I', 'L')
+def plot_precision_yield(alg_group_multiindex_keys, prediction_df):
 
-    return ref
+    fig, ax = plt.subplots()
+    plt.title('precision vs sequence yield')
+    x_min = 1
+    x_max = 0
+    plt.ylim([0, 1])
+    plt.xlabel('sequence yield')
+    plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
+
+    for multiindex_key in alg_group_multiindex_keys:
+
+        fig, ax = plt.subplots()
+        plt.title('precision vs sequence yield')
+        x_min = 1
+        x_max = 0
+        plt.ylim([0, 1])
+        plt.xlabel('sequence yield')
+        plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
+
+        alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
+
+        alg_group_data = prediction_df.xs(multiindex_key)
+        sample_size_list = list(range(1, len(alg_group_data) + 1))
+
+        precision = make_precision_col(alg_group_data, 'probability')
+        alg_group_data['random forest precision'] = precision
+
+        x = sample_size_list[::100]
+        y = precision[::100]
+        z = (alg_group_data['probability'].argsort() / alg_group_data['probability'].size).tolist()[::100]
+        model_line_collection = colorline(x, y, z)
+        plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
+        annotation_x = x[len(x) // 2]
+        annotation_y = y[len(y) // 2]
+        plt.annotate('_'.join(alg_group) + '\n' + 'random forest',
+                     xy = (annotation_x, annotation_y),
+                     xycoords = 'data',
+                     xytext = (25, 25),
+                     textcoords = 'offset pixels',
+                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                     horizontalalignment = 'left', verticalalignment = 'bottom',
+                     )
+
+        if x[-1] > x_max:
+            x_max = x[-1]
+            plt.xlim([x_min, x_max])
+
+        arrow_position = 2.5
+        for i, alg in enumerate(alg_group):
+            if alg == 'novor':
+                score_str = 'avg novor aa score'
+            elif alg == 'pn':
+                score_str = 'rank score'
+            precision = make_precision_col(alg_group_data, score_str)
+            alg_group_data[alg + ' precision'] = precision
+
+            x = sample_size_list[::100]
+            y = precision[::100]
+            z = (alg_group_data[score_str].argsort() / alg_group_data[score_str].size).tolist()[::100]
+            colorline(x, y, z)
+            annotation_x = x[int(len(x) / arrow_position)]
+            annotation_y = y[int(len(y) / arrow_position)]
+            arrow_position -= 1
+            plt.annotate('_'.join(alg_group) + '\n' + score_str,
+                         xy = (annotation_x, annotation_y),
+                         xycoords = 'data',
+                         xytext = (-25, -25),
+                         textcoords = 'offset pixels',
+                         arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+                         horizontalalignment = 'right', verticalalignment = 'top',
+                         )
+
+            if x[-1] > x_max:
+                x_max = x[-1]
+                plt.xlim([x_min, x_max])
+
+        plt.tight_layout(True)
+        save_path = join(test_dir, '_'.join(alg_group) + '_precision_yield.pdf')
+        fig.savefig(save_path, bbox_inches = 'tight')
+        plt.close()
+        
+    #plt.tight_layout(True)
+    #save_path = join(test_dir, 'all_precision_yield.pdf')
+    #fig.savefig(save_path, bbox_inches = 'tight')
+
+    sys.exit(0)
+
+def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth = 3, alpha = 1.0):
+
+    z = np.asarray(z)
+
+    points = np.array([x, y]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    line_collection = mcoll.LineCollection(segments, array = z, cmap = cmap, norm = norm, linewidth = linewidth, alpha = alpha)
+
+    ax = plt.gca()
+    ax.add_collection(line_collection)
+    return line_collection
+
+def make_precision_col(df, sort_col):
+    df.sort_values(sort_col, ascending = False, inplace = True)
+    ref_matches = df['ref match']
+    cumulative_ref_matches = [ref_matches.iat[0]]
+    precision = [cumulative_ref_matches[0] / 1]
+    for i, ref_match in enumerate(ref_matches[1:]):
+        cumulative_ref_match_sum = cumulative_ref_matches[-1] + ref_match
+        cumulative_ref_matches.append(cumulative_ref_match_sum)
+        precision.append(cumulative_ref_match_sum / (i + 2))
+
+    return precision
