@@ -2,6 +2,7 @@
 
 import input
 import consensus
+import masstol
 import classifier
 
 import getopt
@@ -33,6 +34,8 @@ def main(argv):
     prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
     save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
     #prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
+
+    prediction_df = masstol.update_prediction_df(prediction_df)
 
     classifier.classify(prediction_df = prediction_df)
     #classifier.classify()

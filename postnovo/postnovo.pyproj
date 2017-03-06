@@ -34,6 +34,9 @@
     <Compile Include="input.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="masstol.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="postnovo.py" />
     <Compile Include="utils.py">
       <SubType>Code</SubType>

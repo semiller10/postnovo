@@ -55,6 +55,7 @@ tol_basenames_dict = OrderedDict()
 ## example
 ## tol_basenames_dict = odict('0.4': ['proteome-0.4.novor.csv', 'proteome-0.4.mgf.out'],
 ##                              '0.5': ['proteome-0.5.novor.csv', 'proteome-0.5.mgf.out'])
+alg_combo_group_col_list = []
 
 # de novo output characteristics
 novor_dropped_chars = {ord(char): None for char in
