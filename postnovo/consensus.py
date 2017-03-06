@@ -107,25 +107,25 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     ##    3: odict(
     ##    ('novor', 'peaks', 'pn'): odict('novor': (0, 0), 'peaks': (0, 1), 'pn': (1, 0))))
 
-    grand_scan_prediction_dict_list = []
-
     multiprocessing_pool = Pool(cores[0],
                                 initializer = child_initialize,
                                 initargs = (alg_consensus_source_df_dict, scan_consensus_info_dict, scan_generator_fns_dict,
                                             scan_common_substrings_info_dict, consensus_min_len, first_seq_second_seq_rank_comparisons_dict,
                                             first_seq_second_seq_max_ranks_dict, first_seq_second_seq_alg_positions_dict,
-                                            one_percent_number_consensus_scans, tol, cores[0]))
+                                            one_percent_number_consensus_scans, tol, cores[0])
+                                )
     verbose_print('finding', tol, 'Da consensus sequences')
     grand_scan_prediction_dict_list = multiprocessing_pool.map(make_scan_prediction_dicts, consensus_scan_list)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
-    # Single processor method
+    ## single processor method
     #child_initialize(alg_consensus_source_df_dict,
     #                scan_consensus_info_dict, scan_generator_fns_dict,
     #                scan_common_substrings_info_dict, consensus_min_len,
     #                first_seq_second_seq_rank_comparisons_dict, first_seq_second_seq_max_ranks_dict,
     #                first_seq_second_seq_alg_positions_dict, one_percent_number_consensus_scans, tol, cores[0])
+    #grand_scan_prediction_dict_list = []
     #verbose_print('finding', tol, 'Da consensus sequences')
     #for consensus_scan in consensus_scan_list:
     #    grand_scan_prediction_dict_list.append(
