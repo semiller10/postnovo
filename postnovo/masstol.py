@@ -1,5 +1,7 @@
 ''' Compare sequences predicted with different fragment mass tolerances '''
 
+import sys
+
 import numpy as np
 import pandas as pd
 
@@ -17,7 +19,7 @@ def update_prediction_df(prediction_df):
     if len(tol_list) == 1:
         return prediction_df
 
-    verbose_print('setting up comparison over mass tolerance parameterization')
+    verbose_print('setting up mass tolerance comparison')
     prediction_df.reset_index(inplace = True)
     # combo level col = sum of 'is novor seq', 'is peaks seq', 'is pn seq' values
     prediction_df['combo level'] = prediction_df.iloc[:, :len(alg_list)].sum(axis = 1)
@@ -26,18 +28,19 @@ def update_prediction_df(prediction_df):
     tol_group_key_list = []
     for i, tol in enumerate(tol_list):
         tol_group_key = [0] * len(tol_list)
-        tol_group_key[i] = 1
+        tol_group_key[-(i + 1)] = 1
         tol_group_key_list.append(tuple(tol_group_key))
     # set index as scan, '0.2' -> '0.7', combo level
     prediction_df.set_index(['scan'] + tol_list, inplace = True)
-    prediction_df.sort_index(level = ['scan'] + sorted(tol_list, reverse = True), inplace = True)
+    # tol list indices are sorted backwards: 0.7 predictions come before 0.2 in scan group
+    prediction_df.sort_index(level = ['scan'] + tol_list, inplace = True)
     mass_tol_comparison_df = prediction_df[['seq', 'combo level']]
     scan_groups = mass_tol_comparison_df.groupby(level = 'scan')
 
     ## single processor method
     #child_initialize(scan_groups, tol_list, tol_group_key_list, cores[0], one_percent_number_scans)
     #tol_match_array_list = []
-    #verbose_print('comparing over mass tolerance parameterization')
+    #verbose_print('performing mass tolerance comparison')
     #for scan in scan_list:
     #    tol_match_array_list.append(make_mass_tol_match_array(scan))
 
@@ -46,13 +49,13 @@ def update_prediction_df(prediction_df):
                                 initargs = (scan_groups, tol_list, tol_group_key_list,
                                             cores[0], one_percent_number_scans)
                                 )
-    verbose_print('comparing over mass tolerance parameterization')
+    verbose_print('performing mass tolerance comparison')
     tol_match_array_list = multiprocessing_pool.map(make_mass_tol_match_array, scan_list)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
     tol_match_cols = [tol + ' seq match' for tol in tol_list]
-    tol_match_df = pd.DataFrame(np.concatenate(tol_match_array_list),
+    tol_match_df = pd.DataFrame(np.fliplr(np.concatenate(tol_match_array_list)),
                                 index = prediction_df.index,
                                 columns = tol_match_cols)
     prediction_df = pd.concat([prediction_df, tol_match_df], axis = 1)
@@ -60,8 +63,6 @@ def update_prediction_df(prediction_df):
     prediction_df.reset_index(inplace = True)
     prediction_df.set_index(alg_combo_group_col_list, inplace = True)
     prediction_df.sort_index(level = ['scan'] + alg_combo_group_col_list[:-1], inplace = True)
-
-    sys.exit(0)
 
     return prediction_df
 
@@ -126,20 +127,20 @@ def make_mass_tol_match_array(scan):
                                 # if combo level > current highest level for tol comparison, as recorded in tol_match_array
                                 if first_prediction_combo_level > tol_match_array[
                                     first_tol_group_first_row_position_in_scan_group + first_prediction_index,
-                                    first_tol_group_key_index]:
+                                    first_tol_group_key_index + second_tol_group_key_index + 1]:
 
                                     tol_match_array[
                                     first_tol_group_first_row_position_in_scan_group + first_prediction_index,
-                                    first_tol_group_key_index] = second_prediction_combo_level
+                                    first_tol_group_key_index + second_tol_group_key_index + 1] = second_prediction_combo_level
 
                             if second_prediction_seq in first_prediction_seq:
                                 if second_prediction_combo_level > tol_match_array[
                                     second_tol_group_first_row_position_in_scan_group + second_prediction_index,
-                                    second_tol_group_key_index + 1]:
+                                    first_tol_group_key_index]:
 
                                     tol_match_array[
                                     second_tol_group_first_row_position_in_scan_group + second_prediction_index,
-                                    second_tol_group_key_index + 1] = first_prediction_combo_level
+                                    first_tol_group_key_index] = first_prediction_combo_level
 
                     # certain tols may not have predictions
                     except KeyError:

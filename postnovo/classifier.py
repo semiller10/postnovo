@@ -11,7 +11,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.collections as mcoll
-import sys
 import datetime
 import warnings
 warnings.filterwarnings('ignore')

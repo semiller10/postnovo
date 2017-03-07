@@ -25,17 +25,19 @@ def main(argv):
 
     set_global_vars(user_args)
 
-    alg_basename_dfs_dict = input.load_files()
+    #alg_basename_dfs_dict = input.load_files()
     ## example:
     ## alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
-    save_pkl_objects(test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
+    #save_pkl_objects(test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
     #alg_basename_dfs_dict = load_pkl_objects(test_dir, 'alg_basename_dfs_dict')
 
-    prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
-    save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
+    #prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
+    #save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
     #prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
-    prediction_df = masstol.update_prediction_df(prediction_df)
+    #prediction_df = masstol.update_prediction_df(prediction_df)
+    #save_pkl_objects(test_dir, **{'mass_tol_prediction_df': prediction_df})
+    prediction_df, = load_pkl_objects(test_dir, 'mass_tol_prediction_df')
 
     classifier.classify(prediction_df = prediction_df)
     #classifier.classify()
@@ -286,6 +288,12 @@ def set_global_vars(user_args):
         alg_tols_dict['pn'] = OrderedDict(
             zip(pn_tols,
                 [basename(pn_file) for pn_file in pn_files]))
+
+    # MultiIndex cols for prediction_df
+    for alg in alg_list:
+        is_alg_col_name = 'is ' + alg + ' seq'
+        alg_combo_group_col_list.append(is_alg_col_name)
+    alg_combo_group_col_list.append('scan')
 
     tol_alg_dict_local = invert_dict_of_lists(alg_tols_dict)
     for k, v in tol_alg_dict_local.items():

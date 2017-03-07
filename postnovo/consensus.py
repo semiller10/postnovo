@@ -42,12 +42,9 @@ def make_prediction_df(alg_basename_dfs_dict):
     for tol in tol_list:
         prediction_df[tol].fillna(0, inplace = True)
 
-    for alg in alg_list:
-        is_alg_col_name = 'is ' + alg + ' seq'
+    for is_alg_col_name in alg_combo_group_col_list[:-1]:
         prediction_df[is_alg_col_name].fillna(0, inplace = True)
         prediction_df[is_alg_col_name] = prediction_df[is_alg_col_name].astype(int)
-        alg_combo_group_col_list.append(is_alg_col_name)
-    alg_combo_group_col_list.append('scan')
     prediction_df.set_index(alg_combo_group_col_list, inplace = True)
     prediction_df.sort_index(level = ['scan'] + alg_combo_group_col_list[:-1], inplace = True)
 
