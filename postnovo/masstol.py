@@ -34,8 +34,8 @@ def update_prediction_df(prediction_df):
     prediction_df.set_index(['scan'] + tol_list, inplace = True)
     # tol list indices are sorted backwards: 0.7 predictions come before 0.2 in scan group
     prediction_df.sort_index(level = ['scan'] + tol_list, inplace = True)
-    mass_tol_comparison_df = prediction_df[['seq', 'combo level']]
-    scan_groups = mass_tol_comparison_df.groupby(level = 'scan')
+    mass_tol_compar_df = prediction_df[['seq', 'combo level']]
+    scan_groups = mass_tol_compar_df.groupby(level = 'scan')
 
     ## single processor method
     #child_initialize(scan_groups, tol_list, tol_group_key_list, cores[0], one_percent_number_scans)
