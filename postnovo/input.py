@@ -23,7 +23,10 @@ def load_files():
             [basename(novor_file) for novor_file in novor_files])
         for i, novor_file in enumerate(novor_files):
             verbose_print('loading', basename(novor_file))
-            check_file_mass_tol(novor_file, novor_tols[i])
+            check_file_fragment_mass_tol(novor_file, novor_tols[i])
+            if i == 0:
+                find_precursor_mass_tol(novor_file)
+
             alg_basename_dfs_dict['novor'][basename(novor_file)] = load_novor_file(novor_file)
     
     if peaks_files:
@@ -90,7 +93,7 @@ def load_novor_file(novor_file):
 
     return novor_df
 
-def check_file_mass_tol(novor_file, user_mass_tol):
+def check_file_fragment_mass_tol(novor_file, user_mass_tol):
 
     file_mass_tol = pd.read_csv(novor_file, nrows = 12).iloc[11][0]
     if user_mass_tol not in file_mass_tol:
@@ -98,6 +101,13 @@ def check_file_mass_tol(novor_file, user_mass_tol):
             'Order of mass tol args does not correspond to order of Novor files')
 
     return file_mass_tol
+
+def find_precursor_mass_tol(novor_file):
+    precursor_mass_tol_info_str = pd.read_csv(novor_file, nrows = 13).iloc[12][0]
+    try:
+        precursor_mass_tol[0] = float(re.search('(?<=# precursorErrorTol = )(.*)(?=ppm)', precursor_mass_tol_info_str).group(0))
+    except ValueError:
+        pass
 
 def load_peaks_file(peaks_file):
     pass

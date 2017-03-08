@@ -61,8 +61,8 @@ def update_prediction_df(prediction_df):
     prediction_df = pd.concat([prediction_df, tol_match_df], axis = 1)
     prediction_df.drop(['combo level'], axis = 1, inplace = True)
     prediction_df.reset_index(inplace = True)
-    prediction_df.set_index(alg_combo_group_col_list, inplace = True)
-    prediction_df.sort_index(level = ['scan'] + alg_combo_group_col_list[:-1], inplace = True)
+    prediction_df.set_index(is_alg_col_names + ['scan'], inplace = True)
+    prediction_df.sort_index(level = ['scan'] + is_alg_col_names, inplace = True)
 
     return prediction_df
 

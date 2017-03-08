@@ -3,6 +3,7 @@
 import input
 import consensus
 import masstol
+import interspec
 import classifier
 
 import getopt
@@ -14,6 +15,7 @@ from utils import *
 
 from os.path import join, exists, basename
 from multiprocessing import cpu_count
+from itertools import combinations, product
 
 
 def main(argv):
@@ -25,19 +27,23 @@ def main(argv):
 
     set_global_vars(user_args)
 
-    #alg_basename_dfs_dict = input.load_files()
-    ## example:
-    ## alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
-    #save_pkl_objects(test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
+    alg_basename_dfs_dict = input.load_files()
+    # example:
+    # alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
+    save_pkl_objects(test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
     #alg_basename_dfs_dict = load_pkl_objects(test_dir, 'alg_basename_dfs_dict')
 
-    #prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
-    #save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
+    prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
+    save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
     #prediction_df, = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
-    #prediction_df = masstol.update_prediction_df(prediction_df)
-    #save_pkl_objects(test_dir, **{'mass_tol_prediction_df': prediction_df})
-    prediction_df, = load_pkl_objects(test_dir, 'mass_tol_prediction_df')
+    prediction_df = masstol.update_prediction_df(prediction_df)
+    save_pkl_objects(test_dir, **{'mass_tol_prediction_df': prediction_df})
+    #prediction_df, = load_pkl_objects(test_dir, 'mass_tol_prediction_df')
+
+    prediction_df = interspec.update_prediction_df(prediction_df)
+    #save_pkl_objects(test_dir, **{'interspec_prediction_df': prediction_df})
+    #prediction_df, = load_pkl_objects(test_dir, 'interspec_prediction_df')
 
     classifier.classify(prediction_df = prediction_df)
     #classifier.classify()
@@ -289,11 +295,19 @@ def set_global_vars(user_args):
             zip(pn_tols,
                 [basename(pn_file) for pn_file in pn_files]))
 
+    for combo_level in range(2, len(alg_list) + 1):
+        combo_level_combo_list = [combo for combo in combinations(alg_list, combo_level)]
+        for alg_combo in combo_level_combo_list:
+            alg_combo_list.append(alg_combo)
+
     # MultiIndex cols for prediction_df
     for alg in alg_list:
         is_alg_col_name = 'is ' + alg + ' seq'
-        alg_combo_group_col_list.append(is_alg_col_name)
-    alg_combo_group_col_list.append('scan')
+        is_alg_col_names.append(is_alg_col_name)
+
+    is_alg_col_multiindex_list = list(product((0, 1), repeat = len(alg_list)))
+    for multiindex_key in is_alg_col_multiindex_list[1:]:
+        is_alg_col_multiindex_keys.append(multiindex_key)
 
     tol_alg_dict_local = invert_dict_of_lists(alg_tols_dict)
     for k, v in tol_alg_dict_local.items():

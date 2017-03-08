@@ -17,7 +17,6 @@ warnings.filterwarnings('ignore')
 import os.path
 
 from functools import partial
-from itertools import product
 from collections import OrderedDict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, GridSearchCV
@@ -45,12 +44,12 @@ def classify(prediction_df = None):
 
     if run_type[0] in ['train', 'optimize']:
         
-        subsampled_df = subsample_training_data(prediction_df)
-        save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
+        #subsampled_df = subsample_training_data(prediction_df)
+        #save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
         #subsampled_df, = load_pkl_objects(test_dir, 'subsampled_df')
 
         verbose_print('updating training database')
-        training_df = update_training_data(subsampled_df)
+        training_df = update_training_data(prediction_df)
         #training_df, = load_pkl_objects(training_dir, 'training_df')
 
         forest_dict = make_training_forests(training_df)
@@ -133,7 +132,6 @@ def standardize_prediction_df_cols(prediction_df):
 def subsample_training_data(prediction_df_orig):
 
     subsample_row_indices = []
-    train_target_arr_dict = list(product((0, 1), repeat = len(alg_list)))[1:]
     prediction_df_orig['unique index'] = [i for i in range(prediction_df_orig.shape[0])]
     prediction_df_orig.set_index('unique index', append = True, inplace = True)
     prediction_df = prediction_df_orig.copy()
@@ -155,7 +153,7 @@ def subsample_training_data(prediction_df_orig):
     while sum(accuracy_subsample_sizes.values()) != subsample_size:
         accuracy_subsample_sizes[accuracy_bins[0]] += 1
 
-    for multiindex_key in train_target_arr_dict:
+    for multiindex_key in is_alg_col_multiindex_keys:
         multiindex_list = list(multiindex_key)
         alg_group_df_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
         if sum(multiindex_key) == 1:
@@ -293,6 +291,10 @@ def update_training_data(prediction_df):
         training_df_csv = prediction_df_csv
     training_df_csv.set_index(['timestamp', 'scan'], inplace = True)
     training_df_csv.to_csv(join(training_dir, 'training_df.csv'))
+    # save prediction df as csv in case training df is too big to open in Excel
+    # NEEDS FIXING: KeyError: 'timestamp'
+    #prediction_df_csv.set_index(['timestamp', 'scan'], inplace = True)
+    #prediction_df_csv.to_csv(join(test_dir, 'last_added_training_df.csv'))
 
     return training_df
 
@@ -301,13 +303,15 @@ def make_predictions(prediction_df):
     forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
 
     prediction_df['probability'] = np.nan
-    alg_group_multiindex_keys = list(product((0, 1), repeat = len(alg_list)))[1:]
-    for multiindex_key in alg_group_multiindex_keys:
+    for multiindex_key in is_alg_col_multiindex_keys:
         alg_group = tuple([alg for i, alg in enumerate(alg_list) if multiindex_key[i]])
 
         alg_group_data = prediction_df.xs(multiindex_key)
-        accuracy_labels = alg_group_data['ref match'].tolist()
-        alg_group_data.drop(['seq', 'ref match', 'probability'], axis = 1, inplace = True)
+        if run_type[0] == 'predict':
+            alg_group_data.drop(['seq', 'probability'], axis = 1, inplace = True)
+        elif run_type[0] == 'test':
+            accuracy_labels = alg_group_data['ref match'].tolist()
+            alg_group_data.drop(['seq', 'ref match', 'probability'], axis = 1, inplace = True)
         alg_group_data.dropna(1, inplace = True)
         forest_dict[alg_group].n_jobs = cores[0]
         probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
@@ -352,10 +356,9 @@ def make_training_forests(training_df):
 def make_train_target_arr_dict(training_df):
 
     training_df.sort_index(inplace = True)
-    multiindex_groups = list(product((0, 1), repeat = len(alg_list)))[1:]
     model_keys_used = []
     train_target_arr_dict = {}
-    for multiindex in multiindex_groups:
+    for multiindex in is_alg_col_multiindex_keys:
         model_key = tuple([alg for i, alg in enumerate(alg_list) if multiindex[i]])
         model_keys_used.append(model_key)
         train_target_arr_dict[model_keys_used[-1]] = {}.fromkeys(['train', 'target'])
@@ -401,9 +404,9 @@ def optimize_model(train_target_arr_dict):
 
         data_train_split, data_validation_split, target_train_split, target_validation_split =\
             train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
-        forest_grid = GridSearchCV(RandomForestClassifier(n_estimators = 150, oob_score = True),
-                              {'max_features': ['sqrt', None], 'max_depth': [depth for depth in range(11, 20)]},
-                              n_jobs = cores[0])
+        forest_grid = GridSearchCV(RandomForestClassifier(n_estimators = rf_n_estimators, oob_score = True),
+                                   {'max_features': ['sqrt', None], 'max_depth': [depth for depth in range(11, 20)]},
+                                   n_jobs = cores[0])
         forest_grid.fit(data_train_split, target_train_split)
         optimized_forest = forest_grid.best_estimator_
         optimized_params[alg_key]['max_depth'] = optimized_forest.max_depth
@@ -460,7 +463,7 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
     max_estimators = 500
 
     for label, clf in ensemble_clfs:
-        for tree_number in range(min_estimators, max_estimators + 1, 50):
+        for tree_number in range(min_estimators, max_estimators + 1, 100):
             clf.set_params(n_estimators = tree_number)
             clf.fit(data_train_split, target_train_split)
 
@@ -703,8 +706,6 @@ def plot_precision_yield(alg_group_multiindex_keys, prediction_df):
     #plt.tight_layout(True)
     #save_path = join(test_dir, 'all_precision_yield.pdf')
     #fig.savefig(save_path, bbox_inches = 'tight')
-
-    sys.exit(0)
 
 def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth = 3, alpha = 1.0):
 

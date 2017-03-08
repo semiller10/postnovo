@@ -255,3 +255,4 @@ ModelManifest.xml
 *.json
 /postnovo/ppt_figs
 *.pdf
+*.csv

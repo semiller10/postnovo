@@ -42,11 +42,11 @@ def make_prediction_df(alg_basename_dfs_dict):
     for tol in tol_list:
         prediction_df[tol].fillna(0, inplace = True)
 
-    for is_alg_col_name in alg_combo_group_col_list[:-1]:
+    for is_alg_col_name in is_alg_col_names:
         prediction_df[is_alg_col_name].fillna(0, inplace = True)
         prediction_df[is_alg_col_name] = prediction_df[is_alg_col_name].astype(int)
-    prediction_df.set_index(alg_combo_group_col_list, inplace = True)
-    prediction_df.sort_index(level = ['scan'] + alg_combo_group_col_list[:-1], inplace = True)
+    prediction_df.set_index(is_alg_col_names + ['scan'], inplace = True)
+    prediction_df.sort_index(level = ['scan'] + is_alg_col_names, inplace = True)
 
     return prediction_df
 
@@ -55,18 +55,18 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     for alg, df in alg_df_dict.items():
         encode_seqs(df, consensus_min_len)
 
-    combo_level_alg_dict, full_alg_combo_list = get_combo_level_data(alg_df_dict)
-    highest_level_alg_combo = full_alg_combo_list[-1]
+    combo_level_alg_dict = make_combo_level_alg_dict(alg_df_dict)
+    highest_level_alg_combo = alg_combo_list[-1]
     ## examples
     ## combo_level_alg_dict = odict(2: [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn')], 3: [('novor', 'peaks', 'pn')])
-    ## full_alg_combo_list = [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn'), ('novor', 'peaks', 'pn')]
     ## highest_level_alg_combo = ('novor', 'peaks', 'pn')
 
+    alg_df_dict = add_measured_mass_col(alg_df_dict)
     alg_consensus_source_df_dict = make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict)
     consensus_scan_list = make_consensus_scan_list(alg_consensus_source_df_dict, highest_level_alg_combo)
     one_percent_number_consensus_scans = len(consensus_scan_list) / 100 / cores[0]
 
-    scan_consensus_info_dict, scan_generator_fns_dict, scan_common_substrings_info_dict = setup_scan_info_dicts(full_alg_combo_list, combo_level_alg_dict)
+    scan_consensus_info_dict, scan_generator_fns_dict, scan_common_substrings_info_dict = setup_scan_info_dicts(combo_level_alg_dict)
     ## examples
     ## scan_consensus_info_dict = odict(2: odict(
     ##    ('novor', 'pn'):
@@ -367,6 +367,8 @@ def make_seq_prediction_dict(consensus_scan, scan_alg_consensus_source_df_dict =
         for k in prediction_dict:
             if k == 'scan':
                 prediction_dict['scan'] = consensus_scan
+            elif k == 'measured mass':
+                prediction_dict['measured mass'] = scan_alg_consensus_source_df.at[0, 'measured mass']
             elif k == 'is top rank single alg':
                 prediction_dict['is top rank single alg'] = 1
             elif k == 'seq':
@@ -409,12 +411,15 @@ def make_seq_prediction_dict(consensus_scan, scan_alg_consensus_source_df_dict =
         prediction_dict = {}.fromkeys(consensus_prediction_dict_cols['general'])
         selection_seq_start = cs_info_dict['seq_starts'][1]
         selection_seq_end = selection_seq_start + cs_info_dict['consensus_len']
+        last_seq_rank_index = cs_info_dict['alg_ranks'][1][0]
         for k in prediction_dict:
             if k == 'scan':
                 prediction_dict['scan'] = consensus_scan
+            elif k == 'measured mass':
+                prediction_dict['measured mass'] = last_alg_consensus_source_df.at[last_seq_rank_index, 'measured mass']
             elif k == 'seq':
-                cs_info_dict['encoded_consensus_seq'] = last_alg_consensus_source_df.at[cs_info_dict['alg_ranks'][1][0], 'encoded seq'][selection_seq_start: selection_seq_end]
-                prediction_dict['seq'] = cs_info_dict['consensus_seq'] = last_alg_consensus_source_df.at[cs_info_dict['alg_ranks'][1][0], 'seq'][selection_seq_start: selection_seq_end]
+                cs_info_dict['encoded_consensus_seq'] = last_alg_consensus_source_df.at[last_seq_rank_index, 'encoded seq'][selection_seq_start: selection_seq_end]
+                prediction_dict['seq'] = cs_info_dict['consensus_seq'] = last_alg_consensus_source_df.at[last_seq_rank_index, 'seq'][selection_seq_start: selection_seq_end]
             elif k == 'len':
                 prediction_dict['len'] = cs_info_dict['consensus_len']
             elif k == 'avg rank':
@@ -474,17 +479,18 @@ def encode_seqs(df, consensus_min_len):
     df['encoded seq'] = df['encoded seq'].apply(map_ord).apply(list)
     df['encoded seq'] = df['encoded seq'].apply(np.array).apply(lambda x: x - unicode_decimal_A)
 
-def get_combo_level_data(alg_df_dict):
-
+def make_combo_level_alg_dict(alg_df_dict):
     combo_level_alg_dict = OrderedDict()
-    full_alg_combo_list = []
     for combo_level in range(2, len(alg_df_dict) + 1):
         combo_level_alg_dict[combo_level] = []
-        alg_combo_list = [combo for combo in combinations(alg_df_dict, combo_level)]
-        combo_level_alg_dict[combo_level] += alg_combo_list
-        full_alg_combo_list += alg_combo_list
+        combo_level_alg_dict[combo_level] += [alg_combo for alg_combo in alg_combo_list
+                                              if len(alg_combo) == combo_level]
+    return combo_level_alg_dict
 
-    return combo_level_alg_dict, full_alg_combo_list
+def add_measured_mass_col(alg_df_dict):
+    for alg_df in alg_df_dict.values():
+        alg_df['measured mass'] = alg_df['m/z'] * alg_df['charge']
+    return alg_df_dict
 
 def make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict):
     alg_consensus_source_df_dict = OrderedDict().fromkeys(highest_level_alg_combo)
@@ -499,7 +505,7 @@ def make_consensus_scan_list(alg_consensus_source_df_dict, highest_level_alg_com
     consensus_scan_list = list(set(consensus_scan_list))
     return consensus_scan_list
 
-def setup_scan_info_dicts(full_alg_combo_list, combo_level_alg_dict):
+def setup_scan_info_dicts(combo_level_alg_dict):
 
     scan_consensus_info_dict = OrderedDict().fromkeys(combo_level_alg_dict)
     scan_generator_fns_dict = OrderedDict().fromkeys(combo_level_alg_dict)
