@@ -84,7 +84,7 @@ def find_possible_substitutions(seq):
     mono_dipeptide_near_isobaric_substitution_count = 0
     for peptide in mono_dipeptide_near_isobaric_substitutions:
         if peptide in seq:
-            near_isobaric_substitution_count += 1
+            mono_dipeptide_near_isobaric_substitution_count += 1
     possible_substitution_list.append(mono_dipeptide_near_isobaric_substitution_count)
 
     dipeptide_near_isobaric_substitution_count = 0

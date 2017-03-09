@@ -13,11 +13,11 @@ unicode_decimal_A = 65
 
 # aa substitutions
 # M+15.9949 Da, C+57.0215 Da
-mono_dipeptide_isobaric_substitutions = {
+mono_di_isobaric_subs = {
     'N': 'N_GG', 'GG': 'N_GG',
     'Q': 'Q_AG', 'AG': 'Q_AG', 'GA': 'Q_AG'
     }
-dipeptide_isobaric_substitutions = {
+di_isobaric_subs = {
     'AD': 'AD_EG', 'DA': 'AD_EG', 'EG': 'AD_EG', 'GE': 'AD_EG',
     'AN': 'AN_GQ', 'NA': 'AN_GQ', 'GQ': 'AN_GQ', 'QG': 'AN_GQ',
     'AS': 'AS_GT', 'SA': 'AS_GT', 'GT': 'AS_GT', 'TG': 'AS_GT',
@@ -31,10 +31,10 @@ dipeptide_isobaric_substitutions = {
     'LS': 'LS_TV', 'SL': 'LS_TV', 'TV': 'LS_TV', 'VT': 'LS_TV',
     'NT': 'NT_QS', 'TN': 'NT_QS', 'QS': 'NT_QS', 'SQ': 'NT_QS'    
     }
-mono_dipeptide_near_isobaric_substitutions = {
+mono_di_near_isobaric_subs = {
     'R': 'R_GV', 'GV': 'R_GV', 'VG': 'R_GV'
     }
-dipeptide_near_isobaric_substitutions = {
+di_near_isobaric_subs = {
     'CL': 'CL_SW', 'LC': 'CL_SW', 'SW': 'CL_SW', 'WS': 'CL_SW',
     'ER': 'ER_VW', 'RE': 'ER_VW', 'VW': 'ER_VW', 'WV': 'ER_VW',
     'FQ': 'FQ_KM', 'QF': 'FQ_KM', 'KM': 'FQ_KM', 'MK': 'FQ_KM',
@@ -109,12 +109,16 @@ rf_default_params = {('novor',): {'max_depth': 16, 'max_features': 'sqrt'},
 prediction_dict_source_cols = {'novor': ['retention time', 'measured mass', 'seq', 'aa score', 'avg aa score', 'encoded seq'],
                                'peaks': [],
                                'pn': ['measured mass', 'seq', 'rank score', 'pn score', 'sqs', 'encoded seq']}
-single_alg_prediction_dict_cols = {'general': ['scan', 'measured mass', 'is top rank single alg', 'seq', 'len', 'avg rank'],
-                                   'novor': ['retention time', 'is novor seq', 'avg novor aa score'],
+single_alg_prediction_dict_cols = {'general': ['scan', 'measured mass', 'is top rank single alg', 'seq', 'len'],
+                                   'novor': ['retention time', 'is novor seq', 'avg novor aa score',
+                                             'mono-di isobaric sub score', 'di isobaric sub score',
+                                             'mono-di near-isobaric sub score', 'di near-isobaric sub score'],
                                    'peaks': [],
-                                   'pn': ['is pn seq', 'rank score', 'pn score', 'pn rank', 'sqs']}
+                                   'pn': ['is pn seq', 'rank score', 'pn score', 'sqs']}
 consensus_prediction_dict_cols = {'general': ['scan', 'measured mass', 'seq', 'len', 'avg rank', 'is longest consensus', 'is top rank consensus'],
-                                  'novor': ['retention time', 'is novor seq', 'fraction novor parent len', 'avg novor aa score'],
+                                  'novor': ['retention time', 'is novor seq', 'fraction novor parent len', 'avg novor aa score'
+                                            'mono-di isobaric sub score', 'di isobaric sub score',
+                                            'mono-di near-isobaric sub score', 'di near-isobaric sub score'],
                                   'peaks': [],
                                   'pn': ['is pn seq', 'fraction pn parent len', 'rank score', 'pn score', 'pn rank', 'sqs']}
 
@@ -142,7 +146,8 @@ reported_df_cols = ['seq', 'probability', 'ref match',
                     '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
                     '0.2 match', '0.3 match', '0.4 match', '0.5 match', '0.6 match', '0.7 match',
                     'precursor seq agreement', 'precursor seq count',
-                    'possible isobaric substitutions', 'possible near isobaric substitutions',
+                    'mono-di isobaric sub score', 'di isobaric sub score',
+                    'mono-di near-isobaric sub score', 'di near-isobaric sub score',
                     'avg novor aa score', 'rank score', 'pn score',
                     'avg rank', 'peaks rank', 'pn rank',
                     'len', 'fraction novor parent len', 'fraction peaks parent len', 'fraction pn parent len',

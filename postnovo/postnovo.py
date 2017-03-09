@@ -28,14 +28,14 @@ def main(argv):
 
     set_global_vars(user_args)
 
-    #alg_basename_dfs_dict = input.load_files()
-    #save_pkl_objects(test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
+    alg_basename_dfs_dict = input.load_files()
+    save_pkl_objects(test_dir, **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
     #alg_basename_dfs_dict = load_pkl_objects(test_dir, 'alg_basename_dfs_dict')
     ## example:
     ## alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
 
-    #prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
-    #save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
+    prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
+    save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
     #prediction_df = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
     #prediction_df = masstol.update_prediction_df(prediction_df)
@@ -46,8 +46,8 @@ def main(argv):
     #save_pkl_objects(test_dir, **{'interspec_prediction_df': prediction_df})
     prediction_df = load_pkl_objects(test_dir, 'interspec_prediction_df')
 
-    prediction_df = isobaric.update_prediction_df(prediction_df)
-    save_pkl_objects(test_dir, **{'isobaric_prediction_df': prediction_df})
+    #prediction_df = isobaric.update_prediction_df(prediction_df)
+    #save_pkl_objects(test_dir, **{'isobaric_prediction_df': prediction_df})
     #prediction_df = load_pkl_objects(test_dir, 'isobaric_prediction_df')
 
     classifier.classify(prediction_df = prediction_df)

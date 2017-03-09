@@ -347,9 +347,9 @@ def make_training_forests(training_df):
     if run_type[0] == 'train':
         forest_dict = make_forest_dict(train_target_arr_dict, rf_default_params)
 
-        data_train_split, data_validation_split, target_train_split, target_validation_split =\
-            train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
         for alg_key in forest_dict:
+            data_train_split, data_validation_split, target_train_split, target_validation_split =\
+                train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
             plot_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
             plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key)
 
