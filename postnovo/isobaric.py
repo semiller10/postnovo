@@ -35,7 +35,10 @@ def update_prediction_df(prediction_df):
 
     isobaric_df = pd.DataFrame(possible_substitution_lists,
                                index = prediction_df.index,
-                               columns = ['possible isobaric substitutions', 'possible near isobaric substitutions'])
+                               columns = ['possible mono-dipeptide isobaric substitutions',
+                                          'possible dipeptide isobaric substitutions',
+                                          'possible mono-dipeptide near isobaric substitutions',
+                                          'possible dipeptide near isobaric substitutions'])
     prediction_df = pd.concat([prediction_df, isobaric_df], axis = 1)
 
     return prediction_df
@@ -59,16 +62,28 @@ def find_possible_substitutions(seq):
 
     possible_substitution_list = []
 
-    isobaric_substitution_count = 0
-    for peptide in isobaric_substitutions:
+    mono_dipeptide_isobaric_substitution_count = 0
+    for peptide in mono_dipeptide_isobaric_substitutions:
         if peptide in seq:
-            isobaric_substitution_count += 1
-    possible_substitution_list.append(isobaric_substitution_count)
+            mono_dipeptide_isobaric_substitution_count += 1
+    possible_substitution_list.append(mono_dipeptide_isobaric_substitution_count)
 
-    near_isobaric_substitution_count = 0
-    for peptide in near_isobaric_substitutions:
+    dipeptide_isobaric_substitution_count = 0
+    for peptide in dipeptide_isobaric_substitutions:
+        if peptide in seq:
+            dipeptide_isobaric_substitution_count += 1
+    possible_substitution_list.append(dipeptide_isobaric_substitution_count)
+
+    mono_dipeptide_near_isobaric_substitution_count = 0
+    for peptide in mono_dipeptide_near_isobaric_substitutions:
         if peptide in seq:
             near_isobaric_substitution_count += 1
-    possible_substitution_list.append(near_isobaric_substitution_count)
+    possible_substitution_list.append(mono_dipeptide_near_isobaric_substitution_count)
+
+    dipeptide_near_isobaric_substitution_count = 0
+    for peptide in dipeptide_near_isobaric_substitutions:
+        if peptide in seq:
+            dipeptide_near_isobaric_substitution_count += 1
+    possible_substitution_list.append(dipeptide_near_isobaric_substitution_count)
 
     return possible_substitution_list

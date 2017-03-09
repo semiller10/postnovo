@@ -13,9 +13,11 @@ unicode_decimal_A = 65
 
 # aa substitutions
 # M+15.9949 Da, C+57.0215 Da
-isobaric_substitutions = {
+mono_dipeptide_isobaric_substitutions = {
     'N': 'N_GG', 'GG': 'N_GG',
-    'Q': 'Q_AG', 'AG': 'Q_AG', 'GA': 'Q_AG',
+    'Q': 'Q_AG', 'AG': 'Q_AG', 'GA': 'Q_AG'
+    }
+dipeptide_isobaric_substitutions = {
     'AD': 'AD_EG', 'DA': 'AD_EG', 'EG': 'AD_EG', 'GE': 'AD_EG',
     'AN': 'AN_GQ', 'NA': 'AN_GQ', 'GQ': 'AN_GQ', 'QG': 'AN_GQ',
     'AS': 'AS_GT', 'SA': 'AS_GT', 'GT': 'AS_GT', 'TG': 'AS_GT',
@@ -29,8 +31,10 @@ isobaric_substitutions = {
     'LS': 'LS_TV', 'SL': 'LS_TV', 'TV': 'LS_TV', 'VT': 'LS_TV',
     'NT': 'NT_QS', 'TN': 'NT_QS', 'QS': 'NT_QS', 'SQ': 'NT_QS'    
     }
-near_isobaric_substitutions = {
-    'R': 'R_GV', 'GV': 'R_GV', 'VG': 'R_GV',
+mono_dipeptide_near_isobaric_substitutions = {
+    'R': 'R_GV', 'GV': 'R_GV', 'VG': 'R_GV'
+    }
+dipeptide_near_isobaric_substitutions = {
     'CL': 'CL_SW', 'LC': 'CL_SW', 'SW': 'CL_SW', 'WS': 'CL_SW',
     'ER': 'ER_VW', 'RE': 'ER_VW', 'VW': 'ER_VW', 'WV': 'ER_VW',
     'FQ': 'FQ_KM', 'QF': 'FQ_KM', 'KM': 'FQ_KM', 'MK': 'FQ_KM',
