@@ -38,7 +38,7 @@ def update_prediction_df(prediction_df):
     scan_groups = mass_tol_compar_df.groupby(level = 'scan')
 
     ## single processor method
-    #child_initialize(scan_groups, tol_list, tol_group_key_list, cores[0], one_percent_number_scans)
+    #child_initialize(scan_groups, tol_list, tol_group_key_list)
     #tol_match_array_list = []
     #verbose_print('performing mass tolerance comparison')
     #for scan in scan_list:
@@ -66,7 +66,7 @@ def update_prediction_df(prediction_df):
 
     return prediction_df
 
-def child_initialize(_scan_groups, _tol_list, _tol_group_key_list, _cores, _one_percent_number_scans):
+def child_initialize(_scan_groups, _tol_list, _tol_group_key_list, _cores = 1, _one_percent_number_scans = None):
 
     global scan_groups, tol_list, tol_group_key_list, cores, one_percent_number_scans
 

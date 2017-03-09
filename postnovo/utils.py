@@ -21,7 +21,10 @@ def load_pkl_objects(dir, *args):
         verbose_print('loading', obj_name)
         with open(join(dir, obj_name + '.pkl'), 'rb') as f:
             return_list.append(pkl.load(f))
-    return tuple(return_list)
+    if len(args) == 1:
+        return return_list[0]
+    else:
+        return tuple(return_list)
 
 def save_json_objects(dir, **kwargs):
     for obj_name, obj in kwargs.items():
@@ -35,7 +38,10 @@ def load_json_objects(dir, *args):
         verbose_print('loading', obj_name)
         with open(join(dir, obj_name + '.json'), 'r') as f:
             return_list.append(json.load(f))
-    return tuple(return_list)
+    if len(args) == 1:
+        return return_list[0]
+    else:
+        return tuple(return_list)
 
 def verbose_print(*args):
     if verbose[0]:

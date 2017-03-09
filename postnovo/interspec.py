@@ -2,9 +2,15 @@
 
 import numpy as np
 import pandas as pd
+import time
 
 from config import *
 from utils import *
+
+from multiprocessing import Pool, current_process
+
+multiprocessing_precursor_count = 0
+
 
 def update_prediction_df(prediction_df):
     verbose_print()
@@ -31,7 +37,6 @@ def update_prediction_df(prediction_df):
         for tol_group_key in tol_group_key_list:
             tol = tol_list[tol_group_key.index(1)]
 
-            tol_group_precursor_array_list = []
             try:
                 tol_df = alg_combo_df.xs(tol_group_key)[['seq', 'measured mass', 'mass error']]
             except TypeError:
@@ -56,63 +61,75 @@ def update_prediction_df(prediction_df):
             precursor_groups = tol_df.groupby('precursor index')
 
             ## single processor method
-            for precursor_index in range(precursor_indices[-1] + 1):
-                child_initialize(precursor_groups)
-                verbose_print('performing inter-spectrum comparison for', alg_combo, ',', tol, 'Da seqs')
-                tol_group_precursor_array_list.append(find_precursor_array(precursor_index))
+            #tol_group_precursor_array_list = []
+            #verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
+            #for precursor_index in range(precursor_indices[-1] + 1):
+            #    child_initialize(precursor_groups)
+            #    tol_group_precursor_array_list.append(make_precursor_info_array(precursor_index))
 
-    # return array
-    # append array to list of interspectrum arrays
-                tol_group_precursor_array_list.append(precursor_array)
+            ## multiprocessing method
+            precursor_range = range(precursor_indices[-1] + 1)
+            one_percent_number_precursors = len(precursor_range) / 100 / cores[0]
+            multiprocessing_pool = Pool(cores[0],
+                                        initializer = child_initialize,
+                                        initargs = (precursor_groups, cores[0], one_percent_number_precursors)
+                                        )
+            verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
+            tol_group_precursor_array_list = multiprocessing_pool.map(make_precursor_info_array,
+                                                                      precursor_range)
+            multiprocessing_pool.close()
+            multiprocessing_pool.join()
+
             alg_group_precursor_array_list += tol_group_precursor_array_list
-    # concatenate arrays
         full_precursor_array_list += alg_group_precursor_array_list
     interspec_df = pd.DataFrame(np.concatenate(full_precursor_array_list),
-                                    index = prediction_df.index,
-                                    columns = ['mass group agreement', 'mass group size'])
+                                index = prediction_df.index,
+                                columns = ['precursor seq agreement', 'precursor seq count'])
     # concatenate full array columnwise with prediction_df
     prediction_df = pd.concat([prediction_df, interspec_df], axis = 1)
 
+    prediction_df.drop(['measured mass', 'mass error'], axis = 1, inplace = True)
+    prediction_df.reset_index(inplace = True)
+    prediction_df.set_index(is_alg_col_names + ['scan'], inplace = True)
+    prediction_df.sort_index(level = ['scan'] + is_alg_col_names, inplace = True)
+
     return prediction_df
 
-def child_initialize(_precursor_groups):
-    global precursor_groups
+def child_initialize(_precursor_groups, _cores = 1, _one_percent_number_precursors = None):
+    global precursor_groups, cores, one_percent_number_precursors
     precursor_groups = _precursor_groups
+    cores = _cores
+    one_percent_number_precursors = _one_percent_number_precursors
 
 def make_precursor_info_array(precursor_index):
 
+    if current_process()._identity[0] % cores == 1:
+        global multiprocessing_precursor_count
+        multiprocessing_precursor_count += 1
+        if int(multiprocessing_precursor_count % one_percent_number_precursors) == 0:
+            percent_complete = int(multiprocessing_precursor_count / one_percent_number_precursors)
+            if percent_complete <= 100:
+                verbose_print_over_same_line('inter-spectrum comparison progress: ' + str(percent_complete) + '%')
+
     precursor_seqs = precursor_groups.get_group(precursor_index)['seq']
-# make a nested list, with number of inner lists = group size
     precursor_group_size = len(precursor_seqs)
     all_seq_matches_list = [[] for i in range(precursor_group_size)]
-# make an empty array of dims (# rows in group, 2)
     precursor_array = np.zeros((precursor_group_size, 2))
-# first col of array is proportion of matching seqs in group
-# second col is group size for each row
-# loop through each seq row in group, ending with second to last
+
     for first_seq_index, first_seq in enumerate(precursor_seqs):
-# record first group row index and seq
-# inner list # (first group row index) append 1, representing self
         all_seq_matches_list[first_seq_index].append(1)
-# loop through each subsequent seq row in group
+
         for second_seq_index, second_seq in enumerate(precursor_seqs[first_seq_index + 1:], start = 1):
-# record second group row index and seq
-# if first seq in second seq, inner list # (first group row index) append 1
             if first_seq in second_seq:
                 all_seq_matches_list[first_seq_index].append(1)
-# else append 0
             else:
                 all_seq_matches_list[first_seq_index].append(0)
-# if second seq in first seq, inner list # (second group row index) append 1
             if second_seq in first_seq:
                 all_seq_matches_list[first_seq_index + second_seq_index].append(1)
-# else append 0
             else:
                 all_seq_matches_list[first_seq_index + second_seq_index].append(0)
-# loop through rows of group again
+
     for seq_index, seq_matches in enumerate(all_seq_matches_list):
-# record row index
-# sum inner list corresponding to row index and record in first col of array
         precursor_array[seq_index, 0] = sum(seq_matches) / precursor_group_size
         precursor_array[seq_index, 1] = precursor_group_size
 

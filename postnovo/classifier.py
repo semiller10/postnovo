@@ -40,21 +40,21 @@ def classify(prediction_df = None):
     verbose_print('formatting data for compatability with model')
     prediction_df = standardize_prediction_df_cols(prediction_df)
     save_pkl_objects(test_dir, **{'prediction_df': prediction_df})
-    #prediction_df, = load_pkl_objects(test_dir, 'prediction_df')
+    #prediction_df = load_pkl_objects(test_dir, 'prediction_df')
 
     if run_type[0] in ['train', 'optimize']:
         
         #subsampled_df = subsample_training_data(prediction_df)
         #save_pkl_objects(test_dir, **{'subsampled_df': subsampled_df})
-        #subsampled_df, = load_pkl_objects(test_dir, 'subsampled_df')
+        #subsampled_df = load_pkl_objects(test_dir, 'subsampled_df')
 
         verbose_print('updating training database')
         training_df = update_training_data(prediction_df)
-        #training_df, = load_pkl_objects(training_dir, 'training_df')
+        #training_df = load_pkl_objects(training_dir, 'training_df')
 
         forest_dict = make_training_forests(training_df)
         save_pkl_objects(training_dir, **{'forest_dict': forest_dict})
-        #forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
+        #forest_dict = load_pkl_objects(training_dir, 'forest_dict')
 
     elif run_type[0] in ['predict', 'test']:
         
@@ -275,7 +275,7 @@ def redistribute_residual_subsample(residual, remaining_accuracy_bins, accuracy_
 def update_training_data(prediction_df):
 
     try:
-        training_df, = load_pkl_objects(training_dir, 'training_df')
+        training_df = load_pkl_objects(training_dir, 'training_df')
         training_df = pd.concat([training_df, prediction_df])
     except FileNotFoundError:
         training_df = prediction_df
@@ -300,7 +300,7 @@ def update_training_data(prediction_df):
 
 def make_predictions(prediction_df):
 
-    forest_dict, = load_pkl_objects(training_dir, 'forest_dict')
+    forest_dict = load_pkl_objects(training_dir, 'forest_dict')
 
     prediction_df['probability'] = np.nan
     for multiindex_key in is_alg_col_multiindex_keys:
