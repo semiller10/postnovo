@@ -346,6 +346,13 @@ def make_training_forests(training_df):
     
     if run_type[0] == 'train':
         forest_dict = make_forest_dict(train_target_arr_dict, rf_default_params)
+
+        data_train_split, data_validation_split, target_train_split, target_validation_split =\
+            train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
+        for alg_key in forest_dict:
+            plot_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
+            plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key)
+
     elif run_type[0] == 'optimize':
         verbose_print('optimizing random forest parameters')
         optimized_params = optimize_model(train_target_arr_dict)
@@ -451,14 +458,14 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
         verbose_print('plotting errors vs tree size for', alg_key[0], 'sequences')
 
     ensemble_clfs = [
-        ('max_features=\'sqrt\'',
-         RandomForestClassifier(warm_start = True, max_features = 'sqrt', oob_score = True, max_depth = 15, n_jobs = cores[0], random_state = 1)),
+        #('max_features=\'sqrt\'',
+        # RandomForestClassifier(warm_start = True, max_features = 'sqrt', oob_score = True, max_depth = 15, n_jobs = cores[0], random_state = 1)),
         ('max_features=None',
          RandomForestClassifier(warm_start = True, max_features = None, oob_score = True, max_depth = 15, n_jobs = cores[0], random_state = 1))
     ]
 
     oob_errors = OrderedDict((label, []) for label, _ in ensemble_clfs)
-    validation_errors = OrderedDict((label, []) for label, _ in ensemble_clfs)
+    #validation_errors = OrderedDict((label, []) for label, _ in ensemble_clfs)
     min_estimators = 10
     max_estimators = 500
 
@@ -470,16 +477,16 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
             oob_error = 1 - clf.oob_score_
             oob_errors[label].append((tree_number, oob_error))
 
-            validation_error = 1 - clf.score(data_validation_split, target_validation_split)
-            validation_errors[label].append((tree_number, validation_error))
+            #validation_error = 1 - clf.score(data_validation_split, target_validation_split)
+            #validation_errors[label].append((tree_number, validation_error))
 
     fig, ax1 = plt.subplots()
     for label, oob_error in oob_errors.items():
         xs, ys = zip(*oob_error)
         ax1.plot(xs, ys, label = 'oob error: ' + label)
-    for label, validation_error in validation_errors.items():
-        xs, ys = zip(*validation_error)
-        ax1.plot(xs, ys, label = 'validation error: ' + label)
+    #for label, validation_error in validation_errors.items():
+    #    xs, ys = zip(*validation_error)
+    #    ax1.plot(xs, ys, label = 'validation error: ' + label)
 
     ax1.set_xlim(min_estimators, max_estimators)
     ax1.set_xlabel('n_estimators')
@@ -490,7 +497,6 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
     alg_key_str = '_'.join(alg_key)
     save_path = join(test_dir, alg_key_str + '_error.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
-
 
 def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
 
