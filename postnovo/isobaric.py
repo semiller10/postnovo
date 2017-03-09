@@ -1,0 +1,74 @@
+''' Identify possible isobaric substitutions in sequences '''
+
+import pandas as pd
+
+from config import *
+from utils import *
+
+from multiprocessing import Pool, current_process
+
+multiprocessing_seq_count = 0
+
+
+def update_prediction_df(prediction_df):
+    verbose_print()
+    verbose_print('finding possible isobaric substitutions')
+
+    seqs = prediction_df['seq']
+
+    ## single processor method
+    #possible_substitution_lists = []
+    #child_initialize(isobaric_substitutions, near_isobaric_substitutions)
+    #for seq in seqs:
+    #    possible_substitution_lists.append(find_possible_substitutions(seq))
+
+    ## multiprocessing method
+    one_percent_number_seqs = len(seqs) / cores[0] / 100
+    multiprocessing_pool = Pool(cores[0],
+                                initializer = child_initialize,
+                                initargs = (isobaric_substitutions, near_isobaric_substitutions,
+                                            cores[0], one_percent_number_seqs)
+                                )
+    possible_substitution_lists = multiprocessing_pool.map(find_possible_substitutions, seqs)
+    multiprocessing_pool.close()
+    multiprocessing_pool.join()
+
+    isobaric_df = pd.DataFrame(possible_substitution_lists,
+                               index = prediction_df.index,
+                               columns = ['possible isobaric substitutions', 'possible near isobaric substitutions'])
+    prediction_df = pd.concat([prediction_df, isobaric_df], axis = 1)
+
+    return prediction_df
+
+def child_initialize(_isobaric_substitutions, _near_isobaric_substitutions, _cores = 1, _one_percent_number_seqs = None):
+    global isobaric_substitutions, near_isobaric_substitutions, cores, one_percent_number_seqs
+    isobaric_substitutions = _isobaric_substitutions
+    near_isobaric_substitutions = _isobaric_substitutions
+    cores = _cores
+    one_percent_number_seqs = _one_percent_number_seqs
+
+def find_possible_substitutions(seq):
+
+    if current_process()._identity[0] % cores == 1:
+        global multiprocessing_seq_count
+        multiprocessing_seq_count += 1
+        if int(multiprocessing_seq_count % one_percent_number_seqs) == 0:
+            percent_complete = int(multiprocessing_seq_count / one_percent_number_seqs)
+            if percent_complete <= 100:
+                verbose_print_over_same_line('inter-spectrum comparison progress: ' + str(percent_complete) + '%')
+
+    possible_substitution_list = []
+
+    isobaric_substitution_count = 0
+    for peptide in isobaric_substitutions:
+        if peptide in seq:
+            isobaric_substitution_count += 1
+    possible_substitution_list.append(isobaric_substitution_count)
+
+    near_isobaric_substitution_count = 0
+    for peptide in near_isobaric_substitutions:
+        if peptide in seq:
+            near_isobaric_substitution_count += 1
+    possible_substitution_list.append(near_isobaric_substitution_count)
+
+    return possible_substitution_list
