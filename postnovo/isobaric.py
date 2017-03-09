@@ -26,7 +26,8 @@ def update_prediction_df(prediction_df):
     one_percent_number_seqs = len(seqs) / cores[0] / 100
     multiprocessing_pool = Pool(cores[0],
                                 initializer = child_initialize,
-                                initargs = (isobaric_substitutions, near_isobaric_substitutions,
+                                initargs = (mono_dipeptide_isobaric_substitutions, dipeptide_isobaric_substitutions,
+                                            mono_dipeptide_near_isobaric_substitutions, dipeptide_near_isobaric_substitutions,
                                             cores[0], one_percent_number_seqs)
                                 )
     possible_substitution_lists = multiprocessing_pool.map(find_possible_substitutions, seqs)
@@ -43,10 +44,16 @@ def update_prediction_df(prediction_df):
 
     return prediction_df
 
-def child_initialize(_isobaric_substitutions, _near_isobaric_substitutions, _cores = 1, _one_percent_number_seqs = None):
-    global isobaric_substitutions, near_isobaric_substitutions, cores, one_percent_number_seqs
-    isobaric_substitutions = _isobaric_substitutions
-    near_isobaric_substitutions = _isobaric_substitutions
+def child_initialize(_mono_dipeptide_isobaric_substitutions, _dipeptide_isobaric_substitutions,
+                     _mono_dipeptide_near_isobaric_substitutions, _dipeptide_near_isobaric_substitutions,
+                     _cores = 1, _one_percent_number_seqs = None):
+    global mono_dipeptide_isobaric_substitutions, dipeptide_isobaric_substitutions,\
+           mono_dipeptide_near_isobaric_substitutions, dipeptide_near_isobaric_substitutions,\
+           cores, one_percent_number_seqs
+    mono_dipeptide_isobaric_substitutions = _mono_dipeptide_isobaric_substitutions
+    dipeptide_isobaric_substitutions = _dipeptide_isobaric_substitutions
+    mono_dipeptide_near_isobaric_substitutions = _mono_dipeptide_near_isobaric_substitutions
+    dipeptide_near_isobaric_substitutions = _dipeptide_near_isobaric_substitutions
     cores = _cores
     one_percent_number_seqs = _one_percent_number_seqs
 
