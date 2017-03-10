@@ -116,7 +116,7 @@ single_alg_prediction_dict_cols = {'general': ['scan', 'measured mass', 'is top 
                                    'peaks': [],
                                    'pn': ['is pn seq', 'rank score', 'pn score', 'sqs']}
 consensus_prediction_dict_cols = {'general': ['scan', 'measured mass', 'seq', 'len', 'avg rank', 'is longest consensus', 'is top rank consensus'],
-                                  'novor': ['retention time', 'is novor seq', 'fraction novor parent len', 'avg novor aa score'
+                                  'novor': ['retention time', 'is novor seq', 'fraction novor parent len', 'avg novor aa score',
                                             'mono-di isobaric sub score', 'di isobaric sub score',
                                             'mono-di near-isobaric sub score', 'di near-isobaric sub score'],
                                   'peaks': [],

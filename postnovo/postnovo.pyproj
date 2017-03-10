@@ -37,9 +37,6 @@
     <Compile Include="interspec.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="isobaric.py">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="masstol.py">
       <SubType>Code</SubType>
     </Compile>

@@ -38,13 +38,13 @@ def main(argv):
     save_pkl_objects(test_dir, **{'consensus_prediction_df': prediction_df})
     #prediction_df = load_pkl_objects(test_dir, 'consensus_prediction_df')
 
-    #prediction_df = masstol.update_prediction_df(prediction_df)
-    #save_pkl_objects(test_dir, **{'mass_tol_prediction_df': prediction_df})
+    prediction_df = masstol.update_prediction_df(prediction_df)
+    save_pkl_objects(test_dir, **{'mass_tol_prediction_df': prediction_df})
     #prediction_df = load_pkl_objects(test_dir, 'mass_tol_prediction_df')
 
-    #prediction_df = interspec.update_prediction_df(prediction_df)
-    #save_pkl_objects(test_dir, **{'interspec_prediction_df': prediction_df})
-    prediction_df = load_pkl_objects(test_dir, 'interspec_prediction_df')
+    prediction_df = interspec.update_prediction_df(prediction_df)
+    save_pkl_objects(test_dir, **{'interspec_prediction_df': prediction_df})
+    #prediction_df = load_pkl_objects(test_dir, 'interspec_prediction_df')
 
     #prediction_df = isobaric.update_prediction_df(prediction_df)
     #save_pkl_objects(test_dir, **{'isobaric_prediction_df': prediction_df})
