@@ -23,7 +23,7 @@ def load_files():
             [basename(novor_file) for novor_file in novor_files])
         for i, novor_file in enumerate(novor_files):
             verbose_print('loading', basename(novor_file))
-            check_file_fragment_mass_tol(novor_file, novor_tols[i])
+            check_file_fragment_mass_tol(novor_file, frag_mass_tols[i])
             if i == 0:
                 find_precursor_mass_tol(novor_file)
 

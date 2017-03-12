@@ -43,14 +43,12 @@ di_near_isobaric_subs = {
 
 # user args
 # run level settings: predict (default), train, test, optimize
-run_type = ['predict']
 verbose = [True]
+run_type = ['predict']
+frag_mass_tols = []
 novor_files = []
-novor_tols = []
 peaks_files = []
-peaks_tols = []
 pn_files = []
-pn_tols = []
 min_prob = [0.5]
 min_len = [6]
 ref_file = [None]
@@ -70,6 +68,10 @@ for numerical_alg_combo in list(product((0, 1), repeat = len(accepted_algs)))[1:
     possible_alg_combos.append(tuple([alg for i, alg in enumerate(accepted_algs) if numerical_alg_combo[i]]))
 seqs_reported_per_alg_dict = {'novor': 1, 'peaks': 20, 'pn': 20}
 accepted_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
+fixed_mod = 'Oxidation of M'
+variable_mod = 'Carbamidomethylation of C'
+frag_method = 'CID'
+frag_mass_analyzer = 'Trap'
 
 # global info from user input
 alg_list = []
