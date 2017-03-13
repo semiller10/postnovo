@@ -324,7 +324,7 @@ def make_predictions(prediction_df):
         prediction_df.loc[multiindex_key, 'probability'] = probabilities
 
     if run_type[0] == 'test':
-        plot_precision_yield(alg_group_multiindex_keys, prediction_df)
+        plot_precision_yield(prediction_df)
 
     max_probabilities = prediction_df.groupby(prediction_df.index.get_level_values('scan'))['probability'].transform(max)
     best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
@@ -347,6 +347,7 @@ def make_training_forests(training_df):
     if run_type[0] == 'train':
         forest_dict = make_forest_dict(train_target_arr_dict, rf_default_params)
 
+        # REMOVE
         for alg_key in forest_dict:
             data_train_split, data_validation_split, target_train_split, target_validation_split =\
                 train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
@@ -627,7 +628,7 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
     save_path = join(test_dir, '_'.join(alg_group) + '_precision_recall.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
-def plot_precision_yield(alg_group_multiindex_keys, prediction_df):
+def plot_precision_yield(prediction_df):
 
     fig, ax = plt.subplots()
     plt.title('precision vs sequence yield')
@@ -637,7 +638,7 @@ def plot_precision_yield(alg_group_multiindex_keys, prediction_df):
     plt.xlabel('sequence yield')
     plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
 
-    for multiindex_key in alg_group_multiindex_keys:
+    for multiindex_key in is_alg_col_multiindex_keys:
 
         fig, ax = plt.subplots()
         plt.title('precision vs sequence yield')

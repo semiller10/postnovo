@@ -80,7 +80,6 @@ alg_combo_list = []
 ## alg_combo_list = [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn'), ('novor', 'peaks', 'pn')]
 is_alg_col_names = []
 is_alg_col_multiindex_keys = []
-tol_list = []
 alg_tols_dict = OrderedDict()
 ## example
 ## alg_tols_dict = odict('novor': odict('0.4': 'proteome-0.4.novor.csv', '0.5': 'proteome-0.5.novor.csv'),

@@ -15,26 +15,9 @@ import time
 from config import *
 from utils import *
 
-from os.path import join, exists, basename, abspath, splitext
+from os.path import join, exists, basename, abspath, splitext, dirname
 from multiprocessing import cpu_count
 from itertools import combinations, product
-
-# if user wants to generate DeNovoGUI output, args are path to DeNovoGUI-X.Y.Z dir and mgf files
-# mgf files go in userfiles dir
-# make arg string for param file from user input
-# param file is saved to postnovo user input dir with timestamp in file name
-# start a subprocess for param file creation
-# java -cp DeNovoGUI-X.Y.Z.jar
-# com.compomics.denovogui.cmd.DeNovoCLI
-# -out user_input
-# -prec_tol -frag_tol -fixed_mods "Oxidation of M" -variable_mods -pepnovo_hitlist_length = "20" -novor_fragmentation = "CID" -novor_mass_analyzer = "Trap"
-# loop through each fragment mass tol
-# start a subprocess for each fragment mass tol
-# java -cp DeNovoGUI-X.Y.Z.jar
-# com.compomics.denovogui.cmd.DeNovoCLI
-# -spectrum_files "a.mgf" -output_folder user_input -id_params user_input/a.par
-# -pepnovo 1 -novor 1 -threads user specified cores
-# Add DeNovoGUI output to user_args
 
 
 def main(argv):
@@ -44,7 +27,7 @@ def main(argv):
     #save_json_objects(test_dir, **{'user_args': user_args})
     user_args = load_json_objects(test_dir, 'user_args')
 
-    user_args = run_denovogui(user_args)
+    #user_args = run_denovogui(user_args)
     set_global_vars(user_args)
 
     alg_basename_dfs_dict = input.load_files()
@@ -65,10 +48,6 @@ def main(argv):
     save_pkl_objects(test_dir, **{'interspec_prediction_df': prediction_df})
     #prediction_df = load_pkl_objects(test_dir, 'interspec_prediction_df')
 
-    #prediction_df = isobaric.update_prediction_df(prediction_df)
-    #save_pkl_objects(test_dir, **{'isobaric_prediction_df': prediction_df})
-    #prediction_df = load_pkl_objects(test_dir, 'isobaric_prediction_df')
-
     classifier.classify(prediction_df = prediction_df)
     #classifier.classify()
 
@@ -80,7 +59,7 @@ def parse_user_args(argv):
     help_str = ('postnovo.py\n\
     --quiet\n\
     --denovogui_path <"C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar">\n\
-    --denovogui_mgf_file <"spectra.mgf">\n\
+    --denovogui_mgf_path <"spectra.mgf">\n\
     --train\n\
     --test\n\
     --optimize\n\
@@ -103,7 +82,7 @@ def parse_user_args(argv):
         opts, args = getopt.getopt(argv,
                                    'hqtsod:m:f:n:p:e:l:b:r:c:',
                                    ['help', 'quiet', 'train', 'test', 'optimize',
-                                    'denovogui_path=', 'denovogui_mgf_file=',
+                                    'denovogui_path=', 'denovogui_mgf_path=',
                                     'frag_mass_tols=',
                                     'novor_files=', 'peaks_files=', 'pn_files=',
                                     'min_len=', 'min_prob=',
@@ -139,12 +118,12 @@ def parse_user_args(argv):
                 sys.exit(1)
             user_args['denovogui_path'] = denovogui_path
 
-        elif opt in ('-m', '--denovogui_mgf_file'):
-            denovogui_mgf_file = arg
-            if exists(join(userfiles_dir, denovogui_mgf_file)) is False:
-                print(denovogui_mgf_file + ' must be in postnovo/userfiles')
+        elif opt in ('-m', '--denovogui_mgf_path'):
+            denovogui_mgf_path = abspath(arg)
+            if exists(denovogui_mgf_path) is False:
+                print(denovogui_mgf_path + ' does not exist')
                 sys.exit(1)
-            user_args['denovogui_mgf_file'] = denovogui_mgf_file
+            user_args['denovogui_mgf_path'] = denovogui_mgf_path
 
         elif opt in ('-f', '--fragment_mass_tols'):
             frag_mass_tols = arg.split(',')
@@ -263,11 +242,11 @@ def parse_user_args(argv):
         sys.exit(1)
 
     if 'denovogui_path' in user_args:
-        if 'denovogui_mgf_file' not in user_args:
-            print('denovogui_mgf_file command line argument also needed:\
+        if 'denovogui_mgf_path' not in user_args:
+            print('denovogui_mgf_path command line argument also needed:\
             place mgf file in postnovo/userfiles to run DeNovoGUI')
             sys.exit(1)
-    if 'denovogui_mgf_file' in user_args:
+    if 'denovogui_mgf_path' in user_args:
         if 'denovogui_path' in user_args:
             print('denovogui_path command line argument also needed')
             sys.exit(1)
@@ -311,46 +290,47 @@ def run_denovogui(user_args):
     denovogui_param_args['-novor_mass_analyzer'] = '\"' + frag_mass_analyzer + '\"'
 
     denovogui_args = OrderedDict().fromkeys(['-spectrum_files', '-output_folder', '-id_params',
-                                             '-pepnovo', '-novor', '-threads'])
-    denovogui_args['-spectrum_files'] = '\"' + join(userfiles_dir, user_args['denovogui_mgf_file']) + '\"'
-    denovogui_args['-output_folder'] = userfiles_dir
-    denovogui_args['-pepnovo'] = 1
-    denovogui_args['-novor'] = 1
-    denovogui_args['-threads'] = user_args['cores']
+                                             '-pepnovo', '-novor', '-directag', '-threads'])
+    mgf_input_name = splitext(basename(user_args['denovogui_mgf_path']))[0]
+    denovogui_args['-spectrum_files'] = '\"' + user_args['denovogui_mgf_path'] + '\"'
+    denovogui_args['-output_folder'] = '\"' + userfiles_dir + '\"'
+    denovogui_args['-pepnovo'] = '1'
+    denovogui_args['-novor'] = '1'
+    denovogui_args['-directag'] = '0'
+    denovogui_args['-threads'] = str(user_args['cores'])
 
     for tol in user_args['frag_mass_tols']:
 
         denovogui_param_file_cmd = 'java -cp ' +\
-            user_args[denovogui_path].replace('DeNovoGUI', 'utilities') +\
-            ' com.compomics.cli.identification_parameters.IdentificationParametersCLI '
+            '\"' + user_args['denovogui_path'] + '\"' +\
+            ' com.compomics.denovogui.cmd.IdentificationParametersCLI '
         denovogui_param_args['-frag_tol'] = tol
-        denovogui_param_args['-out'] = '\"' + join(userfiles_dir,
-                                                   tol + '_' + str(datetime.datetime.now()).split('.')[0] + '.jar') + '\"'
+        denovogui_param_args['-out'] = '\"' +\
+            join(userfiles_dir,
+                 mgf_input_name + '_' + tol + '.par') + '\"'
         for opt, arg in denovogui_param_args.items():
-            denovogui_param_file_cmd.append(opt + ' ' + arg + ' ')
-        subprocess.call(denovogui_param_file_cmd)
+            denovogui_param_file_cmd += opt + ' ' + arg + ' '
+        subprocess.call(denovogui_param_file_cmd, shell = True)
 
         denovogui_cmd = 'java -cp ' +\
-            user_args[denovogui_path] +\
-            user_args[denovogui_path] +\
+            '\"' + user_args['denovogui_path'] + '\"' +\
             ' com.compomics.denovogui.cmd.DeNovoCLI '
         denovogui_args['-id_params'] = denovogui_param_args['-out']
         for opt, arg in denovogui_args.items():
-            denovogui_cmd.append(opt + ' ' + arg + ' ')
-        subprocess.call(denovogui_cmd)
+            denovogui_cmd += opt + ' ' + arg + ' '
+        subprocess.call(denovogui_cmd, shell = True)
 
-        mgf_input_name = splitext(user_args['denovogui_mgf_file'])[0]
         user_args['novor_files'].append(mgf_input_name + '_' + tol + '.novor.csv')
         set_novor_output_filename_cmd = 'mv ' +\
-            join(userfiles_dir, mgf_input_name + '.novor.csv ') +\
-            join(userfiles_dir, user_args['novor_files'][-1])
-        subprocess.call(set_novor_output_filename_cmd)
+            '\"' + join(userfiles_dir, mgf_input_name + '.novor.csv') + '\" ' +\
+            '\"' + join(userfiles_dir, user_args['novor_files'][-1]) + '\"'
+        subprocess.call(set_novor_output_filename_cmd, shell = True)
 
         user_args['pn_files'].append(mgf_input_name + '_' + tol + '.mgf.out')
         set_pn_output_filename_cmd = 'mv ' +\
-            join(userfiles_dir, mgf_input_name + '.mgf.out ') +\
-            join(userfiles_dir, user_args['novor_files'][-1])
-        subprocess.call(set_pn_output_filename_cmd)
+            '\"' + join(userfiles_dir, mgf_input_name + '.mgf.out') + '\" ' +\
+            '\"' + join(userfiles_dir, user_args['novor_files'][-1]) + '\"'
+        subprocess.call(set_pn_output_filename_cmd, shell = True)
 
     return user_args
 
@@ -366,6 +346,9 @@ def set_global_vars(user_args):
     elif 'test' in user_args:
         run_type[0] = 'test'
 
+    for tol in sorted(user_args['frag_mass_tols']):
+        frag_mass_tols.append(tol)
+
     if 'novor_files' in user_args:
         novor_files_local, _ = order_inputs(
             user_args['novor_files'], user_args['frag_mass_tols'])
@@ -374,7 +357,7 @@ def set_global_vars(user_args):
 
         alg_list.append('novor')
         alg_tols_dict['novor'] = OrderedDict(
-            zip(sorted(frag_mass_tols),
+            zip(frag_mass_tols,
                 [basename(novor_file) for novor_file in novor_files]))
 
     if 'peaks_files' in user_args:
@@ -385,18 +368,18 @@ def set_global_vars(user_args):
 
         alg_list.append('peaks')
         alg_tols_dict['peaks'] = OrderedDict(
-            zip(sorted(frag_mass_tols),
+            zip(frag_mass_tols,
                 [basename(peaks_file) for peaks_file in peaks_files]))
 
     if 'pn_files' in user_args:
         pn_files_local, _ = order_inputs(
-            user_args['pn_files'], frag_mass_tols)
+            user_args['pn_files'], user_args['frag_mass_tols'])
         for pn_file in pn_files_local:
             pn_files.append(pn_file)
 
         alg_list.append('pn')
         alg_tols_dict['pn'] = OrderedDict(
-            zip(sorted(frag_mass_tols),
+            zip(frag_mass_tols,
                 [basename(pn_file) for pn_file in pn_files]))
 
     for combo_level in range(2, len(alg_list) + 1):
@@ -417,13 +400,7 @@ def set_global_vars(user_args):
     for k, v in tol_alg_dict_local.items():
         tol_alg_dict[k] = v
 
-    for alg in alg_list:
-        for tol in alg_tols_dict[alg].keys():
-            if tol not in tol_list:
-                tol_list.append(tol)
-    tol_list.sort()
-
-    for tol in tol_list:
+    for tol in frag_mass_tols:
         tol_basenames_dict[tol] = []
     for alg in alg_tols_dict:
         for tol in alg_tols_dict[alg]:

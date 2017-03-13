@@ -183,7 +183,7 @@ def load_pn_file(pn_file):
 
 def filter_shared_scans(alg_basename_dfs_dict):
 
-    for tol in tol_list:
+    for tol in frag_mass_tols:
 
         for alg0, alg1 in combinations(alg_list, 2):
             if (tol in alg_tols_dict[alg0].keys()

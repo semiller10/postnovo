@@ -24,7 +24,7 @@ def make_prediction_df(alg_basename_dfs_dict):
         consensus_min_len = min_len[0]
 
     tol_prediction_df_list = []
-    for tol in tol_list:
+    for tol in frag_mass_tols:
         verbose_print('setting up', tol, 'Da consensus comparison')
         alg_compar_list = tol_alg_dict[tol]
 
@@ -39,8 +39,9 @@ def make_prediction_df(alg_basename_dfs_dict):
     prediction_df = pd.concat(tol_prediction_df_list)
     grouped_by_scan = prediction_df.groupby(['scan'])
     prediction_df['retention time'] = grouped_by_scan['retention time'].transform(max)
+    prediction_df = prediction_df[~prediction_df['retention time'].isnull()]
 
-    for tol in tol_list:
+    for tol in frag_mass_tols:
         prediction_df[tol].fillna(0, inplace = True)
 
     for is_alg_col_name in is_alg_col_names:

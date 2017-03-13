@@ -19,8 +19,8 @@ def update_prediction_df(prediction_df):
     prediction_df.reset_index(inplace = True)
     prediction_df.set_index(is_alg_col_names, inplace = True)
     tol_group_key_list = []
-    for i, tol in enumerate(tol_list):
-        tol_group_key = [0] * len(tol_list)
+    for i, tol in enumerate(frag_mass_tols):
+        tol_group_key = [0] * len(frag_mass_tols)
         tol_group_key[i] = 1
         tol_group_key_list.append(tuple(tol_group_key))
     full_precursor_array_list = []
@@ -31,10 +31,10 @@ def update_prediction_df(prediction_df):
         alg_group_precursor_array_list = []
         alg_combo_df = prediction_df.xs(multiindex_key)
         alg_combo_df.reset_index(inplace = True)
-        alg_combo_df.set_index(tol_list, inplace = True)
+        alg_combo_df.set_index(frag_mass_tols, inplace = True)
 
         for tol_group_key in tol_group_key_list:
-            tol = tol_list[tol_group_key.index(1)]
+            tol = frag_mass_tols[tol_group_key.index(1)]
 
             try:
                 tol_df = alg_combo_df.xs(tol_group_key)[['seq', 'measured mass', 'mass error']]

@@ -34,9 +34,7 @@
     <Compile Include="input.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="interspec.py">
-      <SubType>Code</SubType>
-    </Compile>
+    <Compile Include="interspec.py" />
     <Compile Include="masstol.py">
       <SubType>Code</SubType>
     </Compile>
