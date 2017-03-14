@@ -112,20 +112,20 @@ def parse_user_args(argv):
             user_args['optimize'] = True
 
         elif opt in ('-d', '--denovogui_path'):
-            denovogui_path = abspath(arg)
+            denovogui_path = arg
             if exists(denovogui_path) is False:
                 print(arg + ' does not exist')
                 sys.exit(1)
             user_args['denovogui_path'] = denovogui_path
 
         elif opt in ('-m', '--denovogui_mgf_path'):
-            denovogui_mgf_path = abspath(arg)
+            denovogui_mgf_path = arg
             if exists(denovogui_mgf_path) is False:
                 print(denovogui_mgf_path + ' does not exist')
                 sys.exit(1)
             user_args['denovogui_mgf_path'] = denovogui_mgf_path
 
-        elif opt in ('-f', '--fragment_mass_tols'):
+        elif opt in ('-f', '--frag_mass_tols'):
             frag_mass_tols = arg.split(',')
             frag_mass_tols = [tol.strip() for tol in frag_mass_tols]
             for tol in frag_mass_tols:
@@ -180,7 +180,7 @@ def parse_user_args(argv):
             except ValueError:
                 print('Minimum reported sequence length must be an integer >0')
                 sys.exit(1)
-            if user_args['min_len'] < train_consensus_len:
+            if min_len < train_consensus_len:
                 print('Sequences shorter than length ' + str(train_consensus_len) + ' are not supported')
                 sys.exit(1)
             user_args['min_len'] = min_len
@@ -215,14 +215,14 @@ def parse_user_args(argv):
             print('Unrecognized option ' + opt)
             sys.exit(1)
 
-    if user_args['train']:
+    if 'train' in user_args:
         if 'ref_file' not in user_args:
             print('Training requires a protein reffile')
             sys.exit(1)
         if 'test' in user_args or 'optimize' in user_args:
             print('Train, test and optimize options are exclusive')
 
-    if user_args['test']:
+    if 'test' in user_args:
         if 'ref_file' not in user_args:
             print('Testing requires a protein reffile')
             sys.exit(1)
@@ -230,7 +230,7 @@ def parse_user_args(argv):
             print('Train, test and optimize options are mutually exclusive')
             sys.exit(1)
 
-    if user_args['optimize']:
+    if 'optimize' in user_args:
         if 'ref_file' not in user_args:
             print('Model optimization requires a protein reffile')
             sys.exit(1)
@@ -238,27 +238,22 @@ def parse_user_args(argv):
             print('Train, test and optimize options are exclusive')
 
     if 'frag_mass_tols' not in user_args:
-        print('Fragment mass tolerances must be specified')
+        print('Fragment mass tolerance(s) must be specified')
         sys.exit(1)
 
     if 'denovogui_path' in user_args:
         if 'denovogui_mgf_path' not in user_args:
-            print('denovogui_mgf_path command line argument also needed:\
-            place mgf file in postnovo/userfiles to run DeNovoGUI')
+            print('denovogui_mgf_path command line argument also needed')
             sys.exit(1)
     if 'denovogui_mgf_path' in user_args:
-        if 'denovogui_path' in user_args:
+        if 'denovogui_path' not in user_args:
             print('denovogui_path command line argument also needed')
             sys.exit(1)
 
-    if 'denovogui_path' in user_args:
-        if 'frag_mass_tols' not in user_args:
-            print('Specify the fragment mass tolerances used in DeNovoGUI.')
-            sys.exit(1)
-    else:
+    if 'denovogui_path' not in user_args:
         if 'novor_files' in user_args:
             if len(user_args['frag_mass_tols']) != len(user_args['novor_files']):
-                print('Fragment mass tolerances must align and be of same length as file inputs')
+                print('List of fragment mass tolerances must align with list of file inputs')
                 sys.exit(1)
         elif 'novor_files' not in user_args:
             print('Novor input is required')
@@ -266,7 +261,7 @@ def parse_user_args(argv):
 
         if 'pn_files' in user_args:
             if len(user_args['frag_mass_tols']) != len(user_args['pn_files']):
-                print('Fragment mass tolerances must align and be of same length as file inputs')
+                print('List of fragment mass tolerances must align with list of file inputs')
                 sys.exit(1)
         elif 'pn_files' not in user_args:
             print('PepNovo+ input is required')
@@ -422,9 +417,11 @@ def order_by_tol(user_args):
         for arg in user_args:
             if alg in arg:
                 user_args[alg + '_files'] =\
-                    zip(*(sorted(zip(user_args[alg + '_files'],
-                                     user_args['frag_mass_tols']),
-                                 key = lambda x: x[1])))
+                    list(list(
+                        zip(*(sorted(zip(user_args[alg + '_files'],
+                                         user_args['frag_mass_tols']),
+                                     key = lambda x: x[1])))
+                        )[0])
     return user_args
 
 def order_inputs(file_names, tols):
