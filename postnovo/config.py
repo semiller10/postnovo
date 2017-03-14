@@ -141,6 +141,22 @@ features_ordered_by_importance = ['rank score', 'pn score', 'avg novor aa score'
                                   'len', 'is longest consensus', 'is top rank consensus',
                                   '0.2', '0.7', '0.3', '0.4', '0.5', '0.6']
 
+# feature groups
+feature_groups = {'novor score': ['avg novor aa score'],
+                  'pn scores': ['rank score', 'pn score'],
+                  'seq len': ['len'],
+                  'retention time': ['retention time'],
+                  'mass tolerance': ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7'],
+                  'consensus info': ['avg rank', 'pn rank', 'peaks rank',
+                                     'fraction novor parent len', 'fraction pn parent len',
+                                     'is longest consensus', 'is top rank consensus'],
+                  'mass tolerance match info': ['0.2 match', '0.3 match', '0.4 match',
+                                          '0.5 match', '0.6 match', '0.7 match'],
+                  'substitution info': ['mono-di isobaric sub score', 'di isobaric sub score',
+                                        'mono-di near-isobaric sub score', 'di near-isobaric sub score'],
+                  'inter-spectrum info': ['precursor seq agreement', 'precursor seq count']
+                  }
+
 # report
 reported_df_cols = ['seq', 'probability', 'ref match',
                     'is novor seq', 'is peaks seq', 'is pn seq',

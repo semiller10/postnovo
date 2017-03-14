@@ -351,7 +351,8 @@ def make_training_forests(training_df):
         for alg_key in forest_dict:
             data_train_split, data_validation_split, target_train_split, target_validation_split =\
                 train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
-            plot_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
+            #plot_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
+            plot_binned_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
             plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key)
 
     elif run_type[0] == 'optimize':
@@ -423,6 +424,7 @@ def optimize_model(train_target_arr_dict):
         verbose_print(alg_key, 'optimized max features:', optimized_forest.max_features)
 
         plot_feature_importances(optimized_forest, alg_key, train_target_arr_dict[alg_key]['feature_names'])
+        plot_binned_feature_importances(optimized_forest, alg_key, train_target_arr_dict[alg_key]['feature_names'])
         plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key)
 
     return optimized_params
@@ -450,6 +452,45 @@ def plot_feature_importances(forest, alg_key, feature_names):
 
     alg_key_str = '_'.join(alg_key)
     save_path = join(test_dir, alg_key_str + '_feature_importances.pdf')
+    fig.savefig(save_path, bbox_inches = 'tight')
+
+def plot_binned_feature_importances(forest, alg_key, feature_names):
+    if len(alg_key) > 1:
+        verbose_print('plotting feature importances for', '-'.join(alg_key), 'consensus sequences')
+    else:
+        verbose_print('plotting feature importances for', alg_key[0], 'sequences')
+
+    feature_importances = forest.feature_importances_
+    feature_group_importances = []
+    feature_group_stds = []
+    for feature_group, features in feature_groups.items():
+        feature_group_importance = 0.0
+        feature_group_var = 0.0
+        for i, feature_name in enumerate(feature_names):
+            if feature_name in features:
+                feature_group_importance += feature_importances[i]
+                feature_group_var += np.var(
+                    [tree.feature_importances_[i] for tree in forest.estimators_], axis = 0)
+        feature_group_importances.append(feature_group_importance)
+        feature_group_stds.append(np.sqrt(feature_group_var))
+
+    feature_group_importances = np.array(feature_group_importances)
+    feature_group_stds = np.array(feature_group_stds)
+    indices = np.argsort(feature_group_importances)[::-1]
+
+    fig, ax = plt.subplots()
+    ax.set_title('Binned feature importances')
+    x = np.arange(len(feature_group_importances))
+    ax.bar(left = x, height = feature_group_importances[indices], color = 'r', yerr = feature_group_stds[indices], width = 0.9, align = 'center')
+    ax.set_xticks(x)
+    labels = np.array(list(feature_groups))[indices]
+    ax.set_xticklabels(labels, rotation = -45, ha = 'left')
+    ax.set_xlim([-1, len(feature_group_importances)])
+    ax.set_ylim(ymin = 0)
+    fig.set_tight_layout(True)
+
+    alg_key_str = '_'.join(alg_key)
+    save_path = join(test_dir, alg_key_str + '_binned_feature_importances.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 def plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key):
