@@ -79,7 +79,7 @@ def load_novor_file(novor_file):
                                   proton_mass * novor_df['charge'])
     
     novor_df['seq'] = novor_df['seq'].apply(
-        lambda seq: seq.translate(novor_dropped_chars))
+        lambda seq: novor_seq_sub_fn(string = seq))
 
     novor_df['aa score'] = novor_df['aa score'].apply(
         lambda score_string: score_string.split('-')).apply(
@@ -163,7 +163,7 @@ def load_pn_file(pn_file):
     pn_df['seq'].replace(
         to_replace = np.nan, value = '', inplace = True)
     pn_df['seq'] = pn_df['seq'].apply(
-        lambda seq: seq.translate(pn_dropped_chars))
+        lambda seq: pn_seq_sub_fn(string = seq))
 
     pn_df_cols = ['scan', 'rank', 'm/z',
                   'charge', 'n-gap', 'c-gap',

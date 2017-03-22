@@ -27,7 +27,7 @@ def main(argv):
     #save_json_objects(test_dir, **{'user_args': user_args})
     user_args = load_json_objects(test_dir, 'user_args')
 
-    #user_args = run_denovogui(user_args)
+    user_args = run_denovogui(user_args)
     set_global_vars(user_args)
 
     alg_basename_dfs_dict = input.load_files()
@@ -272,6 +272,9 @@ def parse_user_args(argv):
 
 def run_denovogui(user_args):
 
+    if 'denovogui_path' not in user_args:
+        return user_args
+
     user_args['novor_files'] = []
     user_args['pn_files'] = []
 
@@ -315,17 +318,19 @@ def run_denovogui(user_args):
             denovogui_cmd += opt + ' ' + arg + ' '
         subprocess.call(denovogui_cmd, shell = True)
 
-        user_args['novor_files'].append(mgf_input_name + '_' + tol + '.novor.csv')
+        user_args['novor_files'].append(join(userfiles_dir, mgf_input_name + '_' + tol + '.novor.csv'))
         set_novor_output_filename_cmd = 'mv ' +\
             '\"' + join(userfiles_dir, mgf_input_name + '.novor.csv') + '\" ' +\
             '\"' + join(userfiles_dir, user_args['novor_files'][-1]) + '\"'
         subprocess.call(set_novor_output_filename_cmd, shell = True)
 
-        user_args['pn_files'].append(mgf_input_name + '_' + tol + '.mgf.out')
+        user_args['pn_files'].append(join(userfiles_dir, mgf_input_name + '_' + tol + '.mgf.out'))
         set_pn_output_filename_cmd = 'mv ' +\
             '\"' + join(userfiles_dir, mgf_input_name + '.mgf.out') + '\" ' +\
             '\"' + join(userfiles_dir, user_args['novor_files'][-1]) + '\"'
         subprocess.call(set_pn_output_filename_cmd, shell = True)
+
+    sys.exit(0)
 
     return user_args
 

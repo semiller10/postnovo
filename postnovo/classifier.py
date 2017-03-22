@@ -277,7 +277,7 @@ def update_training_data(prediction_df):
     try:
         training_df = load_pkl_objects(training_dir, 'training_df')
         training_df = pd.concat([training_df, prediction_df])
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError) as e:
         training_df = prediction_df
     save_pkl_objects(training_dir, **{'training_df': training_df})
 
@@ -287,7 +287,7 @@ def update_training_data(prediction_df):
     try:
         training_df_csv = pd.read_csv(join(training_dir, 'training_df.csv'))
         training_df_csv = pd.concat([training_df_csv, prediction_df_csv])
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError) as e:
         training_df_csv = prediction_df_csv
     training_df_csv.set_index(['timestamp', 'scan'], inplace = True)
     training_df_csv.to_csv(join(training_dir, 'training_df.csv'))
