@@ -59,4 +59,5 @@ Optimize = same as train, but a few model parameters are tuned
 ### Parameter file substitute for command line arguments
 
 Parameter file template, param_template.json, found in postnovo/test directory
+
 Save as param.json, and postnovo will attempt to use this file instead of command line arguments
