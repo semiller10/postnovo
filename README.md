@@ -16,7 +16,7 @@ link
 ### Run program
 python postnovo.py (args)
 
-### Output goes to postnovo/output directory
+Output goes to postnovo/output directory
 
 #### Four modes:
 Predict (DEFAULT MODE) = post-process de novo sequences for data WITHOUT reference
@@ -57,3 +57,6 @@ Optimize = same as train, but a few model parameters are tuned
 --denovogui_mgf_path "C:\Documents\mgf_files\spectra.mgf"
 
 ### Parameter file substitute for command line arguments
+
+Parameter file template, param_template.json, found in postnovo/test directory
+Save as param.json, and postnovo will attempt to use this file instead of command line arguments
