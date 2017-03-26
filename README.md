@@ -6,7 +6,7 @@ Supported on any OS with Python 3
 ## Requirements
 Python 3.4 or higher
 
-The Anaconda Python 3 distribution includes the following postnovo dependencies:
+The Anaconda Python 3.x distribution includes the following postnovo dependencies:
 
 numpy, pandas, sk-learn
 
