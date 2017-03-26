@@ -63,10 +63,10 @@ Optimize = same as train, but some random forest parameters are tuned
 
 ### Parameter file substitute for command line arguments
 
-Parameter file template, param_template.json, found in postnovo/test directory
+A parameter file template, param_template.json, is found in postnovo/test directory
 
-postnovo will use a file called param.json for user input if present in postnovo/test directory
+postnovo will use a file called param.json for user input if a file with that name is in postnovo/test
 
-Modify param_template.json and save as param.json as desired
+Modify param_template.json and save as param.json to override command line arguments
 
 There is an example parameter file in postnovo/test called param_example.json
