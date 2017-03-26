@@ -13,6 +13,7 @@ numpy, pandas, sk-learn
 ### Training model
 #### pkl file must go in postnovo/training directory
 Default postnovo model available at:
+
 link
 
 ## Run program
