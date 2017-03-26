@@ -18,7 +18,7 @@ python postnovo.py (args)
 
 #### Output goes to postnovo/output directory
 
-### Four modes:
+### Four modes
 Predict (DEFAULT) = post-process de novo sequences for data WITHOUT reference
 
 Test = post-process de novo sequences for data WITH reference
