@@ -1,7 +1,7 @@
 # postnovo
 ## Post-processing peptide de novo sequences
 
-Supported on any OS with Python 3
+Supported on any OS
 
 ## Requirements
 Python 3.4 or higher
