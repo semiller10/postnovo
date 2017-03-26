@@ -1,5 +1,5 @@
 # postnovo
-## Post-processing peptide de novo sequences
+## Post-processing peptide de novo sequences to improve their accuracy
 
 ## Requirements
 Python 3.4 or higher
