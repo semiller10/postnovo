@@ -8,7 +8,8 @@ Python 3.4 or higher
 #### A file named *forest_dict.pkl* must go in *postnovo/training* directory
 #### The default model will be downloaded from the following website if *forest_dict.pkl* is not present (e.g., on first run)
 link
-#### The user can generate or add to *forest_dict.pkl* in train or optimize modes of postnovo
+#### The user can generate or add to *forest_dict.pkl* by using train or optimize modes of postnovo
+##### All changes will be made to the file named *forest_dict.pkl*
 
 ## Installation
 `pip install postnovo`
