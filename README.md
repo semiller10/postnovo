@@ -4,20 +4,26 @@
 ## Requirements
 Python 3.4 or higher
 
-The Anaconda Python 3.x distribution includes the following postnovo dependencies:
-
-numpy, pandas, sk-learn
-
-### Training model
-#### pkl file must go in postnovo/training directory
-Default postnovo model available at:
-
+### Training model: a pickled dictionary of random forests
+#### File named *forest_dict.pkl* must go in *postnovo/training* directory
+#### The default model will be downloaded from the following website if *forest_dict.pkl* is not present (e.g., on first run)
 link
+#### The user can generate or add to *forest_dict.pkl* in train or optimize modes of postnovo
 
-## Run program
+## Installation
+`pip install postnovo`
+
+**or**
+
+Download the postnovo source and run the setup script from the postnovo directory
+
+1. `python setup.py build`
+2. `python setup.py install`
+
+## Usage
 `python postnovo.py <--frag_mass_tols> <--other options>`
 
-#### Output goes to postnovo/output directory
+#### Output goes to *postnovo/output* directory
 
 ### Four modes
 Predict (DEFAULT) = post-process de novo sequences for data WITHOUT reference
@@ -39,8 +45,8 @@ Optimize = same as train, but some random forest parameters are tuned
 `<--frag_mass_tols "0.3, 0.5">`
 
 #### Novor and PepNovo+ output files corresponding to fragment mass tolerance(s)
-#### Output files should be placed in postnovo/userfiles directory
-#### Use of DeNovoGUI (see below) overrides these options
+#### Output files should be placed in *postnovo/userfiles* directory
+#### Use of *DeNovoGUI* (see below) overrides these options
 
 `[--novor_files "novor_output_0.3.novor.csv, novor_output_0.5.novor.csv"]`
 
@@ -54,7 +60,7 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--min_prob 0.75]`
 #### faa reference file is required in test, train and optimize modes
 `[--ref_file proteome.faa]`
-#### Options for generating de novo output files with DeNovoGUI and automatically using as postnovo input
+#### Options for generating de novo output files with *DeNovoGUI* and automatically using as postnovo input
 ##### These override --novor_files and --pn_files
 `[--denovogui_path "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar"]`
 
