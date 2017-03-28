@@ -5,7 +5,7 @@
 Python 3.4 or higher
 
 ### Training model: a pickled dictionary of random forests
-#### File named *forest_dict.pkl* must go in *postnovo/training* directory
+#### A file named *forest_dict.pkl* must go in *postnovo/training* directory
 #### The default model will be downloaded from the following website if *forest_dict.pkl* is not present (e.g., on first run)
 link
 #### The user can generate or add to *forest_dict.pkl* in train or optimize modes of postnovo
@@ -65,6 +65,12 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--denovogui_path "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar"]`
 
 `[--denovogui_mgf_path "C:\Documents\mgf_files\spectra.mgf"]`
+
+#### Turn off verbose mode
+`[--quiet]`
+
+#### Usage help
+`[--help]`
 
 ### Parameter file substitute for command line arguments
 
