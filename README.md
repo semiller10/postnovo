@@ -30,13 +30,13 @@ Optimize = same as train, but some random forest parameters are tuned
 
 ### Command line options
 #### Choosing any of these flags overrides default predict mode
---test
+`[--test]`
 
---train
+`[--train]`
 
---optimize
+`[--optimize]`
 #### Fragment mass tolerance(s) of input files
---frag_mass_tols "0.3, 0.5"
+`<--frag_mass_tols "0.3, 0.5">`
 
 #### Novor and PepNovo+ output files corresponding to fragment mass tolerance(s)
 #### Output files should be placed in postnovo/userfiles directory
@@ -45,7 +45,7 @@ Optimize = same as train, but some random forest parameters are tuned
 
 --pn_files "pn_output_0.3.mgf.out, pn_output_0.5.mgf.out"
 #### 1 core used by default, but more are intended to be used
---cores 8
+`[--cores 8]`
 #### Minimum length and probability of sequences reported by postnovo are optional
 ##### These default to 6 and 0.5, respectively
 --min_len 9
