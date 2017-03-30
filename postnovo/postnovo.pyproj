@@ -5,13 +5,14 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>311b7969-e507-4b37-907a-f6ce37eb5c4c</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>postnovo.py</StartupFile>
+    <StartupFile>userargs.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>postnovo</Name>
     <RootNamespace>postnovo</RootNamespace>
+    <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -38,8 +39,14 @@
     <Compile Include="masstol.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="postnovo.py" />
+    <Compile Include="userargs.py" />
+    <Compile Include="setup.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="utils.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="__init__.py">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>

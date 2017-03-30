@@ -5,8 +5,8 @@ import sys
 import numpy as np
 import pandas as pd
 
-from config import *
-from utils import *
+from postnovo import config
+from postnovo import utils
 
 from multiprocessing import Pool, current_process
 
@@ -16,24 +16,24 @@ multiprocessing_scan_count = 0
 def update_prediction_df(prediction_df):
     verbose_print()
 
-    if len(frag_mass_tols) == 1:
+    if len(config.frag_mass_tols) == 1:
         return prediction_df
 
     verbose_print('setting up mass tolerance comparison')
     prediction_df.reset_index(inplace = True)
     # combo level col = sum of 'is novor seq', 'is peaks seq', 'is pn seq' values
-    prediction_df['combo level'] = prediction_df.iloc[:, :len(alg_list)].sum(axis = 1)
+    prediction_df['combo level'] = prediction_df.iloc[:, :len(config.alg_list)].sum(axis = 1)
     scan_list = sorted(list(set(prediction_df['scan'])))
-    one_percent_number_scans = len(scan_list) / 100 / cores[0]
+    one_percent_number_scans = len(scan_list) / 100 / config.cores[0]
     tol_group_key_list = []
-    for i, tol in enumerate(frag_mass_tols):
-        tol_group_key = [0] * len(frag_mass_tols)
+    for i, tol in enumerate(config.frag_mass_tols):
+        tol_group_key = [0] * len(config.frag_mass_tols)
         tol_group_key[-(i + 1)] = 1
         tol_group_key_list.append(tuple(tol_group_key))
     # set index as scan, '0.2' -> '0.7', combo level
-    prediction_df.set_index(['scan'] + frag_mass_tols, inplace = True)
+    prediction_df.set_index(['scan'] + config.frag_mass_tols, inplace = True)
     # tol list indices are sorted backwards: 0.7 predictions come before 0.2 in scan group
-    prediction_df.sort_index(level = ['scan'] + frag_mass_tols, inplace = True)
+    prediction_df.sort_index(level = ['scan'] + config.frag_mass_tols, inplace = True)
     mass_tol_compar_df = prediction_df[['seq', 'combo level']]
     scan_groups = mass_tol_compar_df.groupby(level = 'scan')
 
@@ -44,25 +44,25 @@ def update_prediction_df(prediction_df):
     #for scan in scan_list:
     #    tol_match_array_list.append(make_mass_tol_match_array(scan))
 
-    multiprocessing_pool = Pool(cores[0],
+    multiprocessing_pool = Pool(config.cores[0],
                                 initializer = child_initialize,
-                                initargs = (scan_groups, frag_mass_tols, tol_group_key_list,
-                                            cores[0], one_percent_number_scans)
+                                initargs = (scan_groups, config.frag_mass_tols, tol_group_key_list,
+                                            config.cores[0], one_percent_number_scans)
                                 )
     verbose_print('performing mass tolerance comparison')
     tol_match_array_list = multiprocessing_pool.map(make_mass_tol_match_array, scan_list)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
-    tol_match_cols = [tol + ' seq match' for tol in frag_mass_tols]
+    tol_match_cols = [tol + ' seq match' for tol in config.frag_mass_tols]
     tol_match_df = pd.DataFrame(np.fliplr(np.concatenate(tol_match_array_list)),
                                 index = prediction_df.index,
                                 columns = tol_match_cols)
     prediction_df = pd.concat([prediction_df, tol_match_df], axis = 1)
     prediction_df.drop(['combo level'], axis = 1, inplace = True)
     prediction_df.reset_index(inplace = True)
-    prediction_df.set_index(is_alg_col_names + ['scan'], inplace = True)
-    prediction_df.sort_index(level = ['scan'] + is_alg_col_names, inplace = True)
+    prediction_df.set_index(config.is_alg_col_names + ['scan'], inplace = True)
+    prediction_df.sort_index(level = ['scan'] + config.is_alg_col_names, inplace = True)
 
     return prediction_df
 

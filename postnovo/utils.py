@@ -4,9 +4,10 @@ import pickle as pkl
 import json
 import sys
 
-from config import *
+from postnovo import config
 
-from os.path import join
+from urllib.request import urlopen
+from shutil import copyfileobj
 
 
 def save_pkl_objects(dir, **kwargs):
@@ -44,12 +45,12 @@ def load_json_objects(dir, *args):
         return tuple(return_list)
 
 def verbose_print(*args):
-    if verbose[0]:
+    if config.verbose[0]:
         for arg in args:
             print(arg, end = ' ')
         print()
 
 def verbose_print_over_same_line(output_str):
-    if verbose[0]:
+    if config.verbose[0]:
         sys.stdout.write(output_str + '\r')
         sys.stdout.flush()

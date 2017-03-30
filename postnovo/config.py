@@ -1,12 +1,15 @@
 ''' Variables used across project '''
 
 import re
+import os
 
-from os.path import join, dirname, realpath
 from itertools import product
 from collections import OrderedDict
 from functools import partial
 
+
+# websites
+forest_dict_url = ''
 
 # standard constants
 proton_mass = 1.007276
@@ -58,11 +61,8 @@ ref_file = [None]
 cores = [1]
 
 # directories
-postnovo_parent_dir = dirname(dirname(realpath(__file__)))
-test_dir = join(postnovo_parent_dir, 'test')
-training_dir = join(postnovo_parent_dir, 'training')
-userfiles_dir = join(postnovo_parent_dir, 'userfiles')
-output_dir = join(postnovo_parent_dir, 'output')
+iodir = []
+training_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'training')
 
 # program constraints
 accepted_algs = ['novor', 'peaks', 'pn']

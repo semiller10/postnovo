@@ -1,11 +1,11 @@
 ''' Load de novo sequence data '''
 
-from config import *
-from utils import verbose_print
-
 import pandas as pd
 import numpy as np
 import re
+
+from postnovo import config
+from postnovo import utils
 
 from collections import OrderedDict
 from os.path import basename
@@ -18,32 +18,32 @@ def load_files():
 
     alg_basename_dfs_dict = OrderedDict()
 
-    if novor_files:
+    if config.novor_files:
         alg_basename_dfs_dict['novor'] = OrderedDict.fromkeys(
-            [basename(novor_file) for novor_file in novor_files])
-        for i, novor_file in enumerate(novor_files):
-            verbose_print('loading', basename(novor_file))
-            check_file_fragment_mass_tol(novor_file, frag_mass_tols[i])
+            [basename(novor_file) for novor_file in config.novor_files])
+        for i, novor_file in enumerate(config.novor_files):
+            utils.verbose_print('loading', basename(novor_file))
+            check_file_fragment_mass_tol(novor_file, config.frag_mass_tols[i])
             if i == 0:
                 find_precursor_mass_tol(novor_file)
 
             alg_basename_dfs_dict['novor'][basename(novor_file)] = load_novor_file(novor_file)
     
-    if peaks_files:
+    if config.peaks_files:
         alg_basename_dfs_dict['peaks'] = OrderedDict.fromkeys(
-            [basename(peaks_file) for peaks_file in peaks_files])
-        for i, peaks_file in enumerate(peaks_files):
-            verbose_print('loading', basename(peaks_file))
+            [basename(peaks_file) for peaks_file in config.peaks_files])
+        for i, peaks_file in enumerate(config.peaks_files):
+            utils.verbose_print('loading', basename(peaks_file))
             alg_basename_dfs_dict['peaks'][basename(peaks_file)] = load_peaks_file(peaks_file)
 
-    if pn_files:
+    if config.pn_files:
         alg_basename_dfs_dict['pn'] = OrderedDict.fromkeys(
-            [basename(pn_file) for pn_file in pn_files])
-        for i, pn_file in enumerate(pn_files):
-            verbose_print('loading', basename(pn_file))
+            [basename(pn_file) for pn_file in config.pn_files])
+        for i, pn_file in enumerate(config.pn_files):
+            utils.verbose_print('loading', basename(pn_file))
             alg_basename_dfs_dict['pn'][basename(pn_file)] = load_pn_file(pn_file)
 
-    verbose_print('cleaning up input data')
+    utils.verbose_print('cleaning up input data')
     alg_basename_dfs_dict = filter_shared_scans(alg_basename_dfs_dict)
     return alg_basename_dfs_dict
 
@@ -73,13 +73,13 @@ def load_novor_file(novor_file):
                   'm/z', 'charge', 'novor seq mass',
                   'seq mass error']].apply(pd.to_numeric)
 
-    novor_df['retention time'] /= seconds_in_min
+    novor_df['retention time'] /= config.seconds_in_min
 
     novor_df['novor seq mass'] = (novor_df['novor seq mass'] +
-                                  proton_mass * novor_df['charge'])
+                                  config.proton_mass * novor_df['charge'])
     
     novor_df['seq'] = novor_df['seq'].apply(
-        lambda seq: novor_seq_sub_fn(string = seq))
+        lambda seq: config.novor_seq_sub_fn(string = seq))
 
     novor_df['aa score'] = novor_df['aa score'].apply(
         lambda score_string: score_string.split('-')).apply(
@@ -105,7 +105,7 @@ def check_file_fragment_mass_tol(novor_file, user_mass_tol):
 def find_precursor_mass_tol(novor_file):
     precursor_mass_tol_info_str = pd.read_csv(novor_file, nrows = 13).iloc[12][0]
     try:
-        precursor_mass_tol[0] = float(re.search('(?<=# precursorErrorTol = )(.*)(?=ppm)', precursor_mass_tol_info_str).group(0))
+        config.precursor_mass_tol[0] = float(re.search('(?<=# precursorErrorTol = )(.*)(?=ppm)', precursor_mass_tol_info_str).group(0))
     except ValueError:
         pass
 
@@ -157,13 +157,13 @@ def load_pn_file(pn_file):
 
     pn_df.drop('group', axis = 1, inplace = True)
 
-    pn_df['[m+h]'] = (pn_df['[m+h]'] + (pn_df['charge'] - 1) * proton_mass) / pn_df['charge']
+    pn_df['[m+h]'] = (pn_df['[m+h]'] + (pn_df['charge'] - 1) * config.proton_mass) / pn_df['charge']
     pn_df.rename(columns = {'[m+h]': 'm/z'}, inplace = True)
 
     pn_df['seq'].replace(
         to_replace = np.nan, value = '', inplace = True)
     pn_df['seq'] = pn_df['seq'].apply(
-        lambda seq: pn_seq_sub_fn(string = seq))
+        lambda seq: config.pn_seq_sub_fn(string = seq))
 
     pn_df_cols = ['scan', 'rank', 'm/z',
                   'charge', 'n-gap', 'c-gap',
@@ -183,14 +183,14 @@ def load_pn_file(pn_file):
 
 def filter_shared_scans(alg_basename_dfs_dict):
 
-    for tol in frag_mass_tols:
+    for tol in config.frag_mass_tols:
 
-        for alg0, alg1 in combinations(alg_list, 2):
-            if (tol in alg_tols_dict[alg0].keys()
-                and tol in alg_tols_dict[alg1].keys()):
+        for alg0, alg1 in combinations(config.alg_list, 2):
+            if (tol in config.alg_tols_dict[alg0].keys()
+                and tol in config.alg_tols_dict[alg1].keys()):
 
-                df_name0 = alg_tols_dict[alg0][tol]
-                df_name1 = alg_tols_dict[alg1][tol]
+                df_name0 = config.alg_tols_dict[alg0][tol]
+                df_name1 = config.alg_tols_dict[alg1][tol]
                 df0 = alg_basename_dfs_dict[alg0][df_name0]
                 df1 = alg_basename_dfs_dict[alg1][df_name1]
 
