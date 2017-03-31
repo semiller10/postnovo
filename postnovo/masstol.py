@@ -14,12 +14,12 @@ multiprocessing_scan_count = 0
 
 
 def update_prediction_df(prediction_df):
-    verbose_print()
+    utils.verbose_print()
 
     if len(config.frag_mass_tols) == 1:
         return prediction_df
 
-    verbose_print('setting up mass tolerance comparison')
+    utils.verbose_print('setting up mass tolerance comparison')
     prediction_df.reset_index(inplace = True)
     # combo level col = sum of 'is novor seq', 'is peaks seq', 'is pn seq' values
     prediction_df['combo level'] = prediction_df.iloc[:, :len(config.alg_list)].sum(axis = 1)
@@ -40,7 +40,7 @@ def update_prediction_df(prediction_df):
     ## single processor method
     #child_initialize(scan_groups, frag_mass_tols, tol_group_key_list)
     #tol_match_array_list = []
-    #verbose_print('performing mass tolerance comparison')
+    #utils.verbose_print('performing mass tolerance comparison')
     #for scan in scan_list:
     #    tol_match_array_list.append(make_mass_tol_match_array(scan))
 
@@ -49,7 +49,7 @@ def update_prediction_df(prediction_df):
                                 initargs = (scan_groups, config.frag_mass_tols, tol_group_key_list,
                                             config.cores[0], one_percent_number_scans)
                                 )
-    verbose_print('performing mass tolerance comparison')
+    utils.verbose_print('performing mass tolerance comparison')
     tol_match_array_list = multiprocessing_pool.map(make_mass_tol_match_array, scan_list)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
@@ -86,7 +86,7 @@ def make_mass_tol_match_array(scan):
         if int(multiprocessing_scan_count % one_percent_number_scans) == 0:
             percent_complete = int(multiprocessing_scan_count / one_percent_number_scans)
             if percent_complete <= 100:
-                verbose_print_over_same_line('mass tolerance comparison progress: ' + str(percent_complete) + '%')
+                utils.verbose_print_over_same_line('mass tolerance comparison progress: ' + str(percent_complete) + '%')
 
     scan_group_df = scan_groups.get_group(scan)
     scan_group_df.index = scan_group_df.index.droplevel('scan')

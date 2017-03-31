@@ -96,8 +96,8 @@ tol_basenames_dict = OrderedDict()
 ##                              '0.5': ['proteome-0.5.novor.csv', 'proteome-0.5.mgf.out'])
 
 # de novo output characteristics
-novor_seq_sub_fn = partial(re.sub(pattern = '\([^)]+\)|[0-9]', repl = ''))
-pn_seq_sub_fn = partial(re.sub(pattern = '[0-9\+\-\.\^]', repl = ''))
+novor_seq_sub_fn = partial(re.sub, pattern = '\([^)]+\)|[0-9]', repl = '')
+pn_seq_sub_fn = partial(re.sub, pattern = '[0-9\+\-\.\^]', repl = '')
 precursor_mass_tol = [4.0]
 
 # training parameters

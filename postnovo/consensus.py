@@ -16,7 +16,7 @@ multiprocessing_scan_count = 0
 
 
 def make_prediction_df(alg_basename_dfs_dict):
-    verbose_print()
+    utils.verbose_print()
 
     if config.run_type[0] in ['train', 'optimize']:
         consensus_min_len = config.train_consensus_len
@@ -25,7 +25,7 @@ def make_prediction_df(alg_basename_dfs_dict):
 
     tol_prediction_df_list = []
     for tol in config.frag_mass_tols:
-        verbose_print('setting up', tol, 'Da consensus comparison')
+        utils.verbose_print('setting up', tol, 'Da consensus comparison')
         alg_compar_list = config.tol_alg_dict[tol]
 
         if len(alg_compar_list) > 1:
@@ -114,7 +114,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
                                             first_seq_second_seq_max_ranks_dict, first_seq_second_seq_alg_positions_dict,
                                             tol, config.cores[0], one_percent_number_consensus_scans)
                                 )
-    verbose_print('finding', tol, 'Da consensus sequences')
+    utils.verbose_print('finding', tol, 'Da consensus sequences')
     grand_scan_prediction_dict_list = multiprocessing_pool.map(make_scan_prediction_dicts, consensus_scan_list)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
@@ -126,7 +126,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     #                 first_seq_second_seq_rank_comparisons_dict, first_seq_second_seq_max_ranks_dict,
     #                 first_seq_second_seq_alg_positions_dict, tol)
     #grand_scan_prediction_dict_list = []
-    #verbose_print('finding', tol, 'Da consensus sequences')
+    #utils.verbose_print('finding', tol, 'Da consensus sequences')
     #for consensus_scan in consensus_scan_list:
     #    grand_scan_prediction_dict_list.append(
     #        make_scan_prediction_dicts(consensus_scan))
@@ -169,7 +169,7 @@ def make_scan_prediction_dicts(consensus_scan):
         if int(multiprocessing_scan_count % one_percent_number_consensus_scans) == 0:
             percent_complete = int(multiprocessing_scan_count / one_percent_number_consensus_scans)
             if percent_complete <= 100:
-                verbose_print_over_same_line(tol + ' Da progress: ' + str(percent_complete) + '%')
+                utils.verbose_print_over_same_line(tol + ' Da progress: ' + str(percent_complete) + '%')
 
     scan_prediction_dict_list = []
 

@@ -32,29 +32,29 @@ from scipy.stats import norm
 multiprocessing_seq_matching_count = 0
 
 def classify(prediction_df = None):
-    verbose_print()
+    utils.verbose_print()
 
     if config.run_type[0] in ['train', 'test', 'optimize']:
         prediction_df = find_target_accuracy(prediction_df)
 
-    verbose_print('formatting data for compatability with model')
+    utils.verbose_print('formatting data for compatability with model')
     prediction_df = standardize_prediction_df_cols(prediction_df)
-    save_pkl_objects(config.iodir[0], **{'prediction_df': prediction_df})
-    #prediction_df = load_pkl_objects(config.iodir[0], 'prediction_df')
+    utils.save_pkl_objects(config.iodir[0], **{'prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'prediction_df')
 
     if config.run_type[0] in ['train', 'optimize']:
         
         #subsampled_df = subsample_training_data(prediction_df)
-        #save_pkl_objects(config.iodir[0], **{'subsampled_df': subsampled_df})
-        #subsampled_df = load_pkl_objects(config.iodir[0], 'subsampled_df')
+        #utils.save_pkl_objects(config.iodir[0], **{'subsampled_df': subsampled_df})
+        #subsampled_df = utils.load_pkl_objects(config.iodir[0], 'subsampled_df')
 
-        verbose_print('updating training database')
+        utils.verbose_print('updating training database')
         training_df = update_training_data(prediction_df)
-        #training_df = load_pkl_objects(config.training_dir, 'training_df')
+        #training_df = utils.load_pkl_objects(config.training_dir, 'training_df')
 
         forest_dict = make_training_forests(training_df)
-        save_pkl_objects(config.training_dir, **{'forest_dict': forest_dict})
-        #forest_dict = load_pkl_objects(config.training_dir, 'forest_dict')
+        utils.save_pkl_objects(config.training_dir, **{'forest_dict': forest_dict})
+        #forest_dict = utils.load_pkl_objects(config.training_dir, 'forest_dict')
 
     elif config.run_type[0] in ['predict', 'test']:
         
@@ -62,9 +62,9 @@ def classify(prediction_df = None):
         reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
 
 def find_target_accuracy(prediction_df):
-    verbose_print('loading', basename(config.ref_file[0]))
+    utils.verbose_print('loading', basename(config.ref_file[0]))
     ref = load_ref(config.ref_file[0])
-    verbose_print('finding sequence matches to reffile')
+    utils.verbose_print('finding sequence matches to reffile')
 
     seq_set_list = list(set(prediction_df['seq']))
     one_percent_number_seqs = len(seq_set_list) / 100 / config.cores[0]
@@ -89,7 +89,7 @@ def match_seq_to_ref(query_seq, ref, one_percent_number_seqs, cores):
         if int(multiprocessing_seq_matching_count % one_percent_number_seqs) == 0:
             percent_complete = int(multiprocessing_seq_matching_count / one_percent_number_seqs)
             if percent_complete <= 100:
-                verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
+                utils.verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
 
     for target_seq in ref:
         if query_seq in target_seq:
@@ -157,9 +157,9 @@ def subsample_training_data(prediction_df_orig):
         multiindex_list = list(multiindex_key)
         alg_group_df_key = tuple([alg for i, alg in enumerate(config.alg_list) if multiindex_key[i]])
         if sum(multiindex_key) == 1:
-            verbose_print('subsampling', alg_group_df_key[0], 'top-ranking sequences')
+            utils.verbose_print('subsampling', alg_group_df_key[0], 'top-ranking sequences')
         else:
-            verbose_print('subsampling', '-'.join(alg_group_df_key), 'consensus sequences')
+            utils.verbose_print('subsampling', '-'.join(alg_group_df_key), 'consensus sequences')
         alg_group_df = prediction_df.xs(multiindex_key)
         alg_group_unique_index = alg_group_df.index.get_level_values('unique index')
         alg_group_df.reset_index(inplace = True)
@@ -275,11 +275,11 @@ def redistribute_residual_subsample(residual, remaining_accuracy_bins, accuracy_
 def update_training_data(prediction_df):
 
     try:
-        training_df = load_pkl_objects(config.training_dir, 'training_df')
+        training_df = utils.load_pkl_objects(config.training_dir, 'training_df')
         training_df = pd.concat([training_df, prediction_df])
     except (FileNotFoundError, OSError) as e:
         training_df = prediction_df
-    save_pkl_objects(config.training_dir, **{'training_df': training_df})
+    utils.save_pkl_objects(config.training_dir, **{'training_df': training_df})
 
     prediction_df_csv = prediction_df.copy()
     prediction_df_csv['timestamp'] = str(datetime.datetime.now()).split('.')[0]
@@ -300,7 +300,7 @@ def update_training_data(prediction_df):
 
 def make_predictions(prediction_df):
 
-    forest_dict = load_pkl_objects(config.training_dir, 'forest_dict')
+    forest_dict = utils.load_pkl_objects(config.training_dir, 'forest_dict')
 
     prediction_df['probability'] = np.nan
     for multiindex_key in config.is_alg_col_multiindex_keys:
@@ -317,7 +317,7 @@ def make_predictions(prediction_df):
         probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
 
         if config.run_type[0] == 'test':
-            verbose_print('making', '_'.join(alg_group), 'test plots')
+            utils.verbose_print('making', '_'.join(alg_group), 'test plots')
             plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
             plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
 
@@ -356,7 +356,7 @@ def make_training_forests(training_df):
             plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key)
 
     elif config.run_type[0] == 'optimize':
-        verbose_print('optimizing random forest parameters')
+        utils.verbose_print('optimizing random forest parameters')
         optimized_params = optimize_model(train_target_arr_dict)
         forest_dict = make_forest_dict(train_target_arr_dict, optimized_params)
 
@@ -389,9 +389,9 @@ def make_forest_dict(train_target_arr_dict, rf_params):
     forest_dict = {}.fromkeys(train_target_arr_dict)
     for alg_key in forest_dict:
         if len(alg_key) > 1:
-            verbose_print('making random forest for', '-'.join(alg_key), 'consensus sequences')
+            utils.verbose_print('making random forest for', '-'.join(alg_key), 'consensus sequences')
         else:
-            verbose_print('making random forest for', alg_key[0], 'sequences')
+            utils.verbose_print('making random forest for', alg_key[0], 'sequences')
 
         train_data = train_target_arr_dict[alg_key]['train']
         target_data = train_target_arr_dict[alg_key]['target']
@@ -419,9 +419,9 @@ def optimize_model(train_target_arr_dict):
         forest_grid.fit(data_train_split, target_train_split)
         optimized_forest = forest_grid.best_estimator_
         optimized_params[alg_key]['max_depth'] = optimized_forest.max_depth
-        verbose_print(alg_key, 'optimized max depth:', optimized_forest.max_depth)
+        utils.verbose_print(alg_key, 'optimized max depth:', optimized_forest.max_depth)
         optimized_params[alg_key]['max_features'] = optimized_forest.max_features
-        verbose_print(alg_key, 'optimized max features:', optimized_forest.max_features)
+        utils.verbose_print(alg_key, 'optimized max features:', optimized_forest.max_features)
 
         plot_feature_importances(optimized_forest, alg_key, train_target_arr_dict[alg_key]['feature_names'])
         plot_binned_feature_importances(optimized_forest, alg_key, train_target_arr_dict[alg_key]['feature_names'])
@@ -431,9 +431,9 @@ def optimize_model(train_target_arr_dict):
 
 def plot_feature_importances(forest, alg_key, feature_names):
     if len(alg_key) > 1:
-        verbose_print('plotting feature importances for', '-'.join(alg_key), 'consensus sequences')
+        utils.verbose_print('plotting feature importances for', '-'.join(alg_key), 'consensus sequences')
     else:
-        verbose_print('plotting feature importances for', alg_key[0], 'sequences')
+        utils.verbose_print('plotting feature importances for', alg_key[0], 'sequences')
 
     importances = forest.feature_importances_
     feature_std = np.std([tree.feature_importances_ for tree in forest.estimators_], axis = 0)
@@ -456,9 +456,9 @@ def plot_feature_importances(forest, alg_key, feature_names):
 
 def plot_binned_feature_importances(forest, alg_key, feature_names):
     if len(alg_key) > 1:
-        verbose_print('plotting feature importances for', '-'.join(alg_key), 'consensus sequences')
+        utils.verbose_print('plotting feature importances for', '-'.join(alg_key), 'consensus sequences')
     else:
-        verbose_print('plotting feature importances for', alg_key[0], 'sequences')
+        utils.verbose_print('plotting feature importances for', alg_key[0], 'sequences')
 
     feature_importances = forest.feature_importances_
     feature_group_importances = []
@@ -495,9 +495,9 @@ def plot_binned_feature_importances(forest, alg_key, feature_names):
 
 def plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key):
     if len(alg_key) > 1:
-        verbose_print('plotting errors vs tree size for', '-'.join(alg_key), 'consensus sequences')
+        utils.verbose_print('plotting errors vs tree size for', '-'.join(alg_key), 'consensus sequences')
     else:
-        verbose_print('plotting errors vs tree size for', alg_key[0], 'sequences')
+        utils.verbose_print('plotting errors vs tree size for', alg_key[0], 'sequences')
 
     ensemble_clfs = [
         #('max_features=\'sqrt\'',

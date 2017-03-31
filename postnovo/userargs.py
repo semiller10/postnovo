@@ -48,8 +48,17 @@ def parse_args():
     if not argv:
         print(help_str)
 
+    test_str = ['--iodir', 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test',
+                '--frag_mass_tols', '0.4, 0.5',
+                '--novor_files', 'DvT1NC-test-0.4.novor.csv, DvT1NC-test-0.5.novor.csv',
+                '--pn_files', 'DvT1NC-test-0.4.mgf.out, DvT1NC-test-0.5.mgf.out',
+                '--train',
+                '--min_len', '6',
+                '--min_prob', '0.5',
+                '--ref_file', 'DvH.faa',
+                '--cores', '3']
     try:
-        opts, args = getopt.getopt(sys.argv[1:],
+        opts, args = getopt.getopt(test_str,
                                    ['help', 'quiet', 'train', 'test', 'optimize',
                                     'iodir=',
                                     'denovogui_path=', 'denovogui_mgf_path=',
@@ -58,6 +67,15 @@ def parse_args():
                                     'min_len=', 'min_prob=',
                                     'ref_file=',
                                     'cores='])
+        #opts, args = getopt.getopt(sys.argv[1:],
+        #                           ['help', 'quiet', 'train', 'test', 'optimize',
+        #                            'iodir=',
+        #                            'denovogui_path=', 'denovogui_mgf_path=',
+        #                            'frag_mass_tols=',
+        #                            'novor_files=', 'peaks_files=', 'pn_files=',
+        #                            'min_len=', 'min_prob=',
+        #                            'ref_file=',
+        #                            'cores='])
     except getopt.GetoptError:
         print(help_str)
         sys.exit(1)
@@ -438,6 +456,3 @@ def invert_dict_of_lists(d):
     values = sorted(list(values))
     invert_d = OrderedDict((new_k, [k for k, v in d.items() if new_k in v]) for new_k in values)
     return invert_d
-
-if __name__ == '__main__':
-    main()

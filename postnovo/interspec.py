@@ -12,9 +12,9 @@ multiprocessing_precursor_count = 0
 
 
 def update_prediction_df(prediction_df):
-    verbose_print()
+    utils.verbose_print()
 
-    verbose_print('setting up inter-spectrum comparison')
+    utils.verbose_print('setting up inter-spectrum comparison')
     prediction_df['mass error'] = prediction_df['measured mass'] * config.precursor_mass_tol[0] * 10**-6
     prediction_df.reset_index(inplace = True)
     prediction_df.set_index(config.is_alg_col_names, inplace = True)
@@ -61,7 +61,7 @@ def update_prediction_df(prediction_df):
 
             ## single processor method
             #tol_group_precursor_array_list = []
-            #verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
+            #utils.verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
             #for precursor_index in range(precursor_indices[-1] + 1):
             #    child_initialize(precursor_groups)
             #    tol_group_precursor_array_list.append(make_precursor_info_array(precursor_index))
@@ -73,7 +73,7 @@ def update_prediction_df(prediction_df):
                                         initializer = child_initialize,
                                         initargs = (precursor_groups, config.cores[0], one_percent_number_precursors)
                                         )
-            verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
+            utils.verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
             tol_group_precursor_array_list = multiprocessing_pool.map(make_precursor_info_array,
                                                                       precursor_range)
             multiprocessing_pool.close()
@@ -108,7 +108,7 @@ def make_precursor_info_array(precursor_index):
         if int(multiprocessing_precursor_count % one_percent_number_precursors) == 0:
             percent_complete = int(multiprocessing_precursor_count / one_percent_number_precursors)
             if percent_complete <= 100:
-                verbose_print_over_same_line('inter-spectrum comparison progress: ' + str(percent_complete) + '%')
+                utils.verbose_print_over_same_line('inter-spectrum comparison progress: ' + str(percent_complete) + '%')
 
     precursor_seqs = precursor_groups.get_group(precursor_index)['seq']
     precursor_group_size = len(precursor_seqs)
