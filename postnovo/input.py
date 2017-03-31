@@ -45,6 +45,7 @@ def load_files():
 
     utils.verbose_print('cleaning up input data')
     alg_basename_dfs_dict = filter_shared_scans(alg_basename_dfs_dict)
+
     return alg_basename_dfs_dict
 
 def load_novor_file(novor_file):
@@ -99,8 +100,6 @@ def check_file_fragment_mass_tol(novor_file, user_mass_tol):
     if user_mass_tol not in file_mass_tol:
         raise AssertionError(
             'Order of mass tol args does not correspond to order of Novor files')
-
-    return file_mass_tol
 
 def find_precursor_mass_tol(novor_file):
     precursor_mass_tol_info_str = pd.read_csv(novor_file, nrows = 13).iloc[12][0]

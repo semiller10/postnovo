@@ -11,11 +11,12 @@ from postnovo import utils
 
 from multiprocessing import cpu_count
 from itertools import combinations, product
+from collections import OrderedDict
 
 
 def setup():
     args = run_denovogui(
-        order_by_tols(
+        order_by_tol(
             arg_cross_check(
                 parse_args())))
     
@@ -44,9 +45,10 @@ def parse_args():
     
     args = {}
 
-    # Take in args
-    if not argv:
-        print(help_str)
+    # CHANGE BACK
+    ## Take in args
+    #if not argv:
+    #    print(help_str)
 
     test_str = ['--iodir', 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test',
                 '--frag_mass_tols', '0.4, 0.5',
@@ -58,7 +60,7 @@ def parse_args():
                 '--ref_file', 'DvH.faa',
                 '--cores', '3']
     try:
-        opts, args = getopt.getopt(test_str,
+        opts, leftover = getopt.getopt(test_str, shortopts = '', longopts =
                                    ['help', 'quiet', 'train', 'test', 'optimize',
                                     'iodir=',
                                     'denovogui_path=', 'denovogui_mgf_path=',
@@ -67,7 +69,7 @@ def parse_args():
                                     'min_len=', 'min_prob=',
                                     'ref_file=',
                                     'cores='])
-        #opts, args = getopt.getopt(sys.argv[1:],
+        #opts, leftover = getopt.getopt(sys.argv[1:], shortopts = '', longopts =
         #                           ['help', 'quiet', 'train', 'test', 'optimize',
         #                            'iodir=',
         #                            'denovogui_path=', 'denovogui_mgf_path=',
@@ -218,8 +220,8 @@ def arg_cross_check(args):
             sys.exit(1)
         updated_args['ref_file'] = ref_path
 
-    for option, arg in updated_args.items():
-        args[option] = arg
+    for opt, arg in updated_args.items():
+        args[opt] = arg
 
     config.iodir.append(args['iodir'])
 
