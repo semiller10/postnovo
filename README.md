@@ -95,7 +95,7 @@ A parameter file template, param_template.json, is found in postnovo/test direct
 
 This file lists all of the possible options and can be modified to mirror possible command line arguments
 
-### Example param file contents
+#### Example param file contents
 "--test" = true,
 
 "--frag_mass_tols" = ["0.2", "0.3", "0.4", "0.5", "0.6", "0.7"],
