@@ -11,6 +11,8 @@ link
 #### The user can generate or add to *forest_dict.pkl* by using the train or optimize modes of postnovo
 All changes will be made to a file named *forest_dict.pkl*
 
+See `--ref_file` description below
+
 ## Installation
 `pip install postnovo`
 
@@ -59,7 +61,11 @@ Optimize = same as train, but some random forest parameters are tuned
 
 `[--denovogui_mgf_path "C:\Documents\mgf_files\spectra.mgf"]`
 
-#### faa reference file is required in test, train and optimize modes
+#### A tab-delimited .txt reference file is required in test, train and optimize modes
+##### This file can be generated from the Proteome Discoverer consensus workflow PSM results sheet
+##### The essential columns that must be in a reference file are Scan Number, Sequence (without non-alphabetical symbols) and FDR (e.g., Percolator q-value)
+##### If the reference file is not generated through Proteome Discoverer, the first column of the tab-delimited .txt file must be Scan Number; the second must be Sequence; and the third FDR
+##### Sequences with FDR's up to 0.05 (medium-confidence in Proteome Discoverer) should be retained in the reference file
 `[--ref_file proteome.faa]`
 
 #### 1 core used by default, but more are intended to be used
