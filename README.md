@@ -52,20 +52,27 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--novor_files "novor_output_0.3.novor.csv, novor_output_0.5.novor.csv"]`
 
 `[--pn_files "pn_output_0.3.mgf.out, pn_output_0.5.mgf.out"]`
-#### 1 core used by default, but more are intended to be used
-`[--cores 8]`
-#### Minimum length and probability of sequences reported by postnovo are optional
-##### These default to 6 and 0.5, respectively
-`[--min_len 9]`
 
-`[--min_prob 0.75]`
-#### faa reference file is required in test, train and optimize modes
-`[--ref_file proteome.faa]`
 #### Options for generating de novo output files with *DeNovoGUI* and automatically using as postnovo input
 ##### These override --novor_files and --pn_files
 `[--denovogui_path "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar"]`
 
 `[--denovogui_mgf_path "C:\Documents\mgf_files\spectra.mgf"]`
+
+#### faa reference file is required in test, train and optimize modes
+`[--ref_file proteome.faa]`
+
+#### 1 core used by default, but more are intended to be used
+`[--cores 8]`
+
+#### Minimum length and probability of sequences reported by postnovo are optional
+##### These default to 6 and 0.5, respectively
+`[--min_len 9]`
+
+`[--min_prob 0.75]`
+
+#### Use a json parameter file instead of command line arguments
+`[--paramfile "param.json]`
 
 #### Turn off verbose mode
 `[--quiet]`
@@ -73,12 +80,28 @@ Optimize = same as train, but some random forest parameters are tuned
 #### Usage help
 `[--help]`
 
+#### Example command (default predict mode)
+postnovo --frag_mass_tols "0.2, 0.3, 0.4, 0.5, 0.6, 0.7" --denovogui_path "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "C:\Documents\mgf_files\spectra.mgf" --cores 8
+
 ### Parameter file substitute for command line arguments
 
 A parameter file template, param_template.json, is found in postnovo/test directory
 
-postnovo will use a file called param.json for user input if a file with that name is in postnovo/test
+This file lists all of the possible options and can be modified to mirror possible command line arguments
 
-Modify param_template.json and save as param.json to override command line arguments
+#### Example param file contents
+"--test" = true,
 
-There is an example parameter file in postnovo/test called param_example.json
+"--frag_mass_tols" = ["0.2", "0.3", "0.4", "0.5", "0.6", "0.7"],
+
+"--denovogui_path" = "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar",
+
+"--denovogui_mgf_path" = "C:\Documents\mgf_files\spectra.mgf",
+
+"--ref_file" = "proteome_discoverer_psm_table.txt",
+
+"--cores" = 8,
+
+"--min_len" = 9,
+
+"--min_prob" = 0.75
