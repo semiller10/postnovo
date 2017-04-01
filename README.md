@@ -6,7 +6,7 @@ Python 3.4 or higher
 
 ### Training model: a pickled dictionary of random forests
 #### A file named *forest_dict.pkl* must go in the *postnovo/training* directory
-#### The default training model will be downloaded from the following website if *forest_dict.pkl* is not present (e.g., on first run)
+#### The default training model will be downloaded from the following site if *forest_dict.pkl* is not present (e.g., on first run)
 link
 #### The user can generate or add to *forest_dict.pkl* by using the train or optimize modes of postnovo
 All changes will be made to a file named *forest_dict.pkl*
