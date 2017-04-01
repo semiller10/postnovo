@@ -81,7 +81,7 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--help]`
 
 #### Example command (default predict mode)
-postnovo --frag_mass_tols "0.2, 0.3, 0.4, 0.5, 0.6, 0.7" --denovogui_path "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "C:\Documents\mgf_files\spectra.mgf" --cores 8
+`postnovo --frag_mass_tols "0.2, 0.3, 0.4, 0.5, 0.6, 0.7" --denovogui_path "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "C:\Documents\mgf_files\spectra.mgf" --cores 8`
 
 ### Parameter file substitute for command line arguments
 
