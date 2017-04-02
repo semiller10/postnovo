@@ -7,7 +7,7 @@ Python 3.4 or higher
 ### Training model: a pickled dictionary of random forests
 #### A file named *forest_dict.pkl* must go in the *postnovo/training* directory
 #### The default training model will be downloaded from the following site if *forest_dict.pkl* is not present (e.g., on first run)
-link
+home.uchicago.edu/~samuelmiller/postnovo_files/random_forest.pkl
 #### The user can generate or add to *forest_dict.pkl* by using the train or optimize modes of postnovo
 All changes will be made to a file named *forest_dict.pkl*
 
@@ -50,7 +50,7 @@ Optimize = same as train, but some random forest parameters are tuned
 #### Fragment mass tolerance(s) of input files: always required
 `<--frag_mass_tols "0.3, 0.5">`
 
-#### Novor and PepNovo+ output files corresponding to fragment mass tolerance(s)
+#### *Novor* and *PepNovo+* output files corresponding to fragment mass tolerance(s)
 #### Output files should be placed in *postnovo/userfiles* directory
 #### Use of *DeNovoGUI* (see below) overrides these options
 
@@ -65,8 +65,8 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--denovogui_mgf_path "/home/ms_files/spectra.mgf"]`
 
 #### A tab-delimited .txt reference file is required in test, train and optimize modes
-##### This file can be the exported tab-delimited file from the Proteome Discoverer consensus workflow PSM results sheet
-##### The required columns of a reference file are 1. scan number, 2. sequence (with non-alphabetical symbols removed) and 3. database search false detection rate (e.g., Percolator q-value)
+##### This file can be the exported tab-delimited file from the *Proteome Discoverer* consensus workflow PSM results sheet
+##### The required columns of a reference file are 1. scan number, 2. sequence (with non-alphabetical symbols removed) and 3. database search false detection rate (e.g., *Percolator* q-value)
 ##### If the reference file is not generated via Proteome Discoverer, the order of the columns in the tab-delimited .txt file must be 1. scan number, 2. sequence, and 3. FDR
 ##### Sequences with FDR's up to 0.05 (medium confidence in Proteome Discoverer) should be retained in the reference file
 `[--ref_file "proteome_discoverer_psm_table.txt"]`
@@ -94,11 +94,12 @@ Optimize = same as train, but some random forest parameters are tuned
 
 ### Parameter file substitute for command line arguments
 
-A parameter file template, param_template.json, is found in postnovo/test directory
+A parameter file template, param_template.json, is found at the following site
+home.uchicago.edu/~samuelmiller/postnovo_files/param_template.json
 
 This file lists all of the possible options and can be modified to mirror possible command line arguments
 
-#### Example param file contents
+#### Example param file
 "--iodir" = "/home/postnovo_io",
 
 "--test" = true,
