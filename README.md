@@ -38,6 +38,9 @@ Train = update postnovo model with de novo sequences and reference
 Optimize = same as train, but some random forest parameters are tuned
 
 ### Command line options
+#### postnovo I/O directory: always required, all input files beside mgf file (if used) must be placed here
+`<--iodir "/home/postnovo_io">`
+
 #### Choosing any of these flags overrides default predict mode
 `[--test]`
 
@@ -57,16 +60,16 @@ Optimize = same as train, but some random forest parameters are tuned
 
 #### Options for generating de novo output files with *DeNovoGUI* and automatically using as postnovo input
 ##### These override --novor_files and --pn_files
-`[--denovogui_path "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar"]`
+`[--denovogui_path "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar"]`
 
-`[--denovogui_mgf_path "C:\Documents\mgf_files\spectra.mgf"]`
+`[--denovogui_mgf_path "/home/ms_files/spectra.mgf"]`
 
 #### A tab-delimited .txt reference file is required in test, train and optimize modes
 ##### This file can be the exported tab-delimited file from the Proteome Discoverer consensus workflow PSM results sheet
 ##### The required columns of a reference file are 1. scan number, 2. sequence (with non-alphabetical symbols removed) and 3. database search false detection rate (e.g., Percolator q-value)
 ##### If the reference file is not generated via Proteome Discoverer, the order of the columns in the tab-delimited .txt file must be 1. scan number, 2. sequence, and 3. FDR
 ##### Sequences with FDR's up to 0.05 (medium confidence in Proteome Discoverer) should be retained in the reference file
-`[--ref_file proteome.faa]`
+`[--ref_file "proteome_discoverer_psm_table.txt"]`
 
 #### 1 core used by default, but more are intended to be used
 `[--cores 8]`
@@ -78,7 +81,7 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--min_prob 0.75]`
 
 #### Use a json parameter file instead of command line arguments
-`[--paramfile "param.json]`
+`[--paramfile "param.json"]`
 
 #### Turn off verbose mode
 `[--quiet]`
@@ -87,7 +90,7 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--help]`
 
 ### Example command (default predict mode)
-`postnovo --frag_mass_tols "0.2, 0.3, 0.4, 0.5, 0.6, 0.7" --denovogui_path "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "C:\Documents\mgf_files\spectra.mgf" --cores 8`
+`postnovo --frag_mass_tols "0.2, 0.3, 0.4, 0.5, 0.6, 0.7" --denovogui_path "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "/home/ms_files/spectra.mgf" --cores 8`
 
 ### Parameter file substitute for command line arguments
 
@@ -96,13 +99,15 @@ A parameter file template, param_template.json, is found in postnovo/test direct
 This file lists all of the possible options and can be modified to mirror possible command line arguments
 
 #### Example param file contents
+"--iodir" = "/home/postnovo_io",
+
 "--test" = true,
 
 "--frag_mass_tols" = ["0.2", "0.3", "0.4", "0.5", "0.6", "0.7"],
 
-"--denovogui_path" = "C:\Program Files (x86)\DeNovoGUI-1.15.5-windows\DeNovoGUI-1.15.5\DeNovoGUI-1.15.5.jar",
+"--denovogui_path" = "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar",
 
-"--denovogui_mgf_path" = "C:\Documents\mgf_files\spectra.mgf",
+"--denovogui_mgf_path" = "/home/ms_files/spectra.mgf",
 
 "--ref_file" = "proteome_discoverer_psm_table.txt",
 
