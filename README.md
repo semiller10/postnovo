@@ -79,14 +79,14 @@ Optimize = same as train, but some random forest parameters are tuned
 
 `[--min_prob 0.75]`
 
-#### To use a json parameter file instead of command line arguments
-`[--paramfile "param.json"]`
-
 #### Turn off verbose mode
 `[--quiet]`
 
 #### Usage help
 `[--help]`
+
+#### To use a json parameter file instead of command line arguments: this option excludes all other options
+`[--paramfile "param.json"]`
 
 ### Example command (default predict mode)
 `postnovo --frag_mass_tols "0.2, 0.3, 0.4, 0.5, 0.6, 0.7" --denovogui_path "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "/home/ms_files/spectra.mgf" --cores 8`
