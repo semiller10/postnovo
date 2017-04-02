@@ -97,7 +97,9 @@ Optimize = same as train, but some random forest parameters are tuned
 A parameter file template, param_template.json, is found at the following site
 <http://home.uchicago.edu/~samuelmiller/postnovo_files/param_template.json>
 
-This file lists all of the possible options and can be modified to mirror possible command line arguments
+This file lists all possible options with default arguments
+
+Many of these options are mutually exclusive (see above), so it must be modified to mirror a set of possible command line arguments
 
 #### Example param file
 "--iodir" = "/home/postnovo_io",
