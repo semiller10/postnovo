@@ -5,11 +5,11 @@ Post-processing peptide de novo sequences to improve their accuracy
 Python 3.4 or higher
 
 ### Training model: a pickled dictionary of random forests
-#### A file named *forest_dict.pkl* must go in the *postnovo/training* directory
-#### The default training model will be downloaded from the following site if *forest_dict.pkl* is not present (e.g., on first run)
+#### A file named *forest_dict.pkl* must go in the *postnovo/training* directory.
+#### The default training model will be downloaded from the following site if *forest_dict.pkl* is not present (e.g., on first run):
 <http://home.uchicago.edu/~samuelmiller/postnovo_files/random_forest.pkl>
-#### The user can generate or add to *forest_dict.pkl* by using the train or optimize modes of postnovo
-All changes will be made to a file named *forest_dict.pkl*
+#### The user can generate or add to *forest_dict.pkl* by using the train or optimize modes of postnovo.
+All changes will be made to a file named *forest_dict.pkl*.
 
 See `--ref_file` description below
 
@@ -18,7 +18,7 @@ See `--ref_file` description below
 
 **or**
 
-Download the postnovo source and run the setup script from the postnovo directory
+Download the postnovo source and run the setup script from the postnovo directory.
 
 1. `python setup.py build`
 2. `python setup.py install`
@@ -26,7 +26,7 @@ Download the postnovo source and run the setup script from the postnovo director
 ## Usage
 `python postnovo.py <--frag_mass_tols> <--other options>`
 
-#### Output goes to *postnovo/output* directory
+#### Output goes to *postnovo/output* directory.
 
 ### Four modes
 Predict (DEFAULT) = post-process de novo sequences for data WITHOUT reference
@@ -41,7 +41,7 @@ Optimize = same as train, but some random forest parameters are tuned
 #### postnovo I/O directory: always required, all input files beside mgf file (if used) must be placed here
 `<--iodir "/home/postnovo_io">`
 
-#### Choosing any of these flags overrides default predict mode
+#### Choosing any of these flags overrides default predict mode.
 `[--test]`
 
 `[--train]`
@@ -51,36 +51,35 @@ Optimize = same as train, but some random forest parameters are tuned
 `<--frag_mass_tols "0.3, 0.5">`
 
 #### *Novor* and *PepNovo+* output files corresponding to fragment mass tolerance(s)
-#### Output files should be placed in *postnovo/userfiles* directory
-#### Use of *DeNovoGUI* (see below) overrides these options
+#### Output files should be placed in *postnovo/userfiles* directory.
+#### Use of *DeNovoGUI* (see below) overrides these options.
 
 `[--novor_files "novor_output_0.3.novor.csv, novor_output_0.5.novor.csv"]`
 
 `[--pn_files "pn_output_0.3.mgf.out, pn_output_0.5.mgf.out"]`
 
 #### Options for generating de novo output files with *DeNovoGUI* and automatically using as postnovo input
-##### These override --novor_files and --pn_files
+##### These override --novor_files and --pn_files.
 `[--denovogui_path "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar"]`
 
 `[--denovogui_mgf_path "/home/ms_files/spectra.mgf"]`
 
-#### A tab-delimited .txt reference file is required in test, train and optimize modes
-##### This file can be the exported tab-delimited file from the *Proteome Discoverer* consensus workflow PSM results sheet
-##### The required columns of a reference file are 1. scan number, 2. sequence (with non-alphabetical symbols removed) and 3. database search false detection rate (e.g., *Percolator* q-value)
-##### If the reference file is not generated via Proteome Discoverer, the order of the columns in the tab-delimited .txt file must be 1. scan number, 2. sequence, and 3. FDR
-##### Sequences with FDR's up to 0.05 (medium confidence in Proteome Discoverer) should be retained in the reference file
+#### A tab-delimited .txt reference file is required in test, train and optimize modes.
+##### This file can be the exported tab-delimited file from the *Proteome Discoverer* consensus workflow PSM results sheet.
+##### The required columns of a reference file are 1. scan number, 2. sequence (with non-alphabetical symbols removed) and 3. database search false detection rate (e.g., *Percolator* q-value).
+##### If the reference file is not generated via Proteome Discoverer, the order of the columns in the tab-delimited .txt file must be 1. scan number, 2. sequence, and 3. FDR.
+##### Sequences with FDR's up to 0.05 (medium confidence in Proteome Discoverer) should be retained in the reference file.
 `[--ref_file "proteome_discoverer_psm_table.txt"]`
 
-#### 1 core used by default, but more are intended to be used
-`[--cores 8]`
+#### Cores used by postnovo and *DeNovoGUI*: default of 1, but *multiple cores are intended to be used*
+`[--cores 16]`
 
-#### Minimum length and probability of sequences reported by postnovo are optional
-##### These default to 6 and 0.5, respectively
+#### Minimum length and probability of sequences reported by postnovo: default of 6 and 0.5, respectively
 `[--min_len 9]`
 
 `[--min_prob 0.75]`
 
-#### Use a json parameter file instead of command line arguments
+#### To use a json parameter file instead of command line arguments
 `[--paramfile "param.json"]`
 
 #### Turn off verbose mode
@@ -94,14 +93,14 @@ Optimize = same as train, but some random forest parameters are tuned
 
 ### Parameter file substitute for command line arguments
 
-A parameter file template, param_template.json, is found at the following site
+A parameter file template, param_template.json, is found at the following site:
 <http://home.uchicago.edu/~samuelmiller/postnovo_files/param_template.json>
 
-This file lists all possible options with default arguments
+This file lists all possible options with default arguments.
 
-Many of these options are mutually exclusive (see above), so it must be modified to mirror a set of possible command line arguments
+Many of these options are mutually exclusive (see above), so it must be modified to mirror a set of possible command line arguments.
 
-#### Example param file
+#### Example valid param file
 "--iodir" = "/home/postnovo_io",
 
 "--test" = true,
