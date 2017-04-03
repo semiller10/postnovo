@@ -85,7 +85,7 @@ Optimize = same as train, but some random forest parameters are tuned
 #### Usage help
 `[--help]`
 
-#### To use a json parameter file instead of command line arguments: this option excludes all other options
+#### To use a json parameter file instead of command line arguments: this option excludes other options beside iodir
 `[--param_file "param.json"]`
 
 ### Example command (default predict mode)
