@@ -13,7 +13,7 @@ def main():
     start_time = time()
 
     args = userargs.setup()
-    utils.save_json_objects(config.iodir[0], **{'args': args})
+    #utils.save_json_objects(config.iodir[0], **{'args': args})
     #args = utils.load_json_objects(config.iodir[0], 'args')
 
     alg_basename_dfs_dict = input.load_files()
@@ -34,6 +34,9 @@ def main():
     utils.save_pkl_objects(config.iodir[0], **{'interspec_prediction_df': prediction_df})
     #prediction_df = utils.load_pkl_objects(config.iodir[0], 'interspec_prediction_df')
 
+    ## REMOVE
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'interspec_prediction_df')
+    #import classifier
     classifier.classify(prediction_df = prediction_df)
     #classifier.classify()
 

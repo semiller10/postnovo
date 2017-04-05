@@ -25,174 +25,94 @@ def setup():
     
 def parse_args():
     ''' Return command line args as dict '''
-
-    help_str = ('postnovo.py\n\
-    --iodir <"/home/postnovo_io">\n\
-    --frag_mass_tols <"0.3, 0.5">\n\
-    --novor_files <"novor_output_0.3.novor.csv, novor_output_0.5.novor.csv">\n\
-    --peaks_files <"peaks_output_0.3.csv, peaks_output_0.5.csv">\n\
-    --pn_files <"pn_output_0.3.mgf.out, pn_output_0.5.mgf.out">\n\
-    --denovogui_path <"/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar">\n\
-    --denovogui_mgf_path <"/home/ms_files/spectra.mgf">\n\
-    --train\n\
-    --test\n\
-    --optimize\n\
-    --min_len <9>\n\
-    --min_prob <0.75>\n\
-    --ref_file <reffile>\n\
-    --cores <3>\n\
-    --quiet')
     
     args = {}
 
-    # CHANGE BACK
-    ## Take in args
-    #if not argv:
-    #    print(help_str)
+    # FOR DEBUGGING PURPOSES: UNCOMMENT
+    # Take in args
+    #if len(argv) == 1:
+        # print(config.help_str)
+        # sys.exit(0)
 
-    test_str = ['--iodir', 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test',
-                '--frag_mass_tols', '0.4, 0.5',
-                '--novor_files', 'DvT1NC-test-0.4.novor.csv, DvT1NC-test-0.5.novor.csv',
-                '--pn_files', 'DvT1NC-test-0.4.mgf.out, DvT1NC-test-0.5.mgf.out',
-                '--train',
-                '--min_len', '6',
-                '--min_prob', '0.5',
-                '--ref_file', 'DvH.faa',
-                '--cores', '3']
+    # FOR DEBUGGING PURPOSES: REMOVE
+    test_str = ['--param_file', 'debug_param.json',
+                '--iodir', 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test']
+
     try:
-        opts, leftover = getopt.getopt(test_str, shortopts = '', longopts =
-                                   ['help', 'quiet', 'train', 'test', 'optimize',
-                                    'iodir=',
-                                    'denovogui_path=', 'denovogui_mgf_path=',
-                                    'frag_mass_tols=',
-                                    'novor_files=', 'peaks_files=', 'pn_files=',
-                                    'min_len=', 'min_prob=',
-                                    'ref_file=',
-                                    'cores='])
-        #opts, leftover = getopt.getopt(sys.argv[1:], shortopts = '', longopts =
-        #                           ['help', 'quiet', 'train', 'test', 'optimize',
-        #                            'iodir=',
-        #                            'denovogui_path=', 'denovogui_mgf_path=',
-        #                            'frag_mass_tols=',
-        #                            'novor_files=', 'peaks_files=', 'pn_files=',
-        #                            'min_len=', 'min_prob=',
-        #                            'ref_file=',
-        #                            'cores='])
+        # FOR DEBUGGING PURPOSES: REMOVE AND UNCOMMENT
+        opts, leftover = getopt.getopt(test_str, shortopts = '', longopts = config.getopt_opts)
+        #opts, leftover = getopt.getopt(sys.argv[1:], shortopts = '', longopts = config.getopt_opts)
     except getopt.GetoptError:
-        print(help_str)
+        print(config.help_str)
+        sys.exit(1)
+
+    if '--param_file' in [opt[0] for opt in opts]:
+        return parse_param_file(opts)
+
+    try:
+        iodir = [opt[1] for opt in opts][[opt[0] for opt in opts].index('--iodir')]
+        check_path(iodir)
+    except:
+        print('No iodir')
         sys.exit(1)
 
     # Parse each option
     for opt, arg in opts:
-
-        if opt in ('--help'):
+        if opt == '--param_file':
+            return 
+        elif opt == '--help':
             print(help_str)
             sys.exit(0)
-
-        elif opt in ('--quiet'):
+        elif opt == '--quiet':
             args['quiet'] = True
-
-        elif opt in ('--train'):
+        elif opt == '--train':
             args['train'] = True
-
-        elif opt in ('--test'):
+        elif opt == '--test':
             args['test'] = True
-
-        elif opt in ('--optimize'):
+        elif opt == '--optimize':
             args['optimize'] = True
-
-        elif opt in ('--iodir'):
-            iodir = arg
-            if os.path.exists(iodir) is False:
-                print(iodir + ' does not exist')
-                sys.exit(1)
+        elif opt == '--iodir':
             args['iodir'] = iodir
-
-        elif opt in ('--denovogui_path'):
+        elif opt == '--denovogui_path':
             denovogui_path = arg
-            if os.path.exists(denovogui_path) is False:
-                print(denovogui_path + ' does not exist')
-                sys.exit(1)
+            check_path(denovogui_path)
             args['denovogui_path'] = denovogui_path
-
-        elif opt in ('--denovogui_mgf_path'):
+        elif opt == '--denovogui_mgf_path':
             denovogui_mgf_path = arg
-            if os.path.exists(denovogui_mgf_path) is False:
-                print(denovogui_mgf_path + ' does not exist')
-                sys.exit(1)
+            check_path(denovogui_mgf_path)
             args['denovogui_mgf_path'] = denovogui_mgf_path
-
-        elif opt in ('--frag_mass_tols'):
+        elif opt == '--frag_mass_tols':
             frag_mass_tols = arg.split(',')
-            frag_mass_tols = [tol.strip() for tol in frag_mass_tols]
-            for tol in frag_mass_tols:
-                if tol not in config.accepted_mass_tols:
-                    print(tol + ' must be in list of accepted fragment mass tolerances: ' +\
-                        ', '.join(config.accepted_mass_tols))
-                    sys.exit(1)
+            frag_mass_tols = [os.path.join(iodir, tol.strip()) for tol in frag_mass_tols]
+            check_frag_mass_tols(frag_mass_tols)
             args['frag_mass_tols'] = frag_mass_tols
-
-        elif opt in ('--novor_files'):
+        elif opt == '--novor_files':
             novor_files = arg.split(',')
-            novor_files = [f.strip() for f in novor_files]
-            for i, file_name in enumerate(novor_files):
-                if '.novor.csv' not in file_name:
-                    print(file_name + ' must have novor.csv file extension')
-                    sys.exit(1)
+            novor_files = [os.path.join(iodir, f.strip()) for f in novor_files]
+            check_novor_files(novor_files)
             args['novor_files'] = novor_files
-
-        elif opt in ('--peaks_files'):
+        elif opt == '--peaks_files':
             peaks_files = arg.split(',')
-            peaks_files = [f.strip() for f in peaks_files]
-            for i, file_name in peaks_files:
-                if '.csv' not in file_name:
-                    print(file_name + ' must have csv file extension')
-                    sys.exit(1)
+            peaks_files = [os.path.join(iodir, f.strip()) for f in peaks_files]
+            check_peaks_files(peaks_files)
             args['peaks_files'] = peaks_files
-
-        elif opt in ('--pn_files'):
+        elif opt == '--pn_files':
             pn_files = arg.split(',')
-            pn_files = [f.strip() for f in pn_files]
-            for i, file_name in enumerate(pn_files):
-                if '.mgf.out' not in file_name:
-                    print(file_name + ' must have mgf.out file extension')
-                    sys.exit(1)
+            pn_files = [os.path.join(iodir, f.strip()) for f in pn_files]
+            check_pn_files(pn_files)
             args['pn_files'] = pn_files
-
-        elif opt in ('--min_len'):
-            try:
-                min_len = int(arg)
-            except ValueError:
-                print('Minimum reported sequence length must be an integer >0')
-                sys.exit(1)
-            if min_len < config.train_consensus_len:
-                print('Sequences shorter than length ' + str(config.train_consensus_len) + ' are not supported')
-                sys.exit(1)
+        elif opt == '--min_len':
+            min_len = check_min_len(arg)
             args['min_len'] = min_len
-
-        elif opt in ('--min_prob'):
-            try:
-                min_prob = float(arg)
-            except ValueError:
-                print('Minimum reported sequence probability must be a number between 0 and 1')
-                sys.exit(1)
-            if min_prob <= 0 or min_prob >= 1:
-                print('Minimum reported sequence probability must be a number between 0 and 1')
-                sys.exit(1)
+        elif opt == '--min_prob':
+            min_prob = check_min_prob(arg)
             args['min_prob'] = min_prob
-
-        elif opt in ('--ref_file'):
-            args['ref_file'] = arg
-
-        elif opt in ('--cores'):
-            if not float(arg).is_integer():
-                print('Specify an integer number of cores')
-                sys.exit(1)
-            if int(arg) > cpu_count() or int(arg) < 1:
-                print(str(cpu_count()) + ' cores are available')
-                sys.exit(1)
+        elif opt == '--ref_file':
+            check_path(ref_file, iodir)
+            args['ref_file'] = os.path.join(iodir, ref_file)
+        elif opt == '--cores':
+            check_cores(arg)
             args['cores'] = int(arg)
-
         else:
             print('Unrecognized option ' + opt)
             sys.exit(1)
@@ -200,30 +120,6 @@ def parse_args():
     return args
 
 def arg_cross_check(args):
-
-    updated_args = {}
-
-    for file_set in ['novor_files', 'peaks_files', 'pn_files']:
-        if file_set in args:
-            updated_args[file_set] = []
-            for file_name in args[file_set]:
-                file_path = os.path.join(args['iodir'], file_name)
-                if os.path.exists(file_path) is False:
-                    print(file_name + ' must be in ' + args['iodir'])
-                    sys.exit(1)
-                updated_args[file_set].append(file_path)
-
-    if 'ref_file' in args:
-        ref_path = os.path.join(args['iodir'], args['ref_file'])
-        if os.path.exists(ref_path) is False:
-            print(arg + ' must be in postnovo/userfiles')
-            sys.exit(1)
-        updated_args['ref_file'] = ref_path
-
-    for opt, arg in updated_args.items():
-        args[opt] = arg
-
-    config.iodir.append(args['iodir'])
 
     if 'train' in args:
         if 'ref_file' not in args:
@@ -275,6 +171,138 @@ def arg_cross_check(args):
                 sys.exit(1)
 
     return args
+
+def parse_param_file(opts):
+    
+    args = {}
+
+    for opt, arg in opts:
+        if opt == '--param_file':
+            param_file = arg
+
+        elif opt == '--iodir':
+            iodir = arg
+            if os.path.exists(iodir) is False:
+                print(iodir + ' does not exist')
+                sys.exit(1)
+
+        else:
+            print('When using a json param file to pass arguments to postnovo, other command line arguments beside iodir are not accepted')
+            sys.exit(1)
+
+    check_path(param_file, iodir)
+    args = utils.load_json_objects(iodir, param_file.strip('.json'))
+
+    for opt, arg in args.items():
+        if opt == 'denovogui_path':
+            check_path(arg)
+        elif opt == 'denovogui_mgf_path':
+            check_path(arg)
+        elif opt == 'frag_mass_tols':
+            frag_mass_tols = [str(frag_mass_tol) for frag_mass_tol in arg]
+            check_frag_mass_tols(frag_mass_tols)
+            args['frag_mass_tols'] = frag_mass_tols
+        elif opt == 'novor_files':
+            novor_files = [os.path.join(iodir, f.strip()) for f in arg]
+            check_novor_files(novor_files)
+            args['novor_files'] = novor_files
+        elif opt == 'peaks_files':
+            peaks_files = [os.path.join(iodir, f.strip()) for f in arg]
+            check_peaks_files(peaks_files)
+            args['peaks_files'] = peaks_files
+        elif opt == 'pn_files':
+            pn_files = [os.path.join(iodir, f.strip()) for f in arg]
+            check_pn_files(pn_files)
+            args['pn_files'] = pn_files
+        elif opt == 'min_len':
+            min_len = check_min_len(arg)
+            args['min_len'] = min_len
+        elif opt == 'min_prob':
+            min_prob = check_min_prob(arg)
+            args['min_prob'] = min_prob
+        elif opt == 'ref_file':
+            ref_file = os.path.join(iodir, arg)
+            check_path(ref_file)
+            args['ref_file'] = ref_file
+        elif opt == 'cores':
+            check_cores(arg)
+        else:
+            if opt in config.getopt_opts:
+                pass
+            else:
+                print('Unrecognized option ' + opt)
+                sys.exit(1)
+
+    args['iodir'] = iodir
+    return args
+
+def check_path(path, iodir = None):
+    if iodir is None:
+        if os.path.exists(path) is False:
+            print(path + ' does not exist')
+            sys.exit(1)
+    else:
+        full_path = os.path.join(iodir, path)
+        if os.path.exists(full_path) is False:
+            print(full_path + ' does not exist')
+
+def check_frag_mass_tols(frag_mass_tols):
+    for tol in frag_mass_tols:
+        if tol not in config.accepted_mass_tols:
+            print(tol + ' must be in list of accepted fragment mass tolerances: ' +\
+                ', '.join(config.accepted_mass_tols))
+            sys.exit(1)
+
+def check_novor_files(novor_files):
+    for i, file_name in enumerate(novor_files):
+        if '.novor.csv' not in file_name:
+            print(file_name + ' must have novor.csv file extension')
+            sys.exit(1)
+        check_path(file_name)
+
+def check_peaks_files(peaks_files):
+    for i, file_name in peaks_files:
+        if '.csv' not in file_name:
+            print(file_name + ' must have csv file extension')
+            sys.exit(1)
+        check_path(file_name)
+
+def check_pn_files(pn_files):
+    for i, file_name in enumerate(pn_files):
+        if '.mgf.out' not in file_name:
+            print(file_name + ' must have mgf.out file extension')
+            sys.exit(1)
+        check_path(file_name)
+
+def check_min_len(arg):
+    try:
+        min_len = int(arg)
+    except ValueError:
+        print('Minimum reported sequence length must be an integer >0')
+        sys.exit(1)
+    if min_len < config.train_consensus_len:
+        print('Sequences shorter than length ' + str(config.train_consensus_len) + ' are not supported')
+        sys.exit(1)
+    return min_len
+
+def check_min_prob(arg):
+    try:
+        min_prob = float(arg)
+    except ValueError:
+        print('Minimum reported sequence probability must be a number between 0 and 1')
+        sys.exit(1)
+    if min_prob <= 0 or min_prob >= 1:
+        print('Minimum reported sequence probability must be a number between 0 and 1')
+        sys.exit(1)
+    return min_prob
+
+def check_cores(arg):
+    if not float(arg).is_integer():
+        print('Specify an integer number of cores')
+        sys.exit(1)
+    if int(arg) > cpu_count() or int(arg) < 1:
+        print(str(cpu_count()) + ' cores are available')
+        sys.exit(1)
 
 def download_forest_dict(args):
     if os.path.exists(config.training_dir) is False:
@@ -351,6 +379,8 @@ def run_denovogui(args):
     return args
 
 def set_global_vars(args):
+
+    config.iodir.append(args['iodir'])
 
     if 'quiet' in args:
         config.verbose[0] = False

@@ -48,6 +48,42 @@ di_near_isobaric_subs = {
     }
 
 # user args
+getopt_opts = ['help',
+               'quiet',
+               'train',
+               'test',
+               'optimize',
+               'iodir=',
+               'denovogui_path=',
+               'denovogui_mgf_path=',
+               'frag_mass_tols=',
+               'novor_files=',
+               'peaks_files=',
+               'pn_files=',
+               'min_len=',
+               'min_prob=',
+               'ref_file=',
+               'cores=',
+               'param_file=']
+
+help_str = '\n'.join(['postnovo.py',
+                      '--iodir <"/home/postnovo_io">',
+                      '--train',
+                      '--test',
+                      '--optimize',
+                      '--frag_mass_tols <"0.3, 0.5">',
+                      '--novor_files <"novor_output_0.3.novor.csv, novor_output_0.5.novor.csv">',
+                      '--peaks_files <"peaks_output_0.3.csv, peaks_output_0.5.csv">',
+                      '--pn_files <"pn_output_0.3.mgf.out, pn_output_0.5.mgf.out">',
+                      '--denovogui_path <"/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar">',
+                      '--denovogui_mgf_path <"/home/ms_files/spectra.mgf">',
+                      '--ref_file <reffile>',
+                      '--cores <3>',
+                      '--min_len <9>',
+                      '--min_prob <0.75>',
+                      '--quiet',
+                      '--param_file <"param.json">'])
+
 # run level settings: predict (default), train, test, optimize
 verbose = [True]
 run_type = ['predict']
@@ -102,6 +138,7 @@ precursor_mass_tol = [4.0]
 
 # training parameters
 train_consensus_len = 6
+min_fdr = 0.05
 rf_n_estimators = 150
 rf_default_params = {('novor',): {'max_depth': 16, 'max_features': 'sqrt'},
                      ('pn',): {'max_depth': 12, 'max_features': 'sqrt'},

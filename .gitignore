@@ -256,3 +256,4 @@ ModelManifest.xml
 /postnovo/ppt_figs
 *.pdf
 *.csv
+*.pkl
