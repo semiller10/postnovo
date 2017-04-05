@@ -5,8 +5,8 @@ import sys
 import numpy as np
 import pandas as pd
 
-from postnovo import config
-from postnovo import utils
+import config
+import utils
 
 from multiprocessing import Pool, current_process
 
