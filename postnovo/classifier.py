@@ -62,124 +62,94 @@ def classify(prediction_df = None):
         reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
 
 def find_target_accuracy(prediction_df):
-    utils.verbose_print('loading', basename(config.ref_file[0]))
-    ref_df = load_db_search_ref_file(config.ref_file[0])
-    utils.verbose_print('finding sequence matches to reffile')
+    utils.verbose_print('loading', basename(config.db_search_ref_file[0]))
+    db_search_ref = load_db_search_ref_file(config.db_search_ref_file[0])
+    utils.verbose_print('loading', basename(config.fasta_ref_file[0]))
+    fasta_ref_file = load_fasta_ref_file(config.fasta_ref_file[0])
 
-    prediction_scans = prediction_df.index.get_level_values('scan').tolist()
-    prediction_seqs = prediction_df['seq'].tolist()
-    ref_scans = ref_df['scan'].tolist()
-    ref_seqs = ref_df['seq'].tolist()
-    one_percent_number_prediction_seqs = len(prediction_scans) / 100 / config.cores[0]
+    utils.verbose_print('finding sequence matches to database search reference')
 
-    prediction_indices = list(range(len(prediction_scans)))
-    multiprocessing_pool = Pool(config.cores[0])
-    single_var_match_seq = partial(match_seq_to_ref,
-                                   prediction_scans = prediction_scans, prediction_seqs = prediction_seqs,
-                                   ref_scans = ref_scans, ref_seqs = ref_seqs,
-                                   one_percent_number_prediction_seqs = one_percent_number_prediction_seqs,
-                                   cores = config.cores[0])
-    ref_matches = multiprocessing_pool.map(single_var_match_seq, prediction_indices)
+    comparison_df = prediction_df.reset_index().merge(db_search_ref, how = 'left', on = 'scan')
+    prediction_df['scan has database search PSM'] = comparison_df['ref seq'].isnull().astype(int)
+    comparison_df['ref seq'][comparison_df['ref seq'].isnull()] = ''
+    prediction_df['matches database search seq'] = comparison_df.apply(lambda row: row['seq'] in row['ref seq'], axis = 1)
+
+    utils.verbose_print('finding sequence matches to fasta reference for scans lacking database search match')
+
+    no_db_search_psm_df = prediction_df[prediction_df['scan has database search PSM'] == 0]
+    denovo_seqs = no_db_search_psm_df['seq']
+    one_percent_number_denovo_seqs = len(denovo_seqs) / 100 / config.cores[0]
+
+    multiprocessing_pool = Pool(cores[0])
+    single_var_match_seq = partial(match_seq_to_fasta_ref, fasta_ref = fasta_ref,
+                                   one_percent_number_denovo_seqs = one_percent_number_denovo_seqs, cores = cores[0])
+    fasta_matches = multiprocessing_pool.map(single_var_match_seq, denovo_seqs)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
-    prediction_df['ref match'] = ref_matches
+    no_db_search_psm_df['correct, not found by db search'] = fasta_matches
+    prediction_df = prediction_df.reset_index().merge(no_db_search_psm_df, how = 'left', on = 'scan')
+    prediction_df['correct, not found by db search'] = prediction_df['correct, not found by db search'].isnull().astype(int)
+
+    prediction_df.set_index(config.is_alg_col_names + ['scan'], inplace = True)
+
     return prediction_df
 
-def match_seq_to_ref(prediction_index,
-                     prediction_scans, prediction_seqs, ref_scans, ref_seqs,
-                     one_percent_number_prediction_seqs, cores):
-
-    if current_process()._identity[0] % cores == 1:
-        global multiprocessing_seq_matching_count
-        multiprocessing_seq_matching_count += 1
-        if int(multiprocessing_seq_matching_count % one_percent_number_prediction_seqs) == 0:
-            percent_complete = int(multiprocessing_seq_matching_count / one_percent_number_prediction_seqs)
-            if percent_complete <= 100:
-                utils.verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
-
-    prediction_scan = prediction_scans[prediction_index]
-    try:
-        ref_index = ref_scans.index(prediction_scan)
-        ref_seq = ref_seqs[ref_index]
-        if prediction_seqs[prediction_index] in ref_seq:
-            return 1
-        else:
-            return 0
-    except ValueError:
-        return 0
-
-def load_db_search_ref_file(ref_file):
-    db_search_ref_df = pd.read_csv(ref_file, '\t')
+def load_db_search_ref_file(db_search_ref_file_path):
+    db_search_ref_df = pd.read_csv(db_search_ref_file_path, '\t')
     # Proteome Discoverer PSM table
     try:
         db_search_ref_df = pd.concat([db_search_ref_df['First Scan'],
                          db_search_ref_df['Annotated Sequence'],
-                         db_search_ref_df['Percolator q-Value']], 1)
+                         db_search_ref_df['Percolator q-Value'],
+                         db_search_ref_df['PSM Ambiguity']], 1)
+        db_search_ref_df.sort_values(['First Scan', 'PSM Ambiguity'], inplace = True)
+        db_search_ref_df.drop_duplicates(subset = 'First Scan', inplace = True)
+        db_search_ref_df.drop('PSM Ambiguity', inplace = True)
+        db_search_ref_df.columns = ['scan', 'ref seq', 'fdr']
     # Other ref source, in which the columns must be 1. scan, 2. seq, 3. FDR
     except KeyError:
-        pass
-    db_search_ref_df.columns = ['scan', 'seq', 'fdr']
-    db_search_ref_df['seq'] = db_search_ref_df['seq'].apply(lambda seq: seq.upper())
+        db_search_ref_df.columns = ['scan', 'ref seq', 'fdr']
+        db_search_ref_df.drop_duplicates(subset = 'scan', inplace = True)
+
     db_search_ref_df = db_search_ref_df[db_search_ref_df['fdr'] <= config.min_fdr]
+    db_search_ref_df['ref seq'] = db_search_ref_df['ref seq'].apply(lambda seq: seq.upper())
+    db_search_ref_df['ref seq'] = db_search_ref_df['ref seq'].apply(lambda seq: seq.replace('I', 'L'))
 
     return db_search_ref_df
 
-#def find_target_accuracy(prediction_df):
-#    utils.verbose_print('loading', basename(config.ref_file[0]))
-#    ref = load_ref(config.ref_file[0])
-#    utils.verbose_print('finding sequence matches to reffile')
+def load_fasta_ref_file(fasta_ref_file_path):
 
-#    seq_set_list = list(set(prediction_df['seq']))
-#    one_percent_number_seqs = len(seq_set_list) / 100 / config.cores[0]
+    with open(fasta_ref_file_path) as f:
+        lines = f.readlines()
 
-#    multiprocessing_pool = Pool(config.cores[0])
-#    single_var_match_seq = partial(match_seq_to_ref, ref = ref, one_percent_number_seqs = one_percent_number_seqs, cores = config.cores[0])
-#    seq_set_matches = multiprocessing_pool.map(single_var_match_seq, seq_set_list)
-#    multiprocessing_pool.close()
-#    multiprocessing_pool.join()
+    fasta_ref = []
+    for line in lines:
+        if line[0] == '>':
+            next_seq_in_next_line = True
+        elif line != '\n':
+            if next_seq_in_next_line:
+                fasta_ref.append(line.strip().replace('I', 'L'))
+                next_seq_in_next_line = False
+            else:
+                fasta_ref[-1] += line.strip().replace('I', 'L')
 
-#    seq_match_dict = dict(zip(seq_set_list, seq_set_matches))
-#    single_var_get_match_from_dict = partial(get_match_from_dict, seq_match_dict = seq_match_dict)
-#    prediction_df['ref match'] = prediction_df['seq'].apply(single_var_get_match_from_dict)
+    return fasta_ref
 
-#    return prediction_df
+def match_seq_to_fasta_ref(denovo_seq, fasta_ref, one_percent_number_denovo_seqs, cores):
 
-#def match_seq_to_ref(query_seq, ref, one_percent_number_seqs, cores):
+    if current_process()._identity[0] % cores == 1:
+        global multiprocessing_seq_matching_count
+        multiprocessing_seq_matching_count += 1
+        if int(multiprocessing_seq_matching_count % one_percent_number_seqs) == 0:
+            percent_complete = int(multiprocessing_seq_matching_count / one_percent_number_denovo_seqs)
+            if percent_complete <= 100:
+                utils.verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
 
-#    if current_process()._identity[0] % cores == 1:
-#        global multiprocessing_seq_matching_count
-#        multiprocessing_seq_matching_count += 1
-#        if int(multiprocessing_seq_matching_count % one_percent_number_seqs) == 0:
-#            percent_complete = int(multiprocessing_seq_matching_count / one_percent_number_seqs)
-#            if percent_complete <= 100:
-#                utils.verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
-
-#    for target_seq in ref:
-#        if query_seq in target_seq:
-#            return 1
-#    return 0
-
-#def get_match_from_dict(seq, seq_match_dict):
-#    return seq_match_dict[seq]
-
-#def load_ref(ref_file):
-
-#    with open(ref_file) as f:
-#        lines = f.readlines()
-
-#    ref = []
-#    for line in lines:
-#        if line[0] == '>':
-#            next_seq_in_next_line = True
-#        elif line != '\n':
-#            if next_seq_in_next_line:
-#                ref.append(line.strip().replace('I', 'L'))
-#                next_seq_in_next_line = False
-#            else:
-#                ref[-1] += line.strip().replace('I', 'L')
-
-#    return ref
+    for fasta_seq in fasta_ref:
+        if denovo_seq in fasta_seq:
+            return 1
+    return 0
 
 def standardize_prediction_df_cols(prediction_df):
 
@@ -382,7 +352,7 @@ def make_predictions(prediction_df):
 
         if config.run_type[0] == 'test':
             utils.verbose_print('making', '_'.join(alg_group), 'test plots')
-            plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+            #plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
             plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
 
         prediction_df.loc[multiindex_key, 'probability'] = probabilities

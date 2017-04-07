@@ -22,6 +22,7 @@ def setup():
     
     download_forest_dict(args)
     set_global_vars(args)
+    return args
     
 def parse_args():
     ''' Return command line args as dict '''
@@ -36,7 +37,7 @@ def parse_args():
 
     # FOR DEBUGGING PURPOSES: REMOVE
     test_str = ['--param_file', 'param.json',
-                '--iodir', '/home/samuelmiller/4-4-17/io']
+                '--iodir', 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test']
 
     try:
         # FOR DEBUGGING PURPOSES: REMOVE AND UNCOMMENT
@@ -107,9 +108,12 @@ def parse_args():
         elif opt == '--min_prob':
             min_prob = check_min_prob(arg)
             args['min_prob'] = min_prob
-        elif opt == '--ref_file':
-            check_path(ref_file, iodir)
-            args['ref_file'] = os.path.join(iodir, ref_file)
+        elif opt == '--db_search_ref_file':
+            check_path(arg, iodir)
+            args['db_search_ref_file'] = os.path.join(iodir, arg)
+        elif opt == '--fasta_ref_file':
+            check_path(arg, iodir)
+            args['fasta_ref_file'] = os.path.join(iodir, arg)
         elif opt == '--cores':
             check_cores(arg)
             args['cores'] = int(arg)
@@ -121,27 +125,8 @@ def parse_args():
 
 def arg_cross_check(args):
 
-    if 'train' in args:
-        if 'ref_file' not in args:
-            print('Training requires a PSM reference file')
-            sys.exit(1)
-        if 'test' in args or 'optimize' in args:
-            print('Train, test and optimize options are exclusive')
-
-    if 'test' in args:
-        if 'ref_file' not in args:
-            print('Testing requires a PSM reference file')
-            sys.exit(1)
-        if 'train' in args or 'optimize' in args:
-            print('Train, test and optimize options are mutually exclusive')
-            sys.exit(1)
-
-    if 'optimize' in args:
-        if 'ref_file' not in args:
-            print('Model optimization requires a PSM reference file')
-            sys.exit(1)
-        if 'train' in args or 'test' in args:
-            print('Train, test and optimize options are exclusive')
+    if 'train' in args or 'test' in args or 'optimize' in args:
+        train_test_optimize_cross_check(args)
 
     if 'frag_mass_tols' not in args:
         print('Fragment mass tolerance(s) of input must be specified')
@@ -171,6 +156,18 @@ def arg_cross_check(args):
                 sys.exit(1)
 
     return args
+
+def train_test_optimize_cross_check(args):
+
+    if 'db_search_ref_file' not in args:
+        print('A database search PSM table reference file is required')
+        sys.exit(1)
+    if 'fasta_ref_file' not in args:
+        print('A fasta reference file is required')
+        sys.exit(1)
+    if 'test' in args or 'optimize' in args:
+        print('Train, test and optimize options are exclusive')
+        sys.exit(1)
 
 def parse_param_file(opts):
     
@@ -220,10 +217,14 @@ def parse_param_file(opts):
         elif opt == 'min_prob':
             min_prob = check_min_prob(arg)
             args['min_prob'] = min_prob
-        elif opt == 'ref_file':
-            ref_file = os.path.join(iodir, arg)
-            check_path(ref_file)
-            args['ref_file'] = ref_file
+        elif opt == 'db_search_ref_file':
+            db_search_ref_file = os.path.join(iodir, arg)
+            check_path(db_search_ref_file)
+            args['db_search_ref_file'] = db_search_ref_file
+        elif opt == 'fasta_ref_file':
+            fasta_ref_file = os.path.join(iodir, arg)
+            check_path(fasta_ref_file)
+            args['fasta_ref_file'] = fasta_ref_file
         elif opt == 'cores':
             check_cores(arg)
         else:
@@ -457,8 +458,10 @@ def set_global_vars(args):
     if 'min_prob' in args:
         config.min_prob[0] = args['min_prob']
 
-    if 'ref_file' in args:
-        config.ref_file[0] = args['ref_file']
+    if 'db_search_ref_file' in args:
+        config.db_search_ref_file[0] = args['db_search_ref_file']
+    if 'fasta_ref_file' in args:
+        config.fasta_ref_file[0] = args['fasta_ref_file']
         
     if 'cores' in args:
         config.cores[0] = args['cores']

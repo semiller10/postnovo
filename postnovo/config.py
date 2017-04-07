@@ -62,7 +62,8 @@ getopt_opts = ['help',
                'pn_files=',
                'min_len=',
                'min_prob=',
-               'ref_file=',
+               'db_search_ref_file=',
+               'fasta_ref_file=',
                'cores=',
                'param_file=']
 
@@ -77,7 +78,8 @@ help_str = '\n'.join(['postnovo.py',
                       '--pn_files <"pn_output_0.3.mgf.out, pn_output_0.5.mgf.out">',
                       '--denovogui_path <"/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar">',
                       '--denovogui_mgf_path <"/home/ms_files/spectra.mgf">',
-                      '--ref_file <reffile>',
+                      '--db_search_ref_file <"proteome_discoverer_psm_table.csv">',
+                      '--fasta_ref_file <"fasta_file.faa">',
                       '--cores <3>',
                       '--min_len <9>',
                       '--min_prob <0.75>',
@@ -93,7 +95,8 @@ peaks_files = []
 pn_files = []
 min_prob = [0.5]
 min_len = [6]
-ref_file = [None]
+db_search_ref_file = [None]
+fasta_ref_file = [None]
 cores = [1]
 
 # directories
