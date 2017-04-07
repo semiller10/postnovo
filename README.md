@@ -65,10 +65,9 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--denovogui_mgf_path "/home/ms_files/spectra.mgf"]`
 
 #### A tab-delimited .txt reference file is required in test, train and optimize modes.
-##### This file can be the exported tab-delimited file from the *Proteome Discoverer* consensus workflow PSM results sheet.
-##### The required columns of a reference file are 1. scan number, 2. sequence (with non-alphabetical symbols removed) and 3. database search false detection rate (e.g., *Percolator* q-value).
-##### If the reference file is not generated via Proteome Discoverer, the order of the columns in the tab-delimited .txt file must be 1. scan number, 2. sequence, and 3. FDR.
-##### Sequences with FDR's up to 0.05 (medium confidence in Proteome Discoverer) should be retained in the reference file.
+##### Sequences with FDR's up to 0.05 (default medium confidence in *Proteome Discoverer*) should be retained in the reference file.
+##### This file can be the *unmodified* exported tab-delimited file from the *Proteome Discoverer* consensus workflow PSM results sheet.
+##### The required columns of a reference file that does not come from *Proteome Discoverer* are, in order, 1. scan number, 2. sequence (with non-alphabetical symbols removed) and 3. database search false detection rate (e.g., *Percolator* q-value).
 `[--ref_file "proteome_discoverer_psm_table.txt"]`
 
 #### Cores used by postnovo and *DeNovoGUI*: default of 1, but *multiple cores are intended to be used*
