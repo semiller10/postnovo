@@ -68,7 +68,12 @@ Optimize = same as train, but some random forest parameters are tuned
 ##### Sequences with FDR's up to 0.05 (default medium confidence in *Proteome Discoverer*) should be retained in the reference file.
 ##### This file can be the *unmodified* exported tab-delimited file from the *Proteome Discoverer* consensus workflow PSM results sheet.
 ##### The required columns of a reference file that does not come from *Proteome Discoverer* are, in order, 1. scan number, 2. sequence (with non-alphabetical symbols removed) and 3. database search false detection rate (e.g., *Percolator* q-value).
-`[--ref_file "proteome_discoverer_psm_table.txt"]`
+`[--db_search_ref_file "proteome_discoverer_psm_table.txt"]`
+
+#### A protein fasta reference file is also required in test, train and optimize modes.
+##### This should be the file used by the database search algorithm in generating the database search reference file.
+##### The purpose of this reference is to find correct de novo sequences that are not identified by the database search algorithm.
+`[--fasta_ref_file "fasta.faa"]`
 
 #### Cores used by postnovo and *DeNovoGUI*: default of 1, but *multiple cores are intended to be used*
 `[--cores 16]`
@@ -110,7 +115,9 @@ Many of these options are mutually exclusive (see above), so it must be modified
 
 "--denovogui_mgf_path" = "/home/ms_files/spectra.mgf",
 
-"--ref_file" = "proteome_discoverer_psm_table.txt",
+"--db_search_ref_file" = "proteome_discoverer_psm_table.txt",
+
+"--fasta_ref_file" = "fasta.faa",
 
 "--cores" = 8,
 
