@@ -65,35 +65,51 @@ def find_target_accuracy(prediction_df):
     utils.verbose_print('loading', basename(config.db_search_ref_file[0]))
     db_search_ref = load_db_search_ref_file(config.db_search_ref_file[0])
     utils.verbose_print('loading', basename(config.fasta_ref_file[0]))
-    fasta_ref_file = load_fasta_ref_file(config.fasta_ref_file[0])
+    fasta_ref = load_fasta_ref_file(config.fasta_ref_file[0])
 
     utils.verbose_print('finding sequence matches to database search reference')
 
-    comparison_df = prediction_df.reset_index().merge(db_search_ref, how = 'left', on = 'scan')
+    prediction_df.reset_index(inplace = True)
+    comparison_df = prediction_df.merge(db_search_ref, how = 'left', on = 'scan')
     prediction_df['scan has database search PSM'] = comparison_df['ref seq'].isnull().astype(int)
     comparison_df['ref seq'][comparison_df['ref seq'].isnull()] = ''
-    prediction_df['matches database search seq'] = comparison_df.apply(lambda row: row['seq'] in row['ref seq'], axis = 1)
+    denovo_seqs = comparison_df['seq'].tolist()
+    psm_seqs = comparison_df['ref seq'].tolist()
+    seq_pairs = list(zip(denovo_seqs, psm_seqs))
+    matches = []
+    for seq_pair in seq_pairs:
+        if seq_pair[0] in seq_pair[1]:
+            matches.append(1)
+        else:
+            matches.append(0)
+    prediction_df['de novo matches database search seq'] = matches
 
-    utils.verbose_print('finding sequence matches to fasta reference for scans lacking database search match')
+    utils.verbose_print('finding de novo sequence matches to fasta reference for scans lacking database search PSM')
 
     no_db_search_psm_df = prediction_df[prediction_df['scan has database search PSM'] == 0]
-    denovo_seqs = no_db_search_psm_df['seq']
-    one_percent_number_denovo_seqs = len(denovo_seqs) / 100 / config.cores[0]
+    unique_denovo_seqs = list(set(no_db_search_psm_df['seq']))
+    one_percent_number_denovo_seqs = len(unique_denovo_seqs) / 100 / config.cores[0]
 
-    multiprocessing_pool = Pool(cores[0])
+    multiprocessing_pool = Pool(config.cores[0])
     single_var_match_seq = partial(match_seq_to_fasta_ref, fasta_ref = fasta_ref,
-                                   one_percent_number_denovo_seqs = one_percent_number_denovo_seqs, cores = cores[0])
-    fasta_matches = multiprocessing_pool.map(single_var_match_seq, denovo_seqs)
+                                   one_percent_number_denovo_seqs = one_percent_number_denovo_seqs, cores = config.cores[0])
+    fasta_matches = multiprocessing_pool.map(single_var_match_seq, unique_denovo_seqs)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
-    no_db_search_psm_df['correct, not found by db search'] = fasta_matches
-    prediction_df = prediction_df.reset_index().merge(no_db_search_psm_df, how = 'left', on = 'scan')
-    prediction_df['correct, not found by db search'] = prediction_df['correct, not found by db search'].isnull().astype(int)
+    fasta_match_dict = dict(zip(unique_denovo_seqs, fasta_matches))
+    single_var_get_match_from_dict = partial(get_match_from_dict, match_dict = fasta_match_dict)
+    no_db_search_psm_df['correct de novo not found by db search'] = no_db_search_psm_df['seq'].apply(single_var_get_match_from_dict)
+    prediction_df = prediction_df.merge(no_db_search_psm_df['correct de novo not found by db search'].to_frame(),
+                                        left_index = True, right_index = True, how = 'left')
+    prediction_df['correct de novo not found by db search'].fillna(0, inplace = True)
 
     prediction_df.set_index(config.is_alg_col_names + ['scan'], inplace = True)
 
     return prediction_df
+
+def get_match_from_dict(seq, match_dict):
+    return match_dict[seq]
 
 def load_db_search_ref_file(db_search_ref_file_path):
     db_search_ref_df = pd.read_csv(db_search_ref_file_path, '\t')
@@ -103,9 +119,10 @@ def load_db_search_ref_file(db_search_ref_file_path):
                          db_search_ref_df['Annotated Sequence'],
                          db_search_ref_df['Percolator q-Value'],
                          db_search_ref_df['PSM Ambiguity']], 1)
-        db_search_ref_df.sort_values(['First Scan', 'PSM Ambiguity'], inplace = True)
+        # Scans may have multiple PSMs -- one is "Selected" while the others are "Rejected": keep the "Selected" peptide
+        db_search_ref_df.sort_values(['First Scan', 'PSM Ambiguity'], ascending = [True, False], inplace = True)
         db_search_ref_df.drop_duplicates(subset = 'First Scan', inplace = True)
-        db_search_ref_df.drop('PSM Ambiguity', inplace = True)
+        db_search_ref_df.drop('PSM Ambiguity', axis = 1, inplace = True)
         db_search_ref_df.columns = ['scan', 'ref seq', 'fdr']
     # Other ref source, in which the columns must be 1. scan, 2. seq, 3. FDR
     except KeyError:
@@ -141,7 +158,7 @@ def match_seq_to_fasta_ref(denovo_seq, fasta_ref, one_percent_number_denovo_seqs
     if current_process()._identity[0] % cores == 1:
         global multiprocessing_seq_matching_count
         multiprocessing_seq_matching_count += 1
-        if int(multiprocessing_seq_matching_count % one_percent_number_seqs) == 0:
+        if int(multiprocessing_seq_matching_count % one_percent_number_denovo_seqs) == 0:
             percent_complete = int(multiprocessing_seq_matching_count / one_percent_number_denovo_seqs)
             if percent_complete <= 100:
                 utils.verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
