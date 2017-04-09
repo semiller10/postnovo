@@ -200,6 +200,7 @@ feature_groups = {'novor score': ['avg novor aa score'],
 
 # report
 reported_df_cols = ['seq', 'probability', 'ref match',
+                    'scan has db search PSM', 'de novo seq matches db search seq', 'correct de novo seq not found in db search',
                     'is novor seq', 'is peaks seq', 'is pn seq',
                     '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
                     '0.2 match', '0.3 match', '0.4 match', '0.5 match', '0.6 match', '0.7 match',

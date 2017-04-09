@@ -165,9 +165,14 @@ def train_test_optimize_cross_check(args):
     if 'fasta_ref_file' not in args:
         print('A fasta reference file is required')
         sys.exit(1)
-    if 'test' in args or 'optimize' in args:
-        print('Train, test and optimize options are exclusive')
-        sys.exit(1)
+    if 'train' in args:
+        if 'test' in args or 'optimize' in args:
+            print('Train, test and optimize options are exclusive')
+            sys.exit(1)
+    if 'test' in args:
+        if 'optimize' in args:
+            print('Train, test and optimize options are exclusive')
+            sys.exit(1)
 
 def parse_param_file(opts):
     

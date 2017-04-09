@@ -35,14 +35,32 @@ def classify(prediction_df = None):
     utils.verbose_print()
 
     if config.run_type[0] in ['train', 'test', 'optimize']:
-        prediction_df = find_target_accuracy(prediction_df)
+        prediction_df, ref_correspondence_df = find_target_accuracy(prediction_df)
 
     utils.verbose_print('formatting data for compatability with model')
     prediction_df = standardize_prediction_df_cols(prediction_df)
     utils.save_pkl_objects(config.iodir[0], **{'prediction_df': prediction_df})
     #prediction_df = utils.load_pkl_objects(config.iodir[0], 'prediction_df')
 
-    if config.run_type[0] in ['train', 'optimize']:
+    if config.run_type[0] == 'predict':
+        reported_prediction_df = make_predictions(prediction_df)
+        reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
+
+    elif config.run_type[0] == 'test':
+        reported_prediction_df = make_predictions(prediction_df)
+        reported_prediction_df = reported_prediction_df.reset_index().\
+            merge(ref_correspondence_df.reset_index(),
+                  how = 'left',
+                  on = config.is_alg_col_names + ['scan'] + config.frag_mass_tols + ['is longest consensus', 'is top rank consensus'])
+        reported_prediction_df.set_index('scan', inplace = True)
+        reported_cols_in_order = []
+        for reported_df_col in config.reported_df_cols:
+            if reported_df_col in reported_prediction_df.columns:
+                reported_cols_in_order.append(reported_df_col)
+        reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
+        reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
+    
+    elif config.run_type[0] in ['train', 'optimize']:
         
         #subsampled_df = subsample_training_data(prediction_df)
         #utils.save_pkl_objects(config.iodir[0], **{'subsampled_df': subsampled_df})
@@ -56,10 +74,6 @@ def classify(prediction_df = None):
         utils.save_pkl_objects(config.training_dir, **{'forest_dict': forest_dict})
         #forest_dict = utils.load_pkl_objects(config.training_dir, 'forest_dict')
 
-    elif config.run_type[0] in ['predict', 'test']:
-        
-        reported_prediction_df = make_predictions(prediction_df)
-        reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
 
 def find_target_accuracy(prediction_df):
     utils.verbose_print('loading', basename(config.db_search_ref_file[0]))
@@ -71,7 +85,7 @@ def find_target_accuracy(prediction_df):
 
     prediction_df.reset_index(inplace = True)
     comparison_df = prediction_df.merge(db_search_ref, how = 'left', on = 'scan')
-    prediction_df['scan has database search PSM'] = comparison_df['ref seq'].isnull().astype(int)
+    prediction_df['scan has db search PSM'] = comparison_df['ref seq'].notnull().astype(int)
     comparison_df['ref seq'][comparison_df['ref seq'].isnull()] = ''
     denovo_seqs = comparison_df['seq'].tolist()
     psm_seqs = comparison_df['ref seq'].tolist()
@@ -82,11 +96,11 @@ def find_target_accuracy(prediction_df):
             matches.append(1)
         else:
             matches.append(0)
-    prediction_df['de novo matches database search seq'] = matches
+    prediction_df['de novo seq matches db search seq'] = matches
 
     utils.verbose_print('finding de novo sequence matches to fasta reference for scans lacking database search PSM')
 
-    no_db_search_psm_df = prediction_df[prediction_df['scan has database search PSM'] == 0]
+    no_db_search_psm_df = prediction_df[prediction_df['scan has db search PSM'] == 0]
     unique_denovo_seqs = list(set(no_db_search_psm_df['seq']))
     one_percent_number_denovo_seqs = len(unique_denovo_seqs) / 100 / config.cores[0]
 
@@ -99,14 +113,24 @@ def find_target_accuracy(prediction_df):
 
     fasta_match_dict = dict(zip(unique_denovo_seqs, fasta_matches))
     single_var_get_match_from_dict = partial(get_match_from_dict, match_dict = fasta_match_dict)
-    no_db_search_psm_df['correct de novo not found by db search'] = no_db_search_psm_df['seq'].apply(single_var_get_match_from_dict)
-    prediction_df = prediction_df.merge(no_db_search_psm_df['correct de novo not found by db search'].to_frame(),
+    no_db_search_psm_df['correct de novo seq not found in db search'] = no_db_search_psm_df['seq'].apply(single_var_get_match_from_dict)
+    prediction_df = prediction_df.merge(no_db_search_psm_df['correct de novo seq not found in db search'].to_frame(),
                                         left_index = True, right_index = True, how = 'left')
-    prediction_df['correct de novo not found by db search'].fillna(0, inplace = True)
+    prediction_df['correct de novo seq not found in db search'].fillna(0, inplace = True)
 
-    prediction_df.set_index(config.is_alg_col_names + ['scan'], inplace = True)
+    prediction_df['ref match'] = prediction_df['de novo seq matches db search seq'] +\
+        prediction_df['correct de novo seq not found in db search']
+    prediction_df.set_index(config.is_alg_col_names + ['scan'] + config.frag_mass_tols + ['is longest consensus', 'is top rank consensus'],
+                            inplace = True)
+    ref_correspondence_df = pd.concat([prediction_df['scan has db search PSM'],
+                                       prediction_df['de novo seq matches db search seq'],
+                                       prediction_df['correct de novo seq not found in db search']], 1)
+    prediction_df.drop(['scan has db search PSM',
+                        'de novo seq matches db search seq',
+                        'correct de novo seq not found in db search'], axis = 1, inplace = True)
+    prediction_df = prediction_df.reset_index().set_index(config.is_alg_col_names + ['scan'])
 
-    return prediction_df
+    return prediction_df, ref_correspondence_df
 
 def get_match_from_dict(seq, match_dict):
     return match_dict[seq]
@@ -169,6 +193,12 @@ def match_seq_to_fasta_ref(denovo_seq, fasta_ref, one_percent_number_denovo_seqs
     return 0
 
 def standardize_prediction_df_cols(prediction_df):
+
+    """Standardize ``prediction_df`` for classification
+
+    
+
+    """
 
     for accepted_mass_tol in config.accepted_mass_tols:
         if accepted_mass_tol not in prediction_df.columns:
@@ -378,7 +408,7 @@ def make_predictions(prediction_df):
         plot_precision_yield(prediction_df)
 
     max_probabilities = prediction_df.groupby(prediction_df.index.get_level_values('scan'))['probability'].transform(max)
-    best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
+    best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities].drop_duplicates()
     reported_prediction_df = best_prediction_df[best_prediction_df['probability'] >= config.min_prob[0]]
     reported_prediction_df.reset_index(inplace = True)
     reported_prediction_df.set_index('scan', inplace = True)
