@@ -407,11 +407,11 @@ def make_predictions(prediction_df):
     if config.run_type[0] == 'test':
         plot_precision_yield(prediction_df)
 
-    max_probabilities = prediction_df.groupby(prediction_df.index.get_level_values('scan'))['probability'].transform(max)
-    best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities].drop_duplicates()
+    prediction_df = prediction_df.reset_index().set_index('scan')
+    max_probabilities = prediction_df.groupby(level = 'scan')['probability'].transform(max)
+    best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
+    best_prediction_df = best_prediction_df.groupby(level = 'scan').first()
     reported_prediction_df = best_prediction_df[best_prediction_df['probability'] >= config.min_prob[0]]
-    reported_prediction_df.reset_index(inplace = True)
-    reported_prediction_df.set_index('scan', inplace = True)
     
     reported_cols_in_order = []
     for reported_df_col in config.reported_df_cols:
