@@ -194,12 +194,6 @@ def match_seq_to_fasta_ref(denovo_seq, fasta_ref, one_percent_number_denovo_seqs
 
 def standardize_prediction_df_cols(prediction_df):
 
-    """Standardize ``prediction_df`` for classification
-
-    
-
-    """
-
     for accepted_mass_tol in config.accepted_mass_tols:
         if accepted_mass_tol not in prediction_df.columns:
             prediction_df[accepted_mass_tol] = 0
