@@ -39,6 +39,9 @@
     <Compile Include="masstol.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="refproteome.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="userargs.py" />
     <Compile Include="setup.py">
       <SubType>Code</SubType>

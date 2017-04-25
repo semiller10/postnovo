@@ -35,7 +35,7 @@ def classify(prediction_df = None):
     utils.verbose_print()
 
     if config.run_type[0] in ['train', 'test', 'optimize']:
-        prediction_df, ref_correspondence_df = find_target_accuracy(prediction_df)
+        prediction_df, ref_correspondence_df, db_search_ref = find_target_accuracy(prediction_df)
 
     utils.verbose_print('formatting data for compatability with model')
     prediction_df = standardize_prediction_df_cols(prediction_df)
@@ -47,7 +47,7 @@ def classify(prediction_df = None):
         reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
 
     elif config.run_type[0] == 'test':
-        reported_prediction_df = make_predictions(prediction_df)
+        reported_prediction_df = make_predictions(prediction_df, db_search_ref)
         reported_prediction_df = reported_prediction_df.reset_index().\
             merge(ref_correspondence_df.reset_index(),
                   how = 'left',
@@ -130,7 +130,7 @@ def find_target_accuracy(prediction_df):
                         'correct de novo seq not found in db search'], axis = 1, inplace = True)
     prediction_df = prediction_df.reset_index().set_index(config.is_alg_col_names + ['scan'])
 
-    return prediction_df, ref_correspondence_df
+    return prediction_df, ref_correspondence_df, db_search_ref
 
 def get_match_from_dict(seq, match_dict):
     return match_dict[seq]
@@ -373,7 +373,7 @@ def update_training_data(prediction_df):
 
     return training_df
 
-def make_predictions(prediction_df):
+def make_predictions(prediction_df, db_search_ref):
 
     forest_dict = utils.load_pkl_objects(config.training_dir, 'forest_dict')
 
@@ -399,7 +399,7 @@ def make_predictions(prediction_df):
         prediction_df.loc[multiindex_key, 'probability'] = probabilities
 
     if config.run_type[0] == 'test':
-        plot_precision_yield(prediction_df)
+        plot_precision_yield(prediction_df, db_search_ref)
 
     prediction_df = prediction_df.reset_index().set_index('scan')
     max_probabilities = prediction_df.groupby(level = 'scan')['probability'].transform(max)
@@ -423,11 +423,11 @@ def make_training_forests(training_df):
         forest_dict = make_forest_dict(train_target_arr_dict, config.rf_default_params)
 
         ## REMOVE
-        #for alg_key in forest_dict:
-        #    data_train_split, data_validation_split, target_train_split, target_validation_split =\
-        #        train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
+        for alg_key in forest_dict:
+            data_train_split, data_validation_split, target_train_split, target_validation_split =\
+                train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
         #    #plot_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
-        #    plot_binned_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
+            plot_binned_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
         #    plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key)
 
     elif config.run_type[0] == 'optimize':
@@ -744,7 +744,7 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
     save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_recall.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
-def plot_precision_yield(prediction_df):
+def plot_precision_yield(prediction_df, db_search_ref):
 
     fig, ax = plt.subplots()
     plt.title('precision vs sequence yield')
@@ -753,6 +753,9 @@ def plot_precision_yield(prediction_df):
     plt.ylim([0, 1])
     plt.xlabel('sequence yield')
     plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
+
+    db_search_ref_x = len(db_search_ref)
+    db_search_ref_y = 0.95
 
     for multiindex_key in config.is_alg_col_multiindex_keys:
 
@@ -765,16 +768,18 @@ def plot_precision_yield(prediction_df):
         plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
 
         alg_group = tuple([alg for i, alg in enumerate(config.alg_list) if multiindex_key[i]])
-
         alg_group_data = prediction_df.xs(multiindex_key)
-        sample_size_list = list(range(1, len(alg_group_data) + 1))
+        max_probabilities = alg_group_data.groupby(level = 'scan')['probability'].transform(max)
+        best_alg_group_data = alg_group_data[alg_group_data['probability'] == max_probabilities]
+        best_alg_group_data = best_alg_group_data.groupby(level = 'scan').first()
 
-        precision = make_precision_col(alg_group_data, 'probability')
-        alg_group_data['random forest precision'] = precision
+        sample_size_list = list(range(1, len(best_alg_group_data) + 1))
+        precision = make_precision_col(best_alg_group_data, 'probability')
+        best_alg_group_data['random forest precision'] = precision
 
         x = sample_size_list[::100]
         y = precision[::100]
-        z = (alg_group_data['probability'].argsort() / alg_group_data['probability'].size).tolist()[::100]
+        z = (best_alg_group_data['probability'].argsort() / best_alg_group_data['probability'].size).tolist()[::100]
         model_line_collection = colorline(x, y, z)
         plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
         annotation_x = x[len(x) // 2]
@@ -798,12 +803,12 @@ def plot_precision_yield(prediction_df):
                 score_str = 'avg novor aa score'
             elif alg == 'pn':
                 score_str = 'rank score'
-            precision = make_precision_col(alg_group_data, score_str)
-            alg_group_data[alg + ' precision'] = precision
+            precision = make_precision_col(best_alg_group_data, score_str)
+            best_alg_group_data[alg + ' precision'] = precision
 
             x = sample_size_list[::100]
             y = precision[::100]
-            z = (alg_group_data[score_str].argsort() / alg_group_data[score_str].size).tolist()[::100]
+            z = (best_alg_group_data[score_str].argsort() / best_alg_group_data[score_str].size).tolist()[::100]
             colorline(x, y, z)
             annotation_x = x[int(len(x) / arrow_position)]
             annotation_y = y[int(len(y) / arrow_position)]
@@ -814,21 +819,22 @@ def plot_precision_yield(prediction_df):
                          xytext = (-25, -25),
                          textcoords = 'offset pixels',
                          arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                         horizontalalignment = 'right', verticalalignment = 'top',
+                         horizontalalignment = 'right', verticalalignment = 'top'
                          )
 
             if x[-1] > x_max:
                 x_max = x[-1]
                 plt.xlim([x_min, x_max])
 
+        ax.plot(db_search_ref_x, db_search_ref_y, color = 'r', marker = '*')
+        if db_search_ref_x > x_max:
+            x_max = db_search_ref_x + 1000
+            plt.xlim([x_min, x_max])
+
         plt.tight_layout(True)
         save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_yield.pdf')
         fig.savefig(save_path, bbox_inches = 'tight')
         plt.close()
-        
-    #plt.tight_layout(True)
-    #save_path = join(config.iodir[0], 'all_precision_yield.pdf')
-    #fig.savefig(save_path, bbox_inches = 'tight')
 
 def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth = 3, alpha = 1.0):
 

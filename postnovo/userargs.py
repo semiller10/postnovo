@@ -29,18 +29,18 @@ def parse_args():
     
     args = {}
 
-    # FOR DEBUGGING PURPOSES: UNCOMMENT
-    # Take in args
-    #if len(argv) == 1:
-        # print(config.help_str)
-        # sys.exit(0)
+    ## FOR DEBUGGING PURPOSES: UNCOMMENT
+    ## Take in args
+    #if len(sys.argv) == 1:
+    #     print(config.help_str)
+    #     sys.exit(0)
 
-    # FOR DEBUGGING PURPOSES: REMOVE
+    ## FOR DEBUGGING PURPOSES: REMOVE
     test_str = ['--param_file', 'param.json',
                 '--iodir', 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test']
 
     try:
-        # FOR DEBUGGING PURPOSES: REMOVE AND UNCOMMENT
+        ## FOR DEBUGGING PURPOSES: REMOVE AND UNCOMMENT
         opts, leftover = getopt.getopt(test_str, shortopts = '', longopts = config.getopt_opts)
         #opts, leftover = getopt.getopt(sys.argv[1:], shortopts = '', longopts = config.getopt_opts)
     except getopt.GetoptError:

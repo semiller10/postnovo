@@ -37,8 +37,8 @@ def update_prediction_df(prediction_df):
     mass_tol_compar_df = prediction_df[['seq', 'combo level']]
     scan_groups = mass_tol_compar_df.groupby(level = 'scan')
 
-    ## single processor method
-    #child_initialize(scan_groups, frag_mass_tols, tol_group_key_list)
+    # single processor method
+    #child_initialize(scan_groups, config.frag_mass_tols, tol_group_key_list)
     #tol_match_array_list = []
     #utils.verbose_print('performing mass tolerance comparison')
     #for scan in scan_list:
