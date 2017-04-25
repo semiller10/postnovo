@@ -15,9 +15,10 @@ from multiprocessing import Pool
 from random import randint
 from statsmodels.stats.proportion import proportion_confint
 
-def find_min_seq_len(fasta_ref_path, target_confidence_level = 0.95, number_subseqs = 10000, cores = 1):
+def find_min_seq_len(fasta_ref_path = None, fasta_ref = None, target_confidence_level = 0.95, number_subseqs = 2000, cores = 1):
 
-    fasta_ref = load_fasta_ref_file(fasta_ref_path)
+    if fasta_ref == None:
+        fasta_ref = load_fasta_ref_file(fasta_ref_path)
     fasta_ref_index = make_fasta_ref_index(fasta_ref)
     min_correct_seq_len, unaltered_subseqs = find_min_correct_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores)
     min_incorrect_seq_len = find_min_incorrect_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores,
@@ -56,7 +57,7 @@ def find_min_correct_seq_len(fasta_ref, fasta_ref_index, target_confidence_level
     """
 
     measured_confidence_level = 0
-    subseq_len = 8
+    subseq_len = 6
     while measured_confidence_level < target_confidence_level:
 
         subseqs = draw_subseqs(fasta_ref, fasta_ref_index, number_subseqs, subseq_len)
@@ -205,18 +206,18 @@ def invert_residues(subseqs, inversion_len = 2):
 
 if __name__ == '__main__':
 
-    #parser = argparse.ArgumentParser(description = 'Find the minimum de novo sequence length to uniquely match the reference proteome')
-    #parser.add_argument('--fasta_ref_file',
-    #                    help = 'path to reference proteome')
-    #parser.add_argument('--confidence_level', default = 0.95,
-    #                    help = 'confidence level for unique sequence match')
-    #parser.add_argument('--cores', default = 1,
-    #                    help = 'number of cores available for use')
-    #fasta_ref_path, target_confidence_level, cores = parser.parse_args()
+    parser = argparse.ArgumentParser(description = 'Find the minimum de novo sequence length to uniquely match the reference proteome')
+    parser.add_argument('--fasta_ref_file',
+                        help = 'path to reference proteome')
+    parser.add_argument('--confidence_level', default = 0.95,
+                        help = 'confidence level for unique sequence match')
+    parser.add_argument('--cores', default = 1,
+                        help = 'number of cores available for use')
+    fasta_ref_path, target_confidence_level, cores = parser.parse_args()
 
-    fasta_ref_path = 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test\\DvH.faa'
-    target_confidence_level = 0.95
-    cores = 3
+    #fasta_ref_path = 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test\\DvH.faa'
+    #target_confidence_level = 0.95
+    #cores = 3
 
     print('Minimum sequence length required = ' +
-          str(find_min_seq_len(fasta_ref_path, target_confidence_level = target_confidence_level, cores = cores)))
+          str(find_min_seq_len(fasta_ref_path = fasta_ref_path, target_confidence_level = target_confidence_level, cores = cores)))

@@ -102,16 +102,20 @@ def find_target_accuracy(prediction_df):
 
     no_db_search_psm_df = prediction_df[prediction_df['scan has db search PSM'] == 0]
     unique_denovo_seqs = list(set(no_db_search_psm_df['seq']))
-    one_percent_number_denovo_seqs = len(unique_denovo_seqs) / 100 / config.cores[0]
+
+    utils.verbose_print('finding minimum de novo sequence length to uniquely match fasta reference')
+    min_ref_match_len[0] = find_min_seq_len(fasta_ref = fasta_ref, cores = config.cores[0])
+    unique_long_denovo_seqs = [seq for seq in unique_denovo_seqs if len(seq) >= config.min_ref_match_len[0]]
+    one_percent_number_denovo_seqs = len(unique_long_denovo_seqs) / 100 / config.cores[0]
 
     multiprocessing_pool = Pool(config.cores[0])
     single_var_match_seq = partial(match_seq_to_fasta_ref, fasta_ref = fasta_ref,
                                    one_percent_number_denovo_seqs = one_percent_number_denovo_seqs, cores = config.cores[0])
-    fasta_matches = multiprocessing_pool.map(single_var_match_seq, unique_denovo_seqs)
+    fasta_matches = multiprocessing_pool.map(single_var_match_seq, unique_long_denovo_seqs)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
-    fasta_match_dict = dict(zip(unique_denovo_seqs, fasta_matches))
+    fasta_match_dict = dict(zip(unique_long_denovo_seqs, fasta_matches))
     single_var_get_match_from_dict = partial(get_match_from_dict, match_dict = fasta_match_dict)
     no_db_search_psm_df['correct de novo seq not found in db search'] = no_db_search_psm_df['seq'].apply(single_var_get_match_from_dict)
     prediction_df = prediction_df.merge(no_db_search_psm_df['correct de novo seq not found in db search'].to_frame(),
