@@ -7,7 +7,7 @@ Python 3.4 or higher
 ### Training model: a pickled dictionary of random forests
 #### A file named *forest_dict.pkl* must go in the *postnovo/training* directory.
 #### The default training model will be downloaded from the following site if *forest_dict.pkl* is not present (e.g., on first run):
-<http://home.uchicago.edu/~samuelmiller/postnovo_files/random_forest.pkl>
+<http://mediafire.com>
 #### The user can generate or add to *forest_dict.pkl* by using the train or optimize modes of postnovo.
 All changes will be made to a file named *forest_dict.pkl*.
 
@@ -51,8 +51,7 @@ Optimize = same as train, but some random forest parameters are tuned
 `<--frag_mass_tols "0.3, 0.5">`
 
 #### *Novor* and *PepNovo+* output files corresponding to fragment mass tolerance(s)
-#### Output files should be placed in *postnovo/userfiles* directory.
-#### Use of *DeNovoGUI* (see below) overrides these options.
+##### Use of *DeNovoGUI* on an mgf file (see below) overrides these options.
 
 `[--novor_files "novor_output_0.3.novor.csv, novor_output_0.5.novor.csv"]`
 
@@ -60,14 +59,15 @@ Optimize = same as train, but some random forest parameters are tuned
 
 #### Options for generating de novo output files with *DeNovoGUI* and automatically using as postnovo input
 ##### These override --novor_files and --pn_files.
+##### The full mgf file path should be used (no need to place the file in the IO directory).
 `[--denovogui_path "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar"]`
 
 `[--denovogui_mgf_path "/home/ms_files/spectra.mgf"]`
 
 #### A tab-delimited .txt reference file is required in test, train and optimize modes.
-##### Sequences with FDR's up to 0.05 (default medium confidence in *Proteome Discoverer*) should be retained in the reference file.
+##### Sequences with FDRs up to 0.05 (default medium confidence in *Proteome Discoverer*) should be retained in the reference file.
 ##### This file can be the *unmodified* exported tab-delimited file from the *Proteome Discoverer* consensus workflow PSM results sheet.
-##### The required columns of a reference file that does not come from *Proteome Discoverer* are, in order, 1. scan number, 2. sequence (with non-alphabetical symbols removed) and 3. database search false detection rate (e.g., *Percolator* q-value).
+##### The required columns of a reference file that does not come from *Proteome Discoverer* are, in order, 1. scan number, 2. sequence (with symbols beside letters for canonical amino acids removed) and 3. database search false detection rate (e.g., *Percolator* q-value).
 `[--db_search_ref_file "proteome_discoverer_psm_table.txt"]`
 
 #### A protein fasta reference file is also required in test, train and optimize modes.
