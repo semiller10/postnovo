@@ -3,8 +3,8 @@
 import numpy as np
 import pandas as pd
 
-import config
-import utils
+import postnovo.config
+import postnovo.utils
 
 from functools import partial
 from itertools import groupby, combinations, product

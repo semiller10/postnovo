@@ -2,8 +2,7 @@
 Find the minimum de novo sequence length to uniquely match a reference proteome.
 '''
 
-from classifier import load_fasta_ref_file
-#from .classifier import load_fasta_ref_file
+from postnovo.classifier import load_fasta_ref_file
 
 import argparse
 import re
@@ -207,17 +206,19 @@ def invert_residues(subseqs, inversion_len = 2):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description = 'Find the minimum de novo sequence length to uniquely match the reference proteome')
-    parser.add_argument('--fasta_ref_file',
+    parser.add_argument('--fasta_ref_path',
                         help = 'path to reference proteome')
-    parser.add_argument('--confidence_level', default = 0.95,
+    parser.add_argument('--target_confidence_level', default = 0.95, type = float,
                         help = 'confidence level for unique sequence match')
-    parser.add_argument('--cores', default = 1,
+    parser.add_argument('--cores', default = 1, type = int,
                         help = 'number of cores available for use')
-    fasta_ref_path, target_confidence_level, cores = parser.parse_args()
+    args = parser.parse_args()
+
+    print('Minimum sequence length required = ' +
+          str(find_min_seq_len(fasta_ref_path = args.fasta_ref_path, target_confidence_level = args.target_confidence_level, cores = args.cores)))
 
     #fasta_ref_path = 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test\\DvH.faa'
     #target_confidence_level = 0.95
     #cores = 3
-
-    print('Minimum sequence length required = ' +
-          str(find_min_seq_len(fasta_ref_path = fasta_ref_path, target_confidence_level = target_confidence_level, cores = cores)))
+    #print('Minimum sequence length required = ' +
+    #      str(find_min_seq_len(fasta_ref_path = fasta_ref_path, target_confidence_level = target_confidence_level, cores = cores)))
