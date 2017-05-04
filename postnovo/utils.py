@@ -5,7 +5,7 @@ import json
 import sys
 import os
 
-import postnovo.config
+import postnovo.config as config
 
 from urllib.request import urlopen
 from shutil import copyfileobj

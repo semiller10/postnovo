@@ -1,11 +1,11 @@
-import postnovo.config
-import postnovo.utils
-import postnovo.userargs
-import postnovo.input
-import postnovo.consensus
-import postnovo.masstol
-import postnovo.interspec
-import postnovo.classifier
+import postnovo.config as config
+import postnovo.utils as utils
+import postnovo.userargs as userargs
+import postnovo.input as input
+import postnovo.consensus as consensus
+import postnovo.masstol as masstol
+import postnovo.interspec as interspec
+import postnovo.classifier as classifier
 from time import time
 
 

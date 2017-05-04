@@ -3,6 +3,7 @@ Find the minimum de novo sequence length to uniquely match a reference proteome.
 '''
 
 from postnovo.classifier import load_fasta_ref_file
+#from classifier import load_fasta_ref_file
 
 import argparse
 import re
@@ -14,16 +15,17 @@ from multiprocessing import Pool
 from random import randint
 from statsmodels.stats.proportion import proportion_confint
 
-def find_min_seq_len(fasta_ref_path = None, fasta_ref = None, target_confidence_level = 0.95, number_subseqs = 2000, cores = 1):
+def find_min_seq_len(fasta_ref_path = None, fasta_ref = None, target_confidence_level = 0.95, number_subseqs = 1000, cores = 1):
 
     if fasta_ref == None:
         fasta_ref = load_fasta_ref_file(fasta_ref_path)
     fasta_ref_index = make_fasta_ref_index(fasta_ref)
-    min_correct_seq_len, unaltered_subseqs = find_min_correct_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores)
-    min_incorrect_seq_len = find_min_incorrect_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores,
-                                                       unaltered_subseqs, len(unaltered_subseqs[0]))
+    #min_correct_seq_len, unaltered_subseqs = find_min_correct_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores)
+    min_incorrect_seq_len = find_min_incorrect_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores)
 
-    return max([min_correct_seq_len, min_incorrect_seq_len])
+    #return max([min_correct_seq_len, min_incorrect_seq_len])
+    #return min_correct_seq_len
+    return min_incorrect_seq_len
 
 def make_fasta_ref_index(fasta_ref):
     """Compute the position of the first residue of each sequence in the overall sequence list.
@@ -42,45 +44,82 @@ def make_fasta_ref_index(fasta_ref):
 
     return fasta_ref_index
 
-def find_min_correct_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores):
-    """Find the minimum sequence length that uniquely matches the reference
+#def find_min_correct_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores):
+#    """Find the minimum sequence length that uniquely matches the reference
 
-    Returns
-    -------
+#    Returns
+#    -------
 
-    min_subseq_len : int
+#    min_subseq_len : int
     
-    unaltered_subseqs : list of str
-        The subseqs tested at `min_subseq_len`.
+#    unaltered_subseqs : list of str
+#        The subseqs tested at `min_subseq_len`.
     
-    """
+#    """
+
+#    measured_confidence_level = 0
+#    subseq_len = 7
+#    while measured_confidence_level < target_confidence_level:
+
+#        subseqs = draw_subseqs(fasta_ref, fasta_ref_index, number_subseqs, subseq_len)
+        
+#        #subseq_matches = []
+#        #for i, subseq in enumerate(subseqs):
+#        #    subseq_matches.append(match_subseq(subseq, fasta_ref))
+
+#        #Find the number of matches of each subseq to the fasta ref
+#        multiprocessing_pool = Pool(cores)
+#        single_var_match_subseq = partial(match_subseq, fasta_ref = fasta_ref)
+#        subseq_matches = multiprocessing_pool.map(single_var_match_subseq, subseqs)
+#        multiprocessing_pool.close()
+#        multiprocessing_pool.join()
+
+#        # Calculate the 95% binomial confidence interval
+#        # for the proportion of 1-match subseqs as opposed to >1-match subseqs.
+#        one_match_subseqs = subseq_matches.count(1)
+#        ci = proportion_confint(one_match_subseqs, len(subseq_matches), method = 'wilson')
+#        # The true proportion of 1-match subseqs must be >= 0.95 (95% of the time)
+#        measured_confidence_level = ci[0]
+        
+#        print('seq len = {}, ci = {}-{}'.format(subseq_len, ci[0], ci[1]))
+
+#        subseq_len += 1
+#    min_subseq_len = subseq_len - 1
+#    return min_subseq_len, subseqs
+
+def find_min_incorrect_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores):
+    """Confirm that seqs containing a common type of de novo error that are at least as long as unique correct seqs cannot be found in the ref"""
 
     measured_confidence_level = 0
-    subseq_len = 6
+    subseq_len = 7
     while measured_confidence_level < target_confidence_level:
 
-        subseqs = draw_subseqs(fasta_ref, fasta_ref_index, number_subseqs, subseq_len)
-        
-        #for i, subseq in enumerate(subseqs):
+        unaltered_subseqs = draw_subseqs(fasta_ref, fasta_ref_index, number_subseqs, subseq_len)
+        altered_subseqs = invert_residues(unaltered_subseqs)
+
+        #subseq_matches = []
+        #for subseq in altered_subseqs:
         #    subseq_matches.append(match_subseq(subseq, fasta_ref))
 
         #Find the number of matches of each subseq to the fasta ref
         multiprocessing_pool = Pool(cores)
         single_var_match_subseq = partial(match_subseq, fasta_ref = fasta_ref)
-        subseq_matches = multiprocessing_pool.map(single_var_match_subseq, subseqs)
+        subseq_matches = multiprocessing_pool.map(single_var_match_subseq, altered_subseqs)
         multiprocessing_pool.close()
         multiprocessing_pool.join()
 
         # Calculate the 95% binomial confidence interval
-        # for the proportion of 1-match subseqs as opposed to >1-match subseqs.
-        one_match_subseqs = subseq_matches.count(1)
-        ci = proportion_confint(one_match_subseqs, len(subseq_matches), method = 'wilson')
-        # The true proportion of 1-match subseqs must be >= 0.95 (95% of the time)
+        # for the proportion of 0-match subseqs as opposed to >0-match subseqs.
+        zero_match_subseqs = subseq_matches.count(0)
+        ci = proportion_confint(zero_match_subseqs, len(subseq_matches), method = 'wilson')
+        # The true proportion of 0-match subseqs must be >= 0.95 (95% of the time)
         measured_confidence_level = ci[0]
+
+        print('seq len = {}, ci = {}-{}'.format(subseq_len, ci[0], ci[1]))
         
         subseq_len += 1
     min_subseq_len = subseq_len - 1
-    return min_subseq_len, subseqs
+    return min_subseq_len
 
 def draw_subseqs(fasta_ref, fasta_ref_index, number_subseqs, subseq_len):
 
@@ -125,43 +164,6 @@ def match_subseq(subseq, fasta_ref):
         match_count += len(re.findall('(?={0})'.format(subseq), seq))
 
     return match_count
-
-def find_min_incorrect_seq_len(fasta_ref, fasta_ref_index, target_confidence_level, number_subseqs, cores,
-                               unaltered_subseqs, first_subseq_len):
-    """Confirm that seqs containing a common type of de novo error that are at least as long as unique correct seqs cannot be found in the ref"""
-
-    measured_confidence_level = 0
-    subseq_len = first_subseq_len
-    while measured_confidence_level < target_confidence_level:
-
-        # Draw more subseqs at the next length
-        # if the target confidence level was not met at the previous length.
-        if subseq_len > first_subseq_len:
-            unaltered_subseqs = draw_subseqs(fasta_ref, fasta_ref_index, number_subseqs, subseq_len)
-        altered_subseqs = invert_residues(unaltered_subseqs)
-
-        #subseq_matches = []
-        #for subseq in altered_subseqs:
-        #    subseq_matches.append(match_subseq(subseq, fasta_ref))
-
-        #Find the number of matches of each subseq to the fasta ref
-        multiprocessing_pool = Pool(cores)
-        single_var_match_subseq = partial(match_subseq, fasta_ref = fasta_ref)
-        subseq_matches = multiprocessing_pool.map(single_var_match_subseq, altered_subseqs)
-        multiprocessing_pool.close()
-        multiprocessing_pool.join()
-
-        # Calculate the 95% binomial confidence interval
-        # for the proportion of 0-match subseqs as opposed to >0-match subseqs.
-        zero_match_subseqs = subseq_matches.count(0)
-        ci = proportion_confint(zero_match_subseqs, len(subseq_matches), method = 'wilson')
-        # The true proportion of 0-match subseqs must be >= 0.95 (95% of the time)
-        measured_confidence_level = ci[0]
-        
-        subseq_len += 1
-    min_subseq_len = subseq_len - 1
-    return min_subseq_len
-
 
 def invert_residues(subseqs, inversion_len = 2):
 
@@ -217,7 +219,7 @@ if __name__ == '__main__':
     print('Minimum sequence length required = ' +
           str(find_min_seq_len(fasta_ref_path = args.fasta_ref_path, target_confidence_level = args.target_confidence_level, cores = args.cores)))
 
-    #fasta_ref_path = 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test\\DvH.faa'
+    #fasta_ref_path = 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test\\human.faa'
     #target_confidence_level = 0.95
     #cores = 3
     #print('Minimum sequence length required = ' +

@@ -94,7 +94,8 @@ novor_files = []
 peaks_files = []
 pn_files = []
 min_prob = [0.5]
-min_len = [8]
+train_consensus_len = 8
+min_len = [train_consensus_len]
 min_ref_match_len = [8]
 db_search_ref_file = [None]
 fasta_ref_file = [None]
@@ -141,7 +142,6 @@ pn_seq_sub_fn = partial(re.sub, pattern = '[0-9\+\-\.\^]', repl = '')
 precursor_mass_tol = [4.0]
 
 # training parameters
-train_consensus_len = 6
 min_fdr = 0.05
 rf_n_estimators = 150
 rf_default_params = {('novor',): {'max_depth': 16, 'max_features': 'sqrt'},
@@ -217,7 +217,7 @@ reported_df_cols = ['seq', 'probability', 'ref match',
                     'scan has db search PSM', 'de novo seq matches db search seq', 'correct de novo seq not found in db search',
                     'is novor seq', 'is peaks seq', 'is pn seq',
                     '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
-                    '0.2 match', '0.3 match', '0.4 match', '0.5 match', '0.6 match', '0.7 match',
+                    '0.2 seq match', '0.3 seq match', '0.4 seq match', '0.5 seq match', '0.6 seq match', '0.7 seq match',
                     'precursor seq agreement', 'precursor seq count',
                     'mono-di isobaric sub score', 'di isobaric sub score',
                     'mono-di near-isobaric sub score', 'di near-isobaric sub score',

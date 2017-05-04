@@ -6,8 +6,8 @@ import subprocess
 import datetime
 import os
 
-import postnovo.config
-import postnovo.utils
+import postnovo.config as config
+import postnovo.utils as utils
 
 from multiprocessing import cpu_count
 from itertools import combinations, product

@@ -13,8 +13,8 @@ import warnings
 warnings.filterwarnings('ignore')
 import os.path
 
-import postnovo.config
-import postnovo.utils
+import postnovo.config as config
+import postnovo.utils as utils
 
 from functools import partial
 from collections import OrderedDict

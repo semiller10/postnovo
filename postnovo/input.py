@@ -4,8 +4,8 @@ import pandas as pd
 import numpy as np
 import re
 
-import postnovo.config
-import postnovo.utils
+import postnovo.config as config
+import postnovo.utils as utils
 
 from collections import OrderedDict
 from os.path import basename
