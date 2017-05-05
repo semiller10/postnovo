@@ -56,7 +56,7 @@ getopt_opts = ['help',
                'iodir=',
                'denovogui_path=',
                'denovogui_mgf_path=',
-               'frag_mass_tols=',
+               #'frag_mass_tols=',
                'novor_files=',
                'peaks_files=',
                'pn_files=',
@@ -72,7 +72,7 @@ help_str = '\n'.join(['postnovo.py',
                       '--train',
                       '--test',
                       '--optimize',
-                      '--frag_mass_tols <"0.3, 0.5">',
+                      #'--frag_mass_tols <"0.3, 0.5">',
                       '--novor_files <"novor_output_0.3.novor.csv, novor_output_0.5.novor.csv">',
                       '--peaks_files <"peaks_output_0.3.csv, peaks_output_0.5.csv">',
                       '--pn_files <"pn_output_0.3.mgf.out, pn_output_0.5.mgf.out">',
@@ -86,15 +86,28 @@ help_str = '\n'.join(['postnovo.py',
                       '--quiet',
                       '--param_file <"param.json">'])
 
+# program constraints
+accepted_algs = ['novor', 'peaks', 'pn']
+possible_alg_combos = []
+for numerical_alg_combo in list(product((0, 1), repeat = len(accepted_algs)))[1:]:
+    possible_alg_combos.append(tuple([alg for i, alg in enumerate(accepted_algs) if numerical_alg_combo[i]]))
+seqs_reported_per_alg_dict = {'novor': 1, 'peaks': 20, 'pn': 20}
+frag_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
+accepted_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
+fixed_mod = 'Oxidation of M'
+variable_mod = 'Carbamidomethylation of C'
+frag_method = 'CID'
+frag_mass_analyzer = 'Trap'
+train_consensus_len = 8
+
 # run level settings: predict (default), train, test, optimize
 verbose = [True]
 run_type = ['predict']
-frag_mass_tols = []
+#frag_mass_tols = []
 novor_files = []
 peaks_files = []
 pn_files = []
 min_prob = [0.5]
-train_consensus_len = 8
 min_len = [train_consensus_len]
 min_ref_match_len = [8]
 db_search_ref_file = [None]
@@ -104,18 +117,6 @@ cores = [1]
 # directories
 iodir = []
 training_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'training')
-
-# program constraints
-accepted_algs = ['novor', 'peaks', 'pn']
-possible_alg_combos = []
-for numerical_alg_combo in list(product((0, 1), repeat = len(accepted_algs)))[1:]:
-    possible_alg_combos.append(tuple([alg for i, alg in enumerate(accepted_algs) if numerical_alg_combo[i]]))
-seqs_reported_per_alg_dict = {'novor': 1, 'peaks': 20, 'pn': 20}
-accepted_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
-fixed_mod = 'Oxidation of M'
-variable_mod = 'Carbamidomethylation of C'
-frag_method = 'CID'
-frag_mass_analyzer = 'Trap'
 
 # global info from user input
 alg_list = []

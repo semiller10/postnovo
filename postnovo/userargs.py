@@ -87,11 +87,11 @@ def parse_args():
             denovogui_mgf_path = arg
             check_path(denovogui_mgf_path)
             args['denovogui_mgf_path'] = denovogui_mgf_path
-        elif opt == '--frag_mass_tols':
-            frag_mass_tols = arg.split(',')
-            frag_mass_tols = [os.path.join(iodir, tol.strip()) for tol in frag_mass_tols]
-            check_frag_mass_tols(frag_mass_tols)
-            args['frag_mass_tols'] = frag_mass_tols
+        #elif opt == '--frag_mass_tols':
+        #    frag_mass_tols = arg.split(',')
+        #    frag_mass_tols = [os.path.join(iodir, tol.strip()) for tol in frag_mass_tols]
+        #    check_frag_mass_tols(frag_mass_tols)
+        #    args['frag_mass_tols'] = frag_mass_tols
         elif opt == '--novor_files':
             novor_files = arg.split(',')
             novor_files = [os.path.join(iodir, f.strip()) for f in novor_files]
@@ -133,9 +133,9 @@ def arg_cross_check(args):
     if 'train' in args or 'test' in args or 'optimize' in args:
         train_test_optimize_cross_check(args)
 
-    if 'frag_mass_tols' not in args:
-        print('Fragment mass tolerance(s) of input must be specified')
-        sys.exit(1)
+    #if 'frag_mass_tols' not in args:
+    #    print('Fragment mass tolerance(s) of input must be specified')
+    #    sys.exit(1)
 
     if 'denovogui_path' in args:
         if 'denovogui_mgf_path' not in args:
@@ -150,7 +150,8 @@ def arg_cross_check(args):
     if 'denovogui_path' not in args:
         for file_set in ['novor_files', 'pn_files']:
             if file_set in args:
-                if len(args['frag_mass_tols']) != len(args[file_set]):
+                if len(config.frag_mass_tols) != len(args[file_set]):
+                #if len(args['frag_mass_tols']) != len(args[file_set]):
                     print('List of fragment mass tolerances must align with list of file inputs')
                     sys.exit(1)
             else:
@@ -205,10 +206,10 @@ def parse_param_file(opts):
             check_path(arg)
         elif opt == 'denovogui_mgf_path':
             check_path(arg)
-        elif opt == 'frag_mass_tols':
-            frag_mass_tols = [str(frag_mass_tol) for frag_mass_tol in arg]
-            check_frag_mass_tols(frag_mass_tols)
-            args['frag_mass_tols'] = frag_mass_tols
+        #elif opt == 'frag_mass_tols':
+        #    frag_mass_tols = [str(frag_mass_tol) for frag_mass_tol in arg]
+        #    check_frag_mass_tols(frag_mass_tols)
+        #    args['frag_mass_tols'] = frag_mass_tols
         elif opt == 'novor_files':
             novor_files = [os.path.join(iodir, f.strip()) for f in arg]
             check_novor_files(novor_files)
@@ -257,12 +258,12 @@ def check_path(path, iodir = None):
         if os.path.exists(full_path) is False:
             print(full_path + ' does not exist')
 
-def check_frag_mass_tols(frag_mass_tols):
-    for tol in frag_mass_tols:
-        if tol not in config.accepted_mass_tols:
-            print(tol + ' must be in list of accepted fragment mass tolerances: ' +\
-                ', '.join(config.accepted_mass_tols))
-            sys.exit(1)
+#def check_frag_mass_tols(frag_mass_tols):
+#    for tol in frag_mass_tols:
+#        if tol not in config.accepted_mass_tols:
+#            print(tol + ' must be in list of accepted fragment mass tolerances: ' +\
+#                ', '.join(config.accepted_mass_tols))
+#            sys.exit(1)
 
 def check_novor_files(novor_files):
     for i, file_name in enumerate(novor_files):
@@ -352,7 +353,8 @@ def run_denovogui(args):
     denovogui_args['-directag'] = '0'
     denovogui_args['-threads'] = str(args['cores'])
 
-    for tol in args['frag_mass_tols']:
+    for tol in config.frag_mass_tols:
+    #for tol in args['frag_mass_tols']:
 
         denovogui_param_file_cmd = 'java -cp ' +\
             '\"' + args['denovogui_path'] + '\"' +\
@@ -403,12 +405,14 @@ def set_global_vars(args):
     elif 'test' in args:
         config.run_type[0] = 'test'
 
-    for tol in sorted(args['frag_mass_tols']):
-        config.frag_mass_tols.append(tol)
+    #for tol in sorted(args['frag_mass_tols']):
+    #    config.frag_mass_tols.append(tol)
 
     if 'novor_files' in args:
         novor_files_local, _ = order_inputs(
             args['novor_files'], args['frag_mass_tols'])
+        #novor_files_local, _ = order_inputs(
+        #    args['novor_files'], args['frag_mass_tols'])
         for novor_file in novor_files_local:
             config.novor_files.append(novor_file)
 
@@ -419,7 +423,9 @@ def set_global_vars(args):
 
     if 'peaks_files' in args:
         peaks_files_local, _ = order_inputs(
-            args['peaks_files'], args['frag_mass_tols'])
+            args['peaks_files'], config.frag_mass_tols)
+        #peaks_files_local, _ = order_inputs(
+        #    args['peaks_files'], args['frag_mass_tols'])
         for peaks_file in peaks_files_local:
             config.peaks_files.append(peaks_file)
 
@@ -430,7 +436,9 @@ def set_global_vars(args):
 
     if 'pn_files' in args:
         pn_files_local, _ = order_inputs(
-            args['pn_files'], args['frag_mass_tols'])
+            args['pn_files'], config.frag_mass_tols)
+        #pn_files_local, _ = order_inputs(
+        #    args['pn_files'], args['frag_mass_tols'])
         for pn_file in pn_files_local:
             config.pn_files.append(pn_file)
 
@@ -483,9 +491,15 @@ def order_by_tol(args):
                 args[alg + '_files'] =\
                     list(list(
                         zip(*(sorted(zip(args[alg + '_files'],
-                                         args['frag_mass_tols']),
+                                         config.frag_mass_tols),
                                      key = lambda x: x[1])))
                         )[0])
+                #args[alg + '_files'] =\
+                #    list(list(
+                #        zip(*(sorted(zip(args[alg + '_files'],
+                #                         args['frag_mass_tols']),
+                #                     key = lambda x: x[1])))
+                #        )[0])
     return args
 
 def order_inputs(file_names, tols):
