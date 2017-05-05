@@ -16,6 +16,9 @@ import os.path
 import postnovo.config as config
 import postnovo.utils as utils
 
+#import config
+#import utils
+
 from functools import partial
 from collections import OrderedDict
 from sklearn.ensemble import RandomForestClassifier

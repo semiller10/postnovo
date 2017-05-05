@@ -7,6 +7,9 @@ import re
 import postnovo.config as config
 import postnovo.utils as utils
 
+#import config
+#import utils
+
 from collections import OrderedDict
 from os.path import basename
 from itertools import combinations

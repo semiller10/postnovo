@@ -7,6 +7,8 @@ import os
 
 import postnovo.config as config
 
+# import config
+
 from urllib.request import urlopen
 from shutil import copyfileobj
 

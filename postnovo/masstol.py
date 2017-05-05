@@ -8,6 +8,9 @@ import pandas as pd
 import postnovo.config as config
 import postnovo.utils as utils
 
+#import config
+#import utils
+
 from multiprocessing import Pool, current_process
 
 multiprocessing_scan_count = 0

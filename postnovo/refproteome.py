@@ -3,6 +3,7 @@ Find the minimum de novo sequence length to uniquely match a reference proteome.
 '''
 
 from postnovo.classifier import load_fasta_ref_file
+
 #from classifier import load_fasta_ref_file
 
 import argparse

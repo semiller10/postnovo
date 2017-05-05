@@ -9,6 +9,9 @@ import os
 import postnovo.config as config
 import postnovo.utils as utils
 
+#import config
+#import utils
+
 from multiprocessing import cpu_count
 from itertools import combinations, product
 from collections import OrderedDict
