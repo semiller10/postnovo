@@ -98,7 +98,7 @@ fixed_mod = 'Oxidation of M'
 variable_mod = 'Carbamidomethylation of C'
 frag_method = 'CID'
 frag_mass_analyzer = 'Trap'
-train_consensus_len = 8
+train_consensus_len = 7
 
 # run level settings: predict (default), train, test, optimize
 verbose = [True]
@@ -109,7 +109,7 @@ peaks_files = []
 pn_files = []
 min_prob = [0.5]
 min_len = [train_consensus_len]
-min_ref_match_len = [8]
+min_ref_match_len = [7]
 db_search_ref_file = [None]
 fasta_ref_file = [None]
 cores = [1]

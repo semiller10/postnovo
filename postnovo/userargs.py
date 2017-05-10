@@ -42,7 +42,7 @@ def parse_args():
     #test_str = ['--param_file', 'param.json',
     #            '--iodir', 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test']
     test_str = ['--param_file', 'param.json',
-                '--iodir', '/home/samuelmiller/5-2-17/postnovo/io']
+                '--iodir', '/home/samuelmiller/5-9-17/postnovo/io']
 
     try:
         ## FOR DEBUGGING PURPOSES: REMOVE AND UNCOMMENT
@@ -410,7 +410,7 @@ def set_global_vars(args):
 
     if 'novor_files' in args:
         novor_files_local, _ = order_inputs(
-            args['novor_files'], args['frag_mass_tols'])
+            args['novor_files'], config.frag_mass_tols)
         #novor_files_local, _ = order_inputs(
         #    args['novor_files'], args['frag_mass_tols'])
         for novor_file in novor_files_local:
