@@ -6,7 +6,7 @@ setup(name = 'postnovo',
       author = 'Samuel Miller',
       license = 'Apache',
       packages = ['postnovo'],
-      entry_points = {'console_scripts': ['postnovo = postnovo.postnovo:main']},
+      entry_points = {'console_scripts': ['postnovo = postnovo:main']},
       install_requires = ['numpy >= 1.11.0', 'pandas >= 0.19.2', 'scikit-learn >= 0.18.1'],
       classifiers = [
           'Development Status :: 4 - Beta',
