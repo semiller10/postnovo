@@ -14,12 +14,7 @@ All changes will be made to a file named *forest_dict.pkl*.
 See `--ref_file` description below
 
 ## Installation
-### Cannot do this yet:
-`pip install postnovo`
 
-**or**
-
-### Must do this:
 Download the postnovo source and run the setup script from the postnovo directory.
 
 `python setup.py install`
