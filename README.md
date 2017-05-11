@@ -95,7 +95,7 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--param_file "param.json"]`
 
 ### Example command (default predict mode)
-`postnovo --denovogui_path "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "/home/ms_files/spectra.mgf" --cores 8`
+`postnovo --denovogui_path "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "/home/ms_files/spectra.mgf" --cores 16`
 
 ### Parameter file substitute for command line arguments
 
@@ -111,8 +111,6 @@ Many of these options are mutually exclusive (see above), so it must be modified
 
 "--test" = true,
 
-"--frag_mass_tols" = ["0.2", "0.3", "0.4", "0.5", "0.6", "0.7"],
-
 "--denovogui_path" = "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar",
 
 "--denovogui_mgf_path" = "/home/ms_files/spectra.mgf",
@@ -121,7 +119,7 @@ Many of these options are mutually exclusive (see above), so it must be modified
 
 "--fasta_ref_file" = "fasta.faa",
 
-"--cores" = 8,
+"--cores" = 16,
 
 "--min_len" = 9,
 
