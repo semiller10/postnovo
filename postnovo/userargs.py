@@ -387,8 +387,6 @@ def run_denovogui(args):
             '\"' + os.path.join(args['iodir'], args['novor_files'][-1]) + '\"'
         subprocess.call(set_pn_output_filename_cmd, shell = True)
 
-    sys.exit(0)
-
     return args
 
 def set_global_vars(args):
