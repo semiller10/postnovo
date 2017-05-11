@@ -13,6 +13,8 @@ All changes will be made to a file named *forest_dict.pkl*.
 
 See `--ref_file` description below
 
+To change the default *forest_dict.pkl* file, the following files must also be downloaded and placed in *postnovo/training*:
+
 ## Installation
 
 Download the postnovo source and run the setup script from the postnovo directory.
@@ -96,7 +98,7 @@ Optimize = same as train, but some random forest parameters are tuned
 ### Parameter file substitute for command line arguments
 
 A parameter file template, param_template.json, can be downloaded:
-<http://bit.ly/2qhhvgP>
+<https://sabercathost.com/94qL/param_template.json>
 
 This file lists all possible options with default arguments.
 
