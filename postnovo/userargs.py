@@ -384,7 +384,7 @@ def run_denovogui(args):
         args['pn_files'].append(os.path.join(args['iodir'], mgf_input_name + '_' + tol + '.mgf.out'))
         set_pn_output_filename_cmd = 'mv ' +\
             '\"' + os.path.join(args['iodir'], mgf_input_name + '.mgf.out') + '\" ' +\
-            '\"' + os.path.join(args['iodir'], args['novor_files'][-1]) + '\"'
+            '\"' + os.path.join(args['iodir'], args['pn_files'][-1]) + '\"'
         subprocess.call(set_pn_output_filename_cmd, shell = True)
 
     return args
