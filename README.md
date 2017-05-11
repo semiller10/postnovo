@@ -22,7 +22,7 @@ Download the postnovo source and run the setup script from the postnovo director
 ## Usage
 `python postnovo.py <--iodir> <--other options>`
 
-#### Output goes to *postnovo/output* directory.
+#### Output goes to user-defined I/O directory.
 
 ### Four modes
 Predict (DEFAULT) = post-process de novo sequences for data WITHOUT reference
