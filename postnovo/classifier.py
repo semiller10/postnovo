@@ -48,6 +48,7 @@ def classify(prediction_df = None):
     if config.run_type[0] == 'predict':
         reported_prediction_df = make_predictions(prediction_df)
         reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
+        make_fasta(reported_prediction_df)
 
     elif config.run_type[0] == 'test':
         reported_prediction_df = make_predictions(prediction_df, db_search_ref)
@@ -421,6 +422,33 @@ def make_predictions(prediction_df, db_search_ref):
     reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
 
     return reported_prediction_df
+
+def make_fasta(reported_prediction_df):
+    
+    scans = reported_prediction_df['scan']
+    probabilities = reported_prediction_df['probability']
+    seqs = reported_prediction_df['seq']
+    with open(os.path.join(config.iodir, 'postnovo_seqs.faa'), 'w') as fasta_file:
+        for i, scan in enumerate(scans):
+            permuted_seqs = make_l_i_permutations(seqs[i], permuted_seqs = [])[::-1]
+            for j, permuted_seq in enumerate(permuted_seqs):
+                fasta_file.write('>' + str(scan) + ':' + str(j) + ' ' + str(round(probabilities[i], 2)) + '\n')
+                fasta_file.write(permuted_seq + '\n')
+
+def make_l_i_permutations(seq, residue_number = 0, permuted_seqs = None):
+
+    if permuted_seqs == None:
+        permuted_seqs = []
+
+    if residue_number == len(seq):
+        permuted_seqs.append(seq)
+        return permuted_seqs
+    else:
+        if seq[residue_number] == 'L':
+            permuted_seq = seq[: residue_number] + 'I' + seq[residue_number + 1:]
+            permuted_seqs = make_l_i_permutations(permuted_seq, residue_number + 1, permuted_seqs)
+        permuted_seqs = make_l_i_permutations(seq, residue_number + 1, permuted_seqs)
+        return permuted_seqs
 
 def make_training_forests(training_df):
 

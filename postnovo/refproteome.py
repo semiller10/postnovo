@@ -195,17 +195,6 @@ def invert_residues(subseqs, inversion_len = 2):
 
     return altered_subseqs
 
-#def make_l_i_permutations(seq, residue_number = 0, permuted_seqs = []):
-
-#    if residue_number == len(seq):
-#        permuted_seqs.append(seq)
-#    else:
-#        if seq[residue_number] == 'L':
-#            permuted_seq = seq[: residue_number] + 'I' + seq[residue_number + 1:]
-#            make_l_i_permutations(permuted_seq, residue_number + 1)
-#        make_l_i_permutations(seq, residue_number + 1)
-#        return permuted_seqs
-
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description = 'Find the minimum de novo sequence length to uniquely match the reference proteome')
