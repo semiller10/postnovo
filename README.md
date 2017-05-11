@@ -13,20 +13,18 @@ All changes will be made to a file named *forest_dict.pkl*.
 
 See `--ref_file` description below
 
-## Installation
-`pip install postnovo`
+To change the default *forest_dict.pkl* file, the following files must also be downloaded and placed in *postnovo/training*:
 
-**or**
+## Installation
 
 Download the postnovo source and run the setup script from the postnovo directory.
 
-1. `python setup.py build`
-2. `python setup.py install`
+`python setup.py install`
 
 ## Usage
 `python postnovo.py <--iodir> <--other options>`
 
-#### Output goes to *postnovo/output* directory.
+#### Output goes to user-defined I/O directory.
 
 ### Four modes
 Predict (DEFAULT) = post-process de novo sequences for data WITHOUT reference
@@ -95,12 +93,12 @@ Optimize = same as train, but some random forest parameters are tuned
 `[--param_file "param.json"]`
 
 ### Example command (default predict mode)
-`postnovo --denovogui_path "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "/home/ms_files/spectra.mgf" --cores 8`
+`postnovo --denovogui_path "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar" --denovogui_mgf_path "/home/ms_files/spectra.mgf" --cores 16`
 
 ### Parameter file substitute for command line arguments
 
 A parameter file template, param_template.json, can be downloaded:
-<http://bit.ly/2qhhvgP>
+<https://sabercathost.com/94qL/param_template.json>
 
 This file lists all possible options with default arguments.
 
@@ -111,8 +109,6 @@ Many of these options are mutually exclusive (see above), so it must be modified
 
 "--test" = true,
 
-"--frag_mass_tols" = ["0.2", "0.3", "0.4", "0.5", "0.6", "0.7"],
-
 "--denovogui_path" = "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar",
 
 "--denovogui_mgf_path" = "/home/ms_files/spectra.mgf",
@@ -121,7 +117,7 @@ Many of these options are mutually exclusive (see above), so it must be modified
 
 "--fasta_ref_file" = "fasta.faa",
 
-"--cores" = 8,
+"--cores" = 16,
 
 "--min_len" = 9,
 
