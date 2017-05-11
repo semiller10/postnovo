@@ -259,3 +259,5 @@ ModelManifest.xml
 *.pkl
 /old_files
 postnovo.sln
+/postnovo.egg-info
+/dist
