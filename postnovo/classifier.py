@@ -425,10 +425,10 @@ def make_predictions(prediction_df, db_search_ref = None):
 
 def make_fasta(reported_prediction_df):
     
-    scans = reported_prediction_df['scan']
-    probabilities = reported_prediction_df['probability']
-    seqs = reported_prediction_df['seq']
-    with open(os.path.join(config.iodir, 'postnovo_seqs.faa'), 'w') as fasta_file:
+    scans = reported_prediction_df.index.get_level_values('scan').tolist()
+    probabilities = reported_prediction_df['probability'].tolist()
+    seqs = reported_prediction_df['seq'].tolist()
+    with open(os.path.join(config.iodir[0], 'postnovo_seqs.faa'), 'w') as fasta_file:
         for i, scan in enumerate(scans):
             permuted_seqs = make_l_i_permutations(seqs[i], permuted_seqs = [])[::-1]
             for j, permuted_seq in enumerate(permuted_seqs):
