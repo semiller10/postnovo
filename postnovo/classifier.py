@@ -381,7 +381,7 @@ def update_training_data(prediction_df):
 
     return training_df
 
-def make_predictions(prediction_df, db_search_ref):
+def make_predictions(prediction_df, db_search_ref = None):
 
     forest_dict = utils.load_pkl_objects(config.training_dir, 'forest_dict')
 

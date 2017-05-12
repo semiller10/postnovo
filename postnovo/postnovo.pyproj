@@ -23,6 +23,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="blastseqs.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="classifier.py">
       <SubType>Code</SubType>
     </Compile>
