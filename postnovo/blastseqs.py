@@ -1,6 +1,8 @@
 import argparse
-import os.path
+import os
+import stat
 import pkg_resources
+import subprocess
 
 def split_fasta(fasta_path, cores, max_seqs_per_process):
 
@@ -41,34 +43,61 @@ def split_fasta(fasta_path, cores, max_seqs_per_process):
 
     return split_fasta_pathname_list
 
-def blast(fasta_pathname_list, blastp_path, db_dir, cores, max_seqs_per_process):
+def run_blast(fasta_pathname_list, blastp_path, db_dir, cores):
     
-    with open(pkg_resources.resource_filename('postnovo', 'blast_batch.sh'), 'r') as blast_batch_template_file:
-        blast_batch_template = blast_batch_template_file.read()
-        temp_blast_batch = blast_batch_template.replace('FASTA_FILES=', 'FASTA_FILES=({})'.format(' '.join(fasta_pathname_list)))
+    ## FOR DEBUGGING PURPOSES: REMOVE
+    blast_batch_pathname = '/home/samuelmiller/5-9-17/blast_batch.sh'
+    #blast_batch_pathname = pkg_resources.resource_filename('postnovo', 'blast_batch.sh')
 
+    with open(blast_batch_pathname, 'r') as blast_batch_template_file:
+        blast_batch_template = blast_batch_template_file.read()
+    temp_blast_batch_script = blast_batch_template
+    temp_blast_batch_script = temp_blast_batch_script.replace('FASTA_FILES=', 'FASTA_FILES=({})'.format(' '.join(fasta_pathname_list)))
+    temp_blast_batch_script = temp_blast_batch_script.replace('MAX_PROCESSES=', 'MAX_PROCESSES={}'.format(cores - 1))
+    temp_blast_batch_script = temp_blast_batch_script.replace('BLASTP_PATH=', 'BLASTP_PATH={}'.format(blastp_path))
+    temp_blast_batch_script = temp_blast_batch_script.replace('DB_DIR=', 'DB_DIR={}'.format(db_dir))
+    temp_blast_batch_pathname = os.path.join(os.path.dirname(blast_batch_pathname), 'blast_batch~.sh')
+    with open(temp_blast_batch_pathname, 'w') as temp_blast_batch_file:
+        temp_blast_batch_file.write(temp_blast_batch_script)
+    os.chmod(temp_blast_batch_pathname, 0o555)
+    subprocess.call([temp_blast_batch_pathname])
 
     return
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description = 'Set up BLAST+ search for de novo sequences')
-    parser.add_argument('--fasta_path',
-                        help = 'fasta input filepath')
-    parser.add_argument('--blastp_path',
-                        help = 'blastp filepath')
-    parser.add_argument('--db_dir',
-                        help = 'directory containing BLAST database')
-    parser.add_argument('--cores', default = 1, type = int,
-                        help = 'number of cores to use')
-    parser.add_argument('--max_seqs_per_process', default = 1000, type = int,
-                        help = 'maximum number of query seqs per BLAST+ instance')
-    args = parser.parse_args()
+    #parser = argparse.ArgumentParser(description = 'Set up BLAST+ search for de novo sequences')
+    #parser.add_argument('--fasta_path',
+    #                    help = 'fasta input filepath')
+    #parser.add_argument('--blastp_path',
+    #                    help = 'blastp filepath')
+    #parser.add_argument('--db_dir',
+    #                    help = 'directory containing BLAST database')
+    #parser.add_argument('--cores', default = 1, type = int,
+    #                    help = 'number of cores to use')
+    #parser.add_argument('--max_seqs_per_process', default = 1000, type = int,
+    #                    help = 'maximum number of query seqs per BLAST+ instance')
+    #args = parser.parse_args()
 
-    blast(split_fasta(args.fasta_path, args.cores, args.max_seqs_per_process), args.blastp_path, args.db_dir, args.cores, args.max_seqs_per_process)
+    #merged_blast_output = merge_blast_output(
+    #    run_blast(
+    #        split_fasta(args.fasta_path, args.cores, args.max_seqs_per_process
+    #                    ),
+    #        args.blastp_path, args.db_dir, args.cores
+    #        )
+    #    )
 
     #fasta_ref_path = 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test\\human.faa'
     #target_confidence_level = 0.95
     #cores = 3
     #print('Minimum sequence length required = ' +
     #      str(find_min_seq_len(fasta_ref_path = fasta_ref_path, target_confidence_level = target_confidence_level, cores = cores)))
+
+    fasta_path = '/home/samuelmiller/5-9-17/test.faa'
+    cores = 2
+    max_seqs_per_process = 1
+    blastp_path = '/home/samuelmiller/ncbi-blast-2.6.0+/bin/blastp'
+    db_dir = '/home/samuelmiller/refseq_protein/refseq_protein'
+
+    split_fasta_pathname_list = split_fasta(fasta_path, cores, max_seqs_per_process)
+    run_blast(split_fasta_pathname_list, blastp_path, db_dir, cores)
