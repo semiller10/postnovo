@@ -113,6 +113,7 @@ min_ref_match_len = [7]
 db_search_ref_file = [None]
 fasta_ref_file = [None]
 cores = [1]
+min_blast_query_len = [9]
 
 # directories
 iodir = []

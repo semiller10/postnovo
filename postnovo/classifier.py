@@ -430,10 +430,11 @@ def make_fasta(reported_prediction_df):
     seqs = reported_prediction_df['seq'].tolist()
     with open(os.path.join(config.iodir[0], 'postnovo_seqs.faa'), 'w') as fasta_file:
         for i, scan in enumerate(scans):
-            permuted_seqs = make_l_i_permutations(seqs[i], permuted_seqs = [])[::-1]
-            for j, permuted_seq in enumerate(permuted_seqs):
-                fasta_file.write('>' + str(scan) + ':' + str(j) + ' ' + str(round(probabilities[i], 2)) + '\n')
-                fasta_file.write(permuted_seq + '\n')
+            if len(seqs[i]) >= config.min_blast_query_len[0]:
+                permuted_seqs = make_l_i_permutations(seqs[i], permuted_seqs = [])[::-1]
+                for j, permuted_seq in enumerate(permuted_seqs):
+                    fasta_file.write('>' + str(scan) + ':' + str(j) + ';' + str(round(probabilities[i], 2)) + '\n')
+                    fasta_file.write(permuted_seq + '\n')
 
 def make_l_i_permutations(seq, residue_number = 0, permuted_seqs = None):
 
