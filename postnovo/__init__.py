@@ -33,17 +33,17 @@ def main():
     ## example:
     ## alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
 
-    #prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
-    #utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})
-    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'consensus_prediction_df')
+    prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
+    utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'consensus_prediction_df')
 
-    #prediction_df = masstol.update_prediction_df(prediction_df)
-    #utils.save_pkl_objects(config.iodir[0], **{'mass_tol_prediction_df': prediction_df})
-    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'mass_tol_prediction_df')
+    prediction_df = masstol.update_prediction_df(prediction_df)
+    utils.save_pkl_objects(config.iodir[0], **{'mass_tol_prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'mass_tol_prediction_df')
 
-    #prediction_df = interspec.update_prediction_df(prediction_df)
-    #utils.save_pkl_objects(config.iodir[0], **{'interspec_prediction_df': prediction_df})
-    prediction_df = utils.load_pkl_objects(config.iodir[0], 'interspec_prediction_df')
+    prediction_df = interspec.update_prediction_df(prediction_df)
+    utils.save_pkl_objects(config.iodir[0], **{'interspec_prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'interspec_prediction_df')
 
     classifier.classify(prediction_df = prediction_df)
     #classifier.classify()
