@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>311b7969-e507-4b37-907a-f6ce37eb5c4c</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>refproteome.py</StartupFile>
+    <StartupFile>blastseqs.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
