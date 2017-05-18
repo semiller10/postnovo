@@ -110,20 +110,20 @@ This file lists all possible options with default arguments.
 Many of these options are mutually exclusive (see above), so it must be modified to mirror a set of possible command line arguments.
 
 #### Example valid param file
-"--iodir" = "/home/postnovo_io",
+"iodir": "/home/postnovo_io",
 
-"--test" = true,
+"test": true,
 
-"--denovogui_path" = "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar",
+"denovogui_path": "/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar",
 
-"--denovogui_mgf_path" = "/home/ms_files/spectra.mgf",
+"denovogui_mgf_path": "/home/ms_files/spectra.mgf",
 
-"--db_search_ref_file" = "proteome_discoverer_psm_table.txt",
+"db_search_ref_file": "proteome_discoverer_psm_table.txt",
 
-"--fasta_ref_file" = "fasta.faa",
+"fasta_ref_file": "fasta.faa",
 
-"--cores" = 16,
+"cores": 16,
 
-"--min_len" = 9,
+"min_len": 9,
 
-"--min_prob" = 0.75
+"min_prob": 0.75
