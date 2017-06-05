@@ -13,7 +13,7 @@ from multiprocessing import Pool, current_process
 multiprocessing_taxid_count = 0
 
 ## FOR DEBUGGING PURPOSES: REMOVE FOR PACKAGE
-blast_batch_pathname = '/home/samuelmiller/5-9-17/postnovo/io/predict_042017_toolik_core_27_4_1_1_sem_on_Syn7803_EcoliAE_TIE1Tryp_DvT1NC/blast_batch.sh'
+blast_batch_pathname = '/home/samuelmiller/5-30-17/blast_xml_output_test/blast_batch.sh'
 
 raw_blast_table_headers = ['qseqid', 'sgi', 'sacc', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore', 'pident', 'staxids']
 merged_blast_table_headers = ['scan', 'xle permutation', 'postnovo score'] + raw_blast_table_headers[1:]
@@ -44,9 +44,11 @@ def main():
     #merged_blast_table = merge_blast_tables(args.fasta_path, split_fasta_pathname_list)
     #filter_blast_table(merged_blast_table)
 
-    fasta_path = '/home/samuelmiller/5-9-17/postnovo/io/predict_042017_toolik_core_27_4_1_1_sem_on_Syn7803_EcoliAE_TIE1Tryp_DvT1NC/postnovo_seqs.faa'
+    #fasta_path = '/home/samuelmiller/5-9-17/postnovo/io/predict_042017_toolik_core_27_4_1_1_sem_on_Syn7803_EcoliAE_TIE1Tryp_DvT1NC/postnovo_seqs.faa'
+    fasta_path = '/home/samuelmiller/5-30-17/blast_xml_output_test/test.faa'
     cores = 16
-    max_seqs_per_process = 1000
+    max_seqs_per_process = 4
+    #max_seqs_per_process = 1000
     blastp_path = '/home/samuelmiller/ncbi-blast-2.6.0+/bin/blastp'
     db_dir = '/home/samuelmiller/refseq_protein/refseq_protein'
 
@@ -59,6 +61,8 @@ def main():
 
     split_fasta_pathname_list = split_fasta(fasta_path, cores, max_seqs_per_process)
     run_blast(split_fasta_pathname_list, blastp_path, db_dir, cores)
+    import sys
+    sys.exit(0)
 
     merged_blast_table = merge_blast_tables(fasta_path, split_fasta_pathname_list)
     filtered_blast_table = filter_blast_table(merged_blast_table)
