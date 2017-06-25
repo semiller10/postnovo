@@ -21,9 +21,9 @@ multiprocessing_scan_count = 0
 def make_prediction_df(alg_basename_dfs_dict):
     utils.verbose_print()
 
-    if config.run_type[0] in ['train', 'optimize']:
+    if config.mode[0] in ['train', 'optimize']:
         consensus_min_len = config.train_consensus_len
-    elif config.run_type[0] in ['predict', 'test']:
+    elif config.mode[0] in ['predict', 'test']:
         consensus_min_len = config.min_len[0]
 
     tol_prediction_df_list = []

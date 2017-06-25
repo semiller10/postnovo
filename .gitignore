@@ -261,3 +261,14 @@ ModelManifest.xml
 postnovo.sln
 /postnovo.egg-info
 /dist
+/postnovo/__pycache__/__init__.cpython-36.pyc
+/postnovo/__pycache__/utils.cpython-36.pyc
+/postnovo/__pycache__/userargs.cpython-36.pyc
+/postnovo/__pycache__/masstol.cpython-36.pyc
+/postnovo/__pycache__/interspec.cpython-36.pyc
+/postnovo/__pycache__/input.cpython-36.pyc
+/postnovo/__pycache__/consensus.cpython-36.pyc
+/postnovo/__pycache__/config.cpython-36.pyc
+/postnovo/__pycache__/classifier.cpython-36.pyc
+/test2
+/postnovo.sh

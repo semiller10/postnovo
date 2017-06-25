@@ -6,7 +6,7 @@ setup(name = 'postnovo',
       author = 'Samuel Miller',
       license = 'Apache',
       packages = ['postnovo'],
-      package_data = {'postnovo': ['training/forest_dict_goes_here.pkl']},
+      package_data = {'postnovo': ['data/DeNovoGUI_mods.tsv', 'bashscripts/blast_batch.sh', 'bashscripts/blaststats_blast_batch.sh']},
       entry_points = {'console_scripts': ['postnovo = postnovo:main']},
       install_requires = ['numpy >= 1.11.0', 'pandas >= 0.19.2', 'scikit-learn >= 0.18.1'],
       classifiers = [

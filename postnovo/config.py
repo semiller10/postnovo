@@ -47,45 +47,6 @@ di_near_isobaric_subs = {
     'LM': 'LM_PY', 'ML': 'LM_PY', 'PY': 'LM_PY', 'YP': 'LM_PY'
     }
 
-# user args
-getopt_opts = ['help',
-               'quiet',
-               'train',
-               'test',
-               'optimize',
-               'iodir=',
-               'denovogui_path=',
-               'denovogui_mgf_path=',
-               #'frag_mass_tols=',
-               'novor_files=',
-               'peaks_files=',
-               'pn_files=',
-               'min_len=',
-               'min_prob=',
-               'db_search_ref_file=',
-               'fasta_ref_file=',
-               'cores=',
-               'param_file=']
-
-help_str = '\n'.join(['postnovo.py',
-                      '--iodir <"/home/postnovo_io">',
-                      '--train',
-                      '--test',
-                      '--optimize',
-                      #'--frag_mass_tols <"0.3, 0.5">',
-                      '--novor_files <"novor_output_0.3.novor.csv, novor_output_0.5.novor.csv">',
-                      '--peaks_files <"peaks_output_0.3.csv, peaks_output_0.5.csv">',
-                      '--pn_files <"pn_output_0.3.mgf.out, pn_output_0.5.mgf.out">',
-                      '--denovogui_path <"/home/DeNovoGUI-1.15.5/DeNovoGUI-1.15.5.jar">',
-                      '--denovogui_mgf_path <"/home/ms_files/spectra.mgf">',
-                      '--db_search_ref_file <"proteome_discoverer_psm_table.csv">',
-                      '--fasta_ref_file <"fasta_file.faa">',
-                      '--cores <3>',
-                      '--min_len <9>',
-                      '--min_prob <0.75>',
-                      '--quiet',
-                      '--param_file <"param.json">'])
-
 # program constraints
 accepted_algs = ['novor', 'peaks', 'pn']
 possible_alg_combos = []
@@ -93,35 +54,33 @@ for numerical_alg_combo in list(product((0, 1), repeat = len(accepted_algs)))[1:
     possible_alg_combos.append(tuple([alg for i, alg in enumerate(accepted_algs) if numerical_alg_combo[i]]))
 seqs_reported_per_alg_dict = {'novor': 1, 'peaks': 20, 'pn': 20}
 frag_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
-accepted_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
-fixed_mod = 'Oxidation of M'
-variable_mod = 'Carbamidomethylation of C'
+fixed_mods = ['Oxidation of M']
+variable_mods = ['Carbamidomethylation of C']
 frag_method = 'CID'
 frag_mass_analyzer = 'Trap'
 train_consensus_len = 7
+min_ref_match_len = 7
+min_blast_query_len = 9
 
-# run level settings: predict (default), train, test, optimize
+# mode settings: predict (default), train, test, optimize
 verbose = [True]
-run_type = ['predict']
-#frag_mass_tols = []
-novor_files = []
-peaks_files = []
-pn_files = []
-min_prob = [0.5]
+mode = ['predict']
 min_len = [train_consensus_len]
-min_ref_match_len = [7]
+min_prob = [0.5]
+db_search_psm_file = [None]
 db_search_ref_file = [None]
-fasta_ref_file = [None]
 cores = [1]
-min_blast_query_len = [9]
 
 # directories
 iodir = []
-training_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'training')
+data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 # global info from user input
 alg_list = []
 alg_combo_list = []
+novor_files = []
+peaks_files = []
+pn_files = []
 ## example
 ## alg_combo_list = [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn'), ('novor', 'peaks', 'pn')]
 is_alg_col_names = []
@@ -139,8 +98,10 @@ tol_basenames_dict = OrderedDict()
 ##                              '0.5': ['proteome-0.5.novor.csv', 'proteome-0.5.mgf.out'])
 
 # de novo output characteristics
-novor_seq_sub_fn = partial(re.sub, pattern = '\([^)]+\)|[0-9]', repl = '')
-pn_seq_sub_fn = partial(re.sub, pattern = '[0-9\+\-\.\^]', repl = '')
+# delete, in order: anything between parens, anything between square brackets, |, ^, +, numbers
+novor_seq_sub_fn = partial(re.sub, pattern = '\(.*\)|\[.*\]|\||\^|\+|[0-9]', repl = '')
+# delete, in order: anything between parens, anything between square brackets, ^, +, -, ., numbers
+pn_seq_sub_fn = partial(re.sub, pattern = '\(.*\)|\[.*\]|\^|\+|\-|\.|[0-9]', repl = '')
 precursor_mass_tol = [4.0]
 
 # training parameters

@@ -37,7 +37,7 @@ multiprocessing_seq_matching_count = 0
 def classify(prediction_df = None):
     utils.verbose_print()
 
-    if config.run_type[0] in ['train', 'test', 'optimize']:
+    if config.mode[0] in ['train', 'test', 'optimize']:
         prediction_df, ref_correspondence_df, db_search_ref = find_target_accuracy(prediction_df)
 
     utils.verbose_print('formatting data for compatability with model')
@@ -45,12 +45,12 @@ def classify(prediction_df = None):
     utils.save_pkl_objects(config.iodir[0], **{'prediction_df': prediction_df})
     #prediction_df = utils.load_pkl_objects(config.iodir[0], 'prediction_df')
 
-    if config.run_type[0] == 'predict':
+    if config.mode[0] == 'predict':
         reported_prediction_df = make_predictions(prediction_df)
         reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
         make_fasta(reported_prediction_df)
 
-    elif config.run_type[0] == 'test':
+    elif config.mode[0] == 'test':
         reported_prediction_df = make_predictions(prediction_df, db_search_ref)
         reported_prediction_df = reported_prediction_df.reset_index().\
             merge(ref_correspondence_df.reset_index(),
@@ -64,7 +64,7 @@ def classify(prediction_df = None):
         reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
         reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
     
-    elif config.run_type[0] in ['train', 'optimize']:
+    elif config.mode[0] in ['train', 'optimize']:
         
         #subsampled_df = subsample_training_data(prediction_df)
         #utils.save_pkl_objects(config.iodir[0], **{'subsampled_df': subsampled_df})
@@ -72,18 +72,18 @@ def classify(prediction_df = None):
 
         utils.verbose_print('updating training database')
         training_df = update_training_data(prediction_df)
-        #training_df = utils.load_pkl_objects(config.training_dir, 'training_df')
+        #training_df = utils.load_pkl_objects(config.data_dir, 'training_df')
 
         forest_dict = make_training_forests(training_df)
-        utils.save_pkl_objects(config.training_dir, **{'forest_dict': forest_dict})
-        #forest_dict = utils.load_pkl_objects(config.training_dir, 'forest_dict')
+        utils.save_pkl_objects(config.data_dir, **{'forest_dict': forest_dict})
+        #forest_dict = utils.load_pkl_objects(config.data_dir, 'forest_dict')
 
 
 def find_target_accuracy(prediction_df):
     utils.verbose_print('loading', basename(config.db_search_ref_file[0]))
     db_search_ref = load_db_search_ref_file(config.db_search_ref_file[0])
-    utils.verbose_print('loading', basename(config.fasta_ref_file[0]))
-    fasta_ref = load_fasta_ref_file(config.fasta_ref_file[0])
+    utils.verbose_print('loading', basename(config.db_search_ref_file[0]))
+    fasta_ref = load_fasta_ref_file(config.db_search_ref_file[0])
 
     utils.verbose_print('finding sequence matches to database search reference')
 
@@ -105,11 +105,11 @@ def find_target_accuracy(prediction_df):
     utils.verbose_print('finding de novo sequence matches to fasta reference for scans lacking database search PSM')
 
     no_db_search_psm_df = prediction_df[prediction_df['scan has db search PSM'] == 0]
-    no_db_search_psm_df = no_db_search_psm_df[no_db_search_psm_df['seq'].apply(len) >= config.min_ref_match_len[0]]
+    no_db_search_psm_df = no_db_search_psm_df[no_db_search_psm_df['seq'].apply(len) >= config.min_ref_match_len]
     unique_long_denovo_seqs = list(set(no_db_search_psm_df['seq']))
 
     utils.verbose_print('finding minimum de novo sequence length to uniquely match fasta reference')
-    #config.min_ref_match_len[0] = find_min_seq_len(fasta_ref = fasta_ref, cores = config.cores[0])
+    #config.min_ref_match_len = find_min_seq_len(fasta_ref = fasta_ref, cores = config.cores[0])
     one_percent_number_denovo_seqs = len(unique_long_denovo_seqs) / 100 / config.cores[0]
 
     multiprocessing_pool = Pool(config.cores[0])
@@ -202,9 +202,10 @@ def match_seq_to_fasta_ref(denovo_seq, fasta_ref, one_percent_number_denovo_seqs
 
 def standardize_prediction_df_cols(prediction_df):
 
-    for accepted_mass_tol in config.accepted_mass_tols:
-        if accepted_mass_tol not in prediction_df.columns:
-            prediction_df[accepted_mass_tol] = 0
+    # No longer necessary with preset mass tol list
+    #for accepted_mass_tol in config.accepted_mass_tols:
+    #    if accepted_mass_tol not in prediction_df.columns:
+    #        prediction_df[accepted_mass_tol] = 0
     prediction_df.drop('is top rank single alg', inplace = True)
     min_retention_time = prediction_df['retention time'].min()
     max_retention_time = prediction_df['retention time'].max()
@@ -358,22 +359,22 @@ def redistribute_residual_subsample(residual, remaining_accuracy_bins, accuracy_
 def update_training_data(prediction_df):
 
     try:
-        training_df = utils.load_pkl_objects(config.training_dir, 'training_df')
+        training_df = utils.load_pkl_objects(config.data_dir, 'training_df')
         training_df = pd.concat([training_df, prediction_df])
     except (FileNotFoundError, OSError) as e:
         training_df = prediction_df
-    utils.save_pkl_objects(config.training_dir, **{'training_df': training_df})
+    utils.save_pkl_objects(config.data_dir, **{'training_df': training_df})
 
     prediction_df_csv = prediction_df.copy()
     prediction_df_csv['timestamp'] = str(datetime.datetime.now()).split('.')[0]
     prediction_df_csv.reset_index(inplace = True)
     try:
-        training_df_csv = pd.read_csv(join(config.training_dir, 'training_df.csv'))
+        training_df_csv = pd.read_csv(join(config.data_dir, 'training_df.csv'))
         training_df_csv = pd.concat([training_df_csv, prediction_df_csv])
     except (FileNotFoundError, OSError) as e:
         training_df_csv = prediction_df_csv
     training_df_csv.set_index(['timestamp', 'scan'], inplace = True)
-    training_df_csv.to_csv(join(config.training_dir, 'training_df.csv'))
+    training_df_csv.to_csv(join(config.data_dir, 'training_df.csv'))
     # save prediction df as csv in case training df is too big to open in Excel
     # NEEDS FIXING: KeyError: 'timestamp'
     #prediction_df_csv.set_index(['timestamp', 'scan'], inplace = True)
@@ -383,30 +384,30 @@ def update_training_data(prediction_df):
 
 def make_predictions(prediction_df, db_search_ref = None):
 
-    forest_dict = utils.load_pkl_objects(config.training_dir, 'forest_dict')
+    forest_dict = utils.load_pkl_objects(config.data_dir, 'forest_dict')
 
     prediction_df['probability'] = np.nan
     for multiindex_key in config.is_alg_col_multiindex_keys:
         alg_group = tuple([alg for i, alg in enumerate(config.alg_list) if multiindex_key[i]])
 
         alg_group_data = prediction_df.xs(multiindex_key)
-        if config.run_type[0] == 'predict':
+        if config.mode[0] == 'predict':
             alg_group_data.drop(['seq', 'probability'], axis = 1, inplace = True)
-        elif config.run_type[0] == 'test':
+        elif config.mode[0] == 'test':
             accuracy_labels = alg_group_data['ref match'].tolist()
             alg_group_data.drop(['seq', 'ref match', 'probability'], axis = 1, inplace = True)
         alg_group_data.dropna(1, inplace = True)
         forest_dict[alg_group].n_jobs = config.cores[0]
         probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
 
-        if config.run_type[0] == 'test':
+        if config.mode[0] == 'test':
             utils.verbose_print('making', '_'.join(alg_group), 'test plots')
             #plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
             plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
 
         prediction_df.loc[multiindex_key, 'probability'] = probabilities
 
-    if config.run_type[0] == 'test':
+    if config.mode[0] == 'test':
         plot_precision_yield(prediction_df, db_search_ref)
 
     prediction_df = prediction_df.reset_index().set_index('scan')
@@ -430,7 +431,7 @@ def make_fasta(reported_prediction_df):
     seqs = reported_prediction_df['seq'].tolist()
     with open(os.path.join(config.iodir[0], 'postnovo_seqs.faa'), 'w') as fasta_file:
         for i, scan in enumerate(scans):
-            if len(seqs[i]) >= config.min_blast_query_len[0]:
+            if len(seqs[i]) >= config.min_blast_query_len:
                 permuted_seqs = make_l_i_permutations(seqs[i], permuted_seqs = [])[::-1]
                 for j, permuted_seq in enumerate(permuted_seqs):
                     fasta_file.write('>' + str(scan) + ':' + str(j) + ';' + str(round(probabilities[i], 2)) + '\n')
@@ -455,7 +456,7 @@ def make_training_forests(training_df):
 
     train_target_arr_dict = make_train_target_arr_dict(training_df)
     
-    if config.run_type[0] == 'train':
+    if config.mode[0] == 'train':
         forest_dict = make_forest_dict(train_target_arr_dict, config.rf_default_params)
 
         ## REMOVE
@@ -466,7 +467,7 @@ def make_training_forests(training_df):
             plot_binned_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
         #    plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key)
 
-    elif config.run_type[0] == 'optimize':
+    elif config.mode[0] == 'optimize':
         utils.verbose_print('optimizing random forest parameters')
         optimized_params = optimize_model(train_target_arr_dict)
         forest_dict = make_forest_dict(train_target_arr_dict, optimized_params)

@@ -1,6 +1,7 @@
 ''' Command line script: this module processes user input '''
 
 import getopt
+import argparse
 import sys
 import subprocess
 import datetime
@@ -9,504 +10,357 @@ import os
 import postnovo.config as config
 import postnovo.utils as utils
 
-#import config
-#import utils
-
 from multiprocessing import cpu_count
 from itertools import combinations, product
 from collections import OrderedDict
-
+from pkg_resources import resource_filename
+from copy import deepcopy
 
 def setup():
-    args = run_denovogui(
-        order_by_tol(
-            arg_cross_check(
-                parse_args())))
-    
-    download_forest_dict(args)
+
+    args = parse_args()
+    run_denovogui(args)
     set_global_vars(args)
+
     return args
     
 def parse_args():
-    ''' Return command line args as dict '''
     
-    args = {}
+    parser = argparse.ArgumentParser(
+        description='postnovo post-processes peptide de novo sequences to improve their accuracy'
+        )
 
-    ## FOR DEBUGGING PURPOSES: UNCOMMENT
-    # Take in args
-    if len(sys.argv) == 1:
-         print(config.help_str)
-         sys.exit(0)
+    parser.add_argument(
+        '--filename',
+        help=('specify the name of output and, if provided, Novor/PepNovo+ input files: '
+              'if Novor and PepNovo+ {0}-{1} Da files are provided rather than an mgf file, '
+              'provide the prefix as filename, '
+              'e.g., <filename>.0.2.novor.csv, <filename>.0.2.mgf.out'
+              .format(config.frag_mass_tols[0], config.frag_mass_tols[1]))
+        )
+    # Add 'novor, pn, peaks' choice when ready
+    parser.add_argument(
+        '--algs',
+        choices=['novor, pn'],
+        default='novor, pn',
+        help=('list the de novo sequencing algorithms that should be considered')
+        )
+    parser.add_argument(
+        '--iodir',
+        help=('when specified, all input files should be in dir and output goes to dir: '
+              'full filepaths for input files are not needed when this option is used')
+        )
+    parser.add_argument(
+        '--mode',
+        choices=['predict', 'test', 'train', 'optimize'],
+        default='predict',
+        help=('predict: screen "unknown" seqs, '
+              'test: screen "known" seqs, '
+              'train: train postnovo model with "known" seqs, '
+              'optimize: like train, but includes model parameter optimization')
+        )
+    parser.add_argument(
+        '--fixed_mods',
+        default='Oxidation of M',
+        help=('enter mods as comma-separated list in quotes, '
+              'display list of accepted mods with python postnovo --mods_list')
+        )
+    parser.add_argument(
+        '--variable_mods',
+        default='Carbamidomethylation of C',
+        help=('enter mods as comma-separated list in quotes, '
+              'display list of accepted mods with python postnovo --mods_list')
+        )
+    parser.add_argument(
+        '--denovogui_fp',
+        help='denovogui jar filepath'
+        )
+    parser.add_argument(
+        '--mgf_fp',
+        help=('spectra mgf filepath: '
+              'postnovo output stored in directory if no iodir is specified')
+        )
+    parser.add_argument(
+        '--cores',
+        type=int,
+        default=1,
+        help='number of cores to use'
+        )
+    parser.add_argument(
+        '--min_len',
+        type=int,
+        default=9,
+        help='min length of seqs reported by postnovo ({0} aa)'.format(config.min_len[0])
+        )
+    parser.add_argument(
+        '--min_prob',
+        type=float,
+        default=0.5,
+        help='min prob of seqs reported by postnovo'
+        )
+    parser.add_argument(
+        '--db_search_psm_file',
+        help=('table of psm info from db search needed for test, train and optimize modes: '
+              'see GitHub for accepted formats')
+        )
+    parser.add_argument(
+        '--db_search_ref_file',
+        help='fasta reference file used in generating database for db search'
+        )
+    parser.add_argument(
+        '--quiet',
+        action='store_true',
+        help='no messages to standard output'
+        )
+    parser.add_argument(
+        '--mods_list',
+        action='store_true',
+        help='display list of accepted mods'
+        )
 
-    ## FOR DEBUGGING PURPOSES: REMOVE
-    #test_str = ['--param_file', 'param.json',
-    #            '--iodir', 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test']
-    #test_str = ['--param_file', 'param.json',
-    #            '--iodir', '/home/samuelmiller/5-9-17/postnovo/io']
-
-    try:
-        ## FOR DEBUGGING PURPOSES: REMOVE AND UNCOMMENT
-        #opts, leftover = getopt.getopt(test_str, shortopts = '', longopts = config.getopt_opts)
-        opts, leftover = getopt.getopt(sys.argv[1:], shortopts = '', longopts = config.getopt_opts)
-    except getopt.GetoptError:
-        print(config.help_str)
-        sys.exit(1)
-
-    if '--param_file' in [opt[0] for opt in opts]:
-        return parse_param_file(opts)
-
-    try:
-        iodir = [opt[1] for opt in opts][[opt[0] for opt in opts].index('--iodir')]
-        check_path(iodir)
-    except:
-        print('No iodir')
-        sys.exit(1)
-
-    # Parse each option
-    for opt, arg in opts:
-        if opt == '--param_file':
-            return 
-        elif opt == '--help':
-            print(help_str)
-            sys.exit(0)
-        elif opt == '--quiet':
-            args['quiet'] = True
-        elif opt == '--train':
-            args['train'] = True
-        elif opt == '--test':
-            args['test'] = True
-        elif opt == '--optimize':
-            args['optimize'] = True
-        elif opt == '--iodir':
-            args['iodir'] = iodir
-        elif opt == '--denovogui_path':
-            denovogui_path = arg
-            check_path(denovogui_path)
-            args['denovogui_path'] = denovogui_path
-        elif opt == '--denovogui_mgf_path':
-            denovogui_mgf_path = arg
-            check_path(denovogui_mgf_path)
-            args['denovogui_mgf_path'] = denovogui_mgf_path
-        #elif opt == '--frag_mass_tols':
-        #    frag_mass_tols = arg.split(',')
-        #    frag_mass_tols = [os.path.join(iodir, tol.strip()) for tol in frag_mass_tols]
-        #    check_frag_mass_tols(frag_mass_tols)
-        #    args['frag_mass_tols'] = frag_mass_tols
-        elif opt == '--novor_files':
-            novor_files = arg.split(',')
-            novor_files = [os.path.join(iodir, f.strip()) for f in novor_files]
-            check_novor_files(novor_files)
-            args['novor_files'] = novor_files
-        elif opt == '--peaks_files':
-            peaks_files = arg.split(',')
-            peaks_files = [os.path.join(iodir, f.strip()) for f in peaks_files]
-            check_peaks_files(peaks_files)
-            args['peaks_files'] = peaks_files
-        elif opt == '--pn_files':
-            pn_files = arg.split(',')
-            pn_files = [os.path.join(iodir, f.strip()) for f in pn_files]
-            check_pn_files(pn_files)
-            args['pn_files'] = pn_files
-        elif opt == '--min_len':
-            min_len = check_min_len(arg)
-            args['min_len'] = min_len
-        elif opt == '--min_prob':
-            min_prob = check_min_prob(arg)
-            args['min_prob'] = min_prob
-        elif opt == '--db_search_ref_file':
-            check_path(arg, iodir)
-            args['db_search_ref_file'] = os.path.join(iodir, arg)
-        elif opt == '--fasta_ref_file':
-            check_path(arg, iodir)
-            args['fasta_ref_file'] = os.path.join(iodir, arg)
-        elif opt == '--cores':
-            check_cores(arg)
-            args['cores'] = int(arg)
-        else:
-            print('Unrecognized option ' + opt)
-            sys.exit(1)
-
-    return args
-
-def arg_cross_check(args):
-
-    if 'train' in args or 'test' in args or 'optimize' in args:
-        train_test_optimize_cross_check(args)
-
-    #if 'frag_mass_tols' not in args:
-    #    print('Fragment mass tolerance(s) of input must be specified')
-    #    sys.exit(1)
-
-    if 'denovogui_path' in args:
-        if 'denovogui_mgf_path' not in args:
-            print('denovogui_mgf_path argument also needed')
-            sys.exit(1)
-
-    if 'denovogui_mgf_path' in args:
-        if 'denovogui_path' not in args:
-            print('denovogui_path argument also needed')
-            sys.exit(1)
-
-    if 'denovogui_path' not in args:
-        for file_set in ['novor_files', 'pn_files']:
-            if file_set in args:
-                if len(config.frag_mass_tols) != len(args[file_set]):
-                #if len(args['frag_mass_tols']) != len(args[file_set]):
-                    print('List of fragment mass tolerances must align with list of file inputs')
-                    sys.exit(1)
-            else:
-                if file_set == 'novor_files':
-                    print('Novor input is required')
-                elif file_set == 'pn_files':
-                    print('PepNovo+ input is required')
-                sys.exit(1)
+    raw_args = parser.parse_args()
+    report_info(raw_args)
+    # config.iodir[0] is assigned before other package-wide variables
+    determine_iodir(raw_args)
+    raw_args = check_args(parser, raw_args)
+    args = parse_mods_strings(raw_args)
 
     return args
 
-def train_test_optimize_cross_check(args):
+def report_info(args):
+    if args.mods_list:
+        with open(resource_filename('postnovo', 'data/DeNovoGUI_mods.csv')) as mods_f:
+            print(mods_f.read())
+        sys.exit(0)
 
-    if 'db_search_ref_file' not in args:
-        print('A database search PSM table reference file is required')
-        sys.exit(1)
-    if 'fasta_ref_file' not in args:
-        print('A fasta reference file is required')
-        sys.exit(1)
-    if 'train' in args:
-        if 'test' in args or 'optimize' in args:
-            print('Train, test and optimize options are exclusive')
-            sys.exit(1)
-    if 'test' in args:
-        if 'optimize' in args:
-            print('Train, test and optimize options are exclusive')
-            sys.exit(1)
+def determine_iodir(args):
 
-def parse_param_file(opts):
-    
-    args = {}
+    if args.iodir == None:
+        config.iodir.append(os.path.dirname(args.mgf_fp))
+        if config.iodir[0] == '':
+            parser.error('provide the full mgf_fp')
+    else:
+        config.iodir.append(args.iodir)
+        check_path(config.iodir[0])
 
-    for opt, arg in opts:
-        if opt == '--param_file':
-            param_file = arg
-
-        elif opt == '--iodir':
-            iodir = arg
-            if os.path.exists(iodir) is False:
-                print(iodir + ' does not exist')
-                sys.exit(1)
-
-        else:
-            print('When using a json param file to pass arguments to postnovo, other command line arguments beside iodir are not accepted')
-            sys.exit(1)
-
-    check_path(param_file, iodir)
-    args = utils.load_json_objects(iodir, param_file.strip('.json'))
-
-    for opt, arg in args.items():
-        if opt == 'denovogui_path':
-            check_path(arg)
-        elif opt == 'denovogui_mgf_path':
-            check_path(arg)
-        #elif opt == 'frag_mass_tols':
-        #    frag_mass_tols = [str(frag_mass_tol) for frag_mass_tol in arg]
-        #    check_frag_mass_tols(frag_mass_tols)
-        #    args['frag_mass_tols'] = frag_mass_tols
-        elif opt == 'novor_files':
-            novor_files = [os.path.join(iodir, f.strip()) for f in arg]
-            check_novor_files(novor_files)
-            args['novor_files'] = novor_files
-        elif opt == 'peaks_files':
-            peaks_files = [os.path.join(iodir, f.strip()) for f in arg]
-            check_peaks_files(peaks_files)
-            args['peaks_files'] = peaks_files
-        elif opt == 'pn_files':
-            pn_files = [os.path.join(iodir, f.strip()) for f in arg]
-            check_pn_files(pn_files)
-            args['pn_files'] = pn_files
-        elif opt == 'min_len':
-            min_len = check_min_len(arg)
-            args['min_len'] = min_len
-        elif opt == 'min_prob':
-            min_prob = check_min_prob(arg)
-            args['min_prob'] = min_prob
-        elif opt == 'db_search_ref_file':
-            db_search_ref_file = os.path.join(iodir, arg)
-            check_path(db_search_ref_file)
-            args['db_search_ref_file'] = db_search_ref_file
-        elif opt == 'fasta_ref_file':
-            fasta_ref_file = os.path.join(iodir, arg)
-            check_path(fasta_ref_file)
-            args['fasta_ref_file'] = fasta_ref_file
-        elif opt == 'cores':
-            check_cores(arg)
-        else:
-            if opt in config.getopt_opts:
-                pass
-            else:
-                print('Unrecognized option ' + opt)
-                sys.exit(1)
-
-    args['iodir'] = iodir
+def parse_mods_strings(args):
+    fixed_mods_split1 = args.fixed_mods.split(', ')
+    fixed_mods_split2 = []
+    for fixed_mod in fixed_mods_split1:
+        fixed_mods_split2 += fixed_mod.split(',')
+    args.fixed_mods = fixed_mods_split2
+    variable_mods_split1 = args.variable_mods.split(', ')
+    variable_mods_split2 = []
+    for variable_mod in variable_mods_split1:
+        variable_mods_split2 += variable_mod.split(',')
+    args.variable_mods = variable_mods_split2
     return args
 
-def check_path(path, iodir = None):
+def check_args(parser, args):
+
+    if args.filename == None:
+        args.filename = os.path.splitext(os.path.basename(args.mgf_fp))[0]
+    else:
+        if args.denovogui_fp == None:
+            missing_files = []
+            for mass_tol in config.frag_mass_tols:
+                try:
+                    missing_files.append(
+                        check_path(args.filename + '.' + mass_tol + '.novor.csv',
+                                   config.iodir[0], return_str = True) + '\n'
+                        )
+                except TypeError:
+                    pass
+                try:
+                    missing_files.append(
+                        check_path(args.filename + '.' + mass_tol + '.mgf.out',
+                                   config.iodir[0], return_str = True) + '\n'
+                        )
+                except TypeError:
+                    pass
+        if missing_files:
+            for missing_file in missing_files:
+                print(missing_file)
+
+    if args.mode == 'predict' and \
+        (args.db_search_psm_file != None or args.db_search_ref_file != None):
+        parser.error('predict mode incompatible with db_search_psm_file and db_search_ref_file')
+    if (args.mode == 'test' or args.mode == 'train' or args.mode == 'optimize') and \
+        (args.db_search_psm_file == None or args.db_search_ref_file == None):
+        parser.error('test, train and optimize modes mode require '
+                     'db_search_psm_file and db_search_ref_file')
+
+    if args.fixed_mods != config.fixed_mods[0]:
+        check_mods(parser, args.fixed_mods, 'fixed')
+    if args.variable_mods != config.variable_mods[0]:
+        check_mods(parser, args.variable_mods, 'variable')
+
+    if (args.denovogui_fp != None) ^ (args.mgf_fp != None):
+        parser.error('both denovogui_fp and mgf_fp are needed')
+    if args.denovogui_fp == None and args.filename == None:
+        parser.error('run DeNovoGUI in postnovo to generate Novor and PepNovo+ files, '
+                     'or supply these files')
+    if args.denovogui_fp:
+        check_path(args.denovogui_fp, args.iodir)
+        check_path(args.mgf_fp, args.iodir)
+
+    if args.cores > cpu_count() or args.cores < 1:
+        parser.error(str(cpu_count()) + ' cores are available')
+    if args.min_len < 6:
+        parser.error('min length of reported peptides must be >= {0} aa'.format(config.min_len[0]))
+    if args.min_prob < 0 or args.min_prob > 1:
+        parser.error('min reported prob must be between 0 and 1')
+    if args.db_search_psm_file != None:
+        check_path(args.db_search_psm_file, args.iodir)
+    if args.db_search_ref_file != None:
+        check_path(args.db_search_ref_file, args.iodir)
+
+    return args
+
+def check_mods(parser, mod_input, mod_type):
+    with open(resource_filename('postnovo', 'data/DeNovoGUI_mods.csv')) as mods_f:
+        recognized_mods = []
+        for line in mods_f:
+            for mod in mod_input:
+                if mod in line:
+                    recognized_mods.append(mod)
+    unrecognized_mods = set(mod_input).intersection(recognized_mods)
+    if unrecognized_mods != set(mod_input):
+        parser.error('{0} mods not recognized: {1}'.format(mod_type, unrecognized_mods))
+
+def check_path(path, iodir = None, return_str = False):
     if iodir is None:
-        if os.path.exists(path) is False:
+        if os.path.exists(path) == False:
+            if return_str:
+                return path + ' does not exist'
             print(path + ' does not exist')
             sys.exit(1)
     else:
         full_path = os.path.join(iodir, path)
-        if os.path.exists(full_path) is False:
+        if os.path.exists(full_path) == False:
+            if return_str:
+                return path + ' does not exist'
             print(full_path + ' does not exist')
-
-#def check_frag_mass_tols(frag_mass_tols):
-#    for tol in frag_mass_tols:
-#        if tol not in config.accepted_mass_tols:
-#            print(tol + ' must be in list of accepted fragment mass tolerances: ' +\
-#                ', '.join(config.accepted_mass_tols))
-#            sys.exit(1)
-
-def check_novor_files(novor_files):
-    for i, file_name in enumerate(novor_files):
-        if '.novor.csv' not in file_name:
-            print(file_name + ' must have novor.csv file extension')
             sys.exit(1)
-        check_path(file_name)
-
-def check_peaks_files(peaks_files):
-    for i, file_name in peaks_files:
-        if '.csv' not in file_name:
-            print(file_name + ' must have csv file extension')
-            sys.exit(1)
-        check_path(file_name)
-
-def check_pn_files(pn_files):
-    for i, file_name in enumerate(pn_files):
-        if '.mgf.out' not in file_name:
-            print(file_name + ' must have mgf.out file extension')
-            sys.exit(1)
-        check_path(file_name)
-
-def check_min_len(arg):
-    try:
-        min_len = int(arg)
-    except ValueError:
-        print('Minimum reported sequence length must be an integer >0')
-        sys.exit(1)
-    if min_len < config.train_consensus_len:
-        print('Sequences shorter than length ' + str(config.train_consensus_len) + ' are not supported')
-        sys.exit(1)
-    return min_len
-
-def check_min_prob(arg):
-    try:
-        min_prob = float(arg)
-    except ValueError:
-        print('Minimum reported sequence probability must be a number between 0 and 1')
-        sys.exit(1)
-    if min_prob <= 0 or min_prob >= 1:
-        print('Minimum reported sequence probability must be a number between 0 and 1')
-        sys.exit(1)
-    return min_prob
-
-def check_cores(arg):
-    if not float(arg).is_integer():
-        print('Specify an integer number of cores')
-        sys.exit(1)
-    if int(arg) > cpu_count() or int(arg) < 1:
-        print(str(cpu_count()) + ' cores are available')
-        sys.exit(1)
-
-def download_forest_dict(args):
-    if os.path.exists(config.training_dir) is False:
-        os.makedirs(config.training_dir)
-
-    if os.path.exists(os.path.join(config.training_dir, 'forest_dict.pkl')) is False\
-        and ('predict' in args or 'test' in args):
-        with urlopen(forest_dict_url) as response,\
-            open(os.path.join(config.training_dir, 'forest_dict.pkl'), 'wb') as out_file:
-            copyfileobj(response, out_file)
 
 def run_denovogui(args):
+    
+    if args.denovogui_fp == None:
+        return
 
-    if 'denovogui_path' not in args:
-        return args
-
-    args['novor_files'] = []
-    args['pn_files'] = []
-
-    denovogui_param_args = OrderedDict().fromkeys(['-out', '-frag_tol',
-                                                   '-fixed_mods', '-variable_mods',
-                                                   '-pepnovo_hitlist_length', '-novor_fragmentation', '-novor_mass_analyzer'])
-    denovogui_param_args['-fixed_mods'] = '\"' + config.fixed_mod + '\"'
-    denovogui_param_args['-variable_mods'] = '\"' + config.variable_mod + '\"'
+    denovogui_param_args = \
+        OrderedDict().fromkeys(
+            ['-out', '-frag_tol',
+             '-fixed_mods', '-variable_mods',
+             '-pepnovo_hitlist_length', '-novor_fragmentation', '-novor_mass_analyzer']
+            )
+    denovogui_param_args['-fixed_mods'] = '\"' + ', '.join(args.fixed_mods) + '\"'
+    denovogui_param_args['-variable_mods'] = '\"' + ', '.join(args.variable_mods) + '\"'
     denovogui_param_args['-pepnovo_hitlist_length'] = str(config.seqs_reported_per_alg_dict['pn'])
     denovogui_param_args['-novor_fragmentation'] = '\"' + config.frag_method + '\"'
     denovogui_param_args['-novor_mass_analyzer'] = '\"' + config.frag_mass_analyzer + '\"'
 
     denovogui_args = OrderedDict().fromkeys(['-spectrum_files', '-output_folder', '-id_params',
                                              '-pepnovo', '-novor', '-directag', '-threads'])
-    mgf_input_name = os.path.splitext(os.path.basename(args['denovogui_mgf_path']))[0]
-    denovogui_args['-spectrum_files'] = '\"' + args['denovogui_mgf_path'] + '\"'
-    denovogui_args['-output_folder'] = '\"' + args['iodir'] + '\"'
+    if os.path.dirname(args.mgf_fp) == '':
+        denovogui_args['-spectrum_files'] = '\"' + os.path.join(config.iodir[0], args.mgf_fp) + '\"'
+    else:
+        denovogui_args['-spectrum_files'] = '\"' + args.mgf_fp + '\"'
+
+    denovogui_args['-output_folder'] = '\"' + config.iodir[0] + '\"'
     denovogui_args['-pepnovo'] = '1'
     denovogui_args['-novor'] = '1'
     denovogui_args['-directag'] = '0'
-    denovogui_args['-threads'] = str(args['cores'])
+    denovogui_args['-threads'] = str(args.cores)
 
     for tol in config.frag_mass_tols:
-    #for tol in args['frag_mass_tols']:
 
         denovogui_param_file_cmd = 'java -cp ' +\
-            '\"' + args['denovogui_path'] + '\"' +\
+            '\"' + args.denovogui_fp + '\"' +\
             ' com.compomics.denovogui.cmd.IdentificationParametersCLI '
         denovogui_param_args['-frag_tol'] = tol
         denovogui_param_args['-out'] = '\"' +\
-            os.path.join(args['iodir'],
-                 mgf_input_name + '_' + tol + '.par') + '\"'
+            os.path.join(config.iodir[0],
+                         args.filename + '.' + tol + '.par') + '\"'
         for opt, arg in denovogui_param_args.items():
             denovogui_param_file_cmd += opt + ' ' + arg + ' '
         subprocess.call(denovogui_param_file_cmd, shell = True)
 
         denovogui_cmd = 'java -cp ' +\
-            '\"' + args['denovogui_path'] + '\"' +\
+            '\"' + args.denovogui_fp + '\"' +\
             ' com.compomics.denovogui.cmd.DeNovoCLI '
         denovogui_args['-id_params'] = denovogui_param_args['-out']
         for opt, arg in denovogui_args.items():
             denovogui_cmd += opt + ' ' + arg + ' '
         subprocess.call(denovogui_cmd, shell = True)
 
-        args['novor_files'].append(os.path.join(args['iodir'], mgf_input_name + '_' + tol + '.novor.csv'))
         set_novor_output_filename_cmd = 'mv ' +\
-            '\"' + os.path.join(args['iodir'], mgf_input_name + '.novor.csv') + '\" ' +\
-            '\"' + os.path.join(args['iodir'], args['novor_files'][-1]) + '\"'
+            '\"' + os.path.join(config.iodir[0], args.filename + '.novor.csv') + '\" ' +\
+            '\"' + os.path.join(config.iodir[0], args.filename + '.' + tol + '.novor.csv') + '\"'
         subprocess.call(set_novor_output_filename_cmd, shell = True)
 
-        args['pn_files'].append(os.path.join(args['iodir'], mgf_input_name + '_' + tol + '.mgf.out'))
         set_pn_output_filename_cmd = 'mv ' +\
-            '\"' + os.path.join(args['iodir'], mgf_input_name + '.mgf.out') + '\" ' +\
-            '\"' + os.path.join(args['iodir'], args['pn_files'][-1]) + '\"'
+            '\"' + os.path.join(config.iodir[0], args.filename + '.mgf.out') + '\" ' +\
+            '\"' + os.path.join(config.iodir[0], args.filename + '.' + tol + '.mgf.out') + '\"'
         subprocess.call(set_pn_output_filename_cmd, shell = True)
-
-    return args
 
 def set_global_vars(args):
 
-    config.iodir.append(args['iodir'])
-
-    if 'quiet' in args:
-        config.verbose[0] = False
-
-    if 'train' in args:
-        config.run_type[0] = 'train'
-    elif 'optimize' in args:
-        config.run_type[0] = 'optimize'
-    elif 'test' in args:
-        config.run_type[0] = 'test'
-
-    #for tol in sorted(args['frag_mass_tols']):
-    #    config.frag_mass_tols.append(tol)
-
-    if 'novor_files' in args:
-        novor_files_local, _ = order_inputs(
-            args['novor_files'], config.frag_mass_tols)
-        #novor_files_local, _ = order_inputs(
-        #    args['novor_files'], args['frag_mass_tols'])
-        for novor_file in novor_files_local:
-            config.novor_files.append(novor_file)
-
-        config.alg_list.append('novor')
-        config.alg_tols_dict['novor'] = OrderedDict(
-            zip(config.frag_mass_tols,
-                [os.path.basename(novor_file) for novor_file in config.novor_files]))
-
-    if 'peaks_files' in args:
-        peaks_files_local, _ = order_inputs(
-            args['peaks_files'], config.frag_mass_tols)
-        #peaks_files_local, _ = order_inputs(
-        #    args['peaks_files'], args['frag_mass_tols'])
-        for peaks_file in peaks_files_local:
-            config.peaks_files.append(peaks_file)
-
-        config.alg_list.append('peaks')
-        config.alg_tols_dict['peaks'] = OrderedDict(
-            zip(config.frag_mass_tols,
-                [os.path.basename(peaks_file) for peaks_file in config.peaks_files]))
-
-    if 'pn_files' in args:
-        pn_files_local, _ = order_inputs(
-            args['pn_files'], config.frag_mass_tols)
-        #pn_files_local, _ = order_inputs(
-        #    args['pn_files'], args['frag_mass_tols'])
-        for pn_file in pn_files_local:
-            config.pn_files.append(pn_file)
-
-        config.alg_list.append('pn')
-        config.alg_tols_dict['pn'] = OrderedDict(
-            zip(config.frag_mass_tols,
-                [os.path.basename(pn_file) for pn_file in config.pn_files]))
-
+    for alg in args.algs.split(', '):
+        config.alg_list.append(alg)
     for combo_level in range(2, len(config.alg_list) + 1):
         combo_level_combo_list = [combo for combo in combinations(config.alg_list, combo_level)]
         for alg_combo in combo_level_combo_list:
             config.alg_combo_list.append(alg_combo)
-
     # MultiIndex cols for prediction_df
     for alg in config.alg_list:
         is_alg_col_name = 'is ' + alg + ' seq'
         config.is_alg_col_names.append(is_alg_col_name)
-
     is_alg_col_multiindex_list = list(product((0, 1), repeat = len(config.alg_list)))
     for multiindex_key in is_alg_col_multiindex_list[1:]:
         config.is_alg_col_multiindex_keys.append(multiindex_key)
 
+    for tol in config.frag_mass_tols:
+        config.novor_files.append(
+            os.path.join(config.iodir[0], args.filename + '.' + tol + '.novor.csv'))
+        config.pn_files.append(
+            os.path.join(config.iodir[0], args.filename + '.' + tol + '.mgf.out'))
+    alg_fp_lists = {'novor': config.novor_files,
+                    'peaks': config.peaks_files,
+                    'pn': config.pn_files}
+    for alg in config.alg_list:
+        config.alg_tols_dict[alg] = OrderedDict(
+            zip(config.frag_mass_tols,
+                [os.path.basename(fp) for fp in alg_fp_lists[alg]]))
+
     tol_alg_dict_local = invert_dict_of_lists(config.alg_tols_dict)
     for k, v in tol_alg_dict_local.items():
         config.tol_alg_dict[k] = v
-
     for tol in config.frag_mass_tols:
         config.tol_basenames_dict[tol] = []
     for alg in config.alg_tols_dict:
         for tol in config.alg_tols_dict[alg]:
             config.tol_basenames_dict[tol] += [config.alg_tols_dict[alg][tol]]
 
-    if 'min_len' in args:
-        config.min_len[0] = args['min_len']
-    if 'min_prob' in args:
-        config.min_prob[0] = args['min_prob']
+    config.mode[0] = args.mode
 
-    if 'db_search_ref_file' in args:
-        config.db_search_ref_file[0] = args['db_search_ref_file']
-    if 'fasta_ref_file' in args:
-        config.fasta_ref_file[0] = args['fasta_ref_file']
-        
-    if 'cores' in args:
-        config.cores[0] = args['cores']
+    for fixed_mod in args.fixed_mods:
+        config.fixed_mods.append(fixed_mod)
+    for variable_mod in args.variable_mods:
+        config.variable_mods.append(variable_mod)
 
-def order_by_tol(args):
-    for alg in config.accepted_algs:
-        for arg in args:
-            if alg in arg:
-                args[alg + '_files'] =\
-                    list(list(
-                        zip(*(sorted(zip(args[alg + '_files'],
-                                         config.frag_mass_tols),
-                                     key = lambda x: x[1])))
-                        )[0])
-                #args[alg + '_files'] =\
-                #    list(list(
-                #        zip(*(sorted(zip(args[alg + '_files'],
-                #                         args['frag_mass_tols']),
-                #                     key = lambda x: x[1])))
-                #        )[0])
-    return args
-
-def order_inputs(file_names, tols):
-    tol_index = [i for i in range(len(tols))]
-    ordered_index, ordered_tols = zip(*sorted(
-        zip(tol_index, tols), key = lambda x: x[1]))
-    ordered_file_names = list(zip(*sorted(
-        zip(ordered_index, file_names), key = lambda x: x[0])))[1]
-    return list(ordered_file_names), list(ordered_tols)
+    config.cores[0] = args.cores
+    config.min_len[0] = args.min_len
+    config.min_prob[0] = args.min_prob
+    if args.db_search_ref_file != None:
+        if args.iodir == None:
+            config.db_search_psm_file[0] = args.db_search_psm_file
+            config.db_search_ref_file[0] = args.db_search_ref_file
+        else:
+            config.db_search_psm_file[0] = os.path.join(args.iodir, args.db_search_psm_file)
+            config.db_search_ref_file[0] = os.path.join(args.iodir, args.db_search_ref_file)
+    if args.quiet:
+        config.verbose[0] = False
 
 def invert_dict_of_lists(d):
     values = set(a for b in d.values() for a in b)

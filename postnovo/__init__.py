@@ -23,9 +23,6 @@ def main():
     start_time = time()
 
     args = userargs.setup()
-    utils.save_json_objects(config.iodir[0], **{'args': args})
-    #args = utils.load_json_objects(r'C:\Users\Samuel\Documents\Visual Studio 2015\Projects\postnovo\test', 'args')
-    #userargs.set_global_vars(args)
 
     alg_basename_dfs_dict = input.load_files()
     utils.save_pkl_objects(config.iodir[0], **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
