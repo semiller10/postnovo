@@ -630,7 +630,6 @@ def make_fasta(reported_prediction_df):
         fasta_seq_list.append(fasta_seq)
         scan_list.append(str(final_mass_group_df['scan'].iloc[0]))
         mass_list.append(str(final_mass_group_df['measured mass'].iloc[0]))
-        mass_error_list.append(str(final_mass_group_df['mass error'].iloc[0]))
 
     # Have a list the length of the number of fasta seqs
     # Initialized with 0's
@@ -675,18 +674,17 @@ def make_fasta(reported_prediction_df):
             if not remove:
                 fasta_seq = fasta_seq_list[i]
                 if len(fasta_seq) >= config.min_blast_query_len:
-                    permuted_seqs = make_l_i_permutations(fasta_seq, permuted_seqs = [])[::-1]
+                    permuted_seqs = make_xle_permutations(fasta_seq, permuted_seqs = [])[::-1]
                     for j, permuted_seq in enumerate(permuted_seqs):
                         fasta_header = ('>' + 
                                         '(scan)' + scan_list[i] + 
-                                        '(l_i_permutation)' + str(j) + 
+                                        '(xle_permutation)' + str(j) + 
                                         '(mass)' + mass_list[i] + 
-                                        '(mass_error)' + mass_error_list[i] + 
                                         '\n')
                         fasta_file.write(fasta_header)
                         fasta_file.write(permuted_seq + '\n')
 
-def make_l_i_permutations(seq, residue_number = 0, permuted_seqs = None):
+def make_xle_permutations(seq, residue_number = 0, permuted_seqs = None):
 
     if permuted_seqs == None:
         permuted_seqs = []

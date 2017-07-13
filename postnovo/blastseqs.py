@@ -24,20 +24,19 @@ raw_blast_table_headers = \
 
 search_ranks = ['species', 'genus', 'family', 'order', 'class', 'phylum', 'superkingdom']
 taxon_assignment_threshold = 0.9
-postnovo_taxa_assignment_table_headers = ['scan', 'seq', 'postnovo score'] + search_ranks
-postnovo_score_penalties = {2: 2, 3: 1, 4: 0}
+#postnovo_score_penalties = {2: 2, 3: 1, 4: 0}
 
 def main():
 
     args = parse_args()
-    #args = make_fasta(args)
+    args = make_fasta(args)
 
-    #split_fasta_pathname_list = split_fasta(args.faa_fp, args.cores, args.max_seqs_per_process)
-    #run_blast(split_fasta_pathname_list, args.blastp_fp, args.db_fp, args.cores)
+    split_fasta_pathname_list = split_fasta(args.faa_fp, args.cores, args.max_seqs_per_process)
+    run_blast(split_fasta_pathname_list, args.blastp_fp, args.db_fp, args.cores)
 
-    #merged_xml_filename = merge_xml(split_fasta_pathname_list)
-    #merged_blast_table = xml_to_tabular(merged_xml_filename)
-    #parsed_blast_table = parse_blast_table(args.from_postnovo, args.faa_fp, merged_blast_table)
+    merged_xml_filename = merge_xml(split_fasta_pathname_list)
+    merged_blast_table = xml_to_tabular(merged_xml_filename)
+    parsed_blast_table = parse_blast_table(args.from_postnovo, args.faa_fp, merged_blast_table)
     #filtered_blast_table = filter_blast_table(parsed_blast_table, args.from_postnovo)
     #with open('/home/samuelmiller/metagenome_to_protein/filtered_blast_table.pkl', 'wb') as f:
     #    pkl.dump(filtered_blast_table, f, 2)
@@ -549,18 +548,24 @@ def merge_xml(split_fasta_pathname_list):
 
 def parse_blast_table(from_postnovo, faa_fp, raw_blast_table):
 
-    postnovo_merged_headers = ['scan', 'xle permutation', 'postnovo score'] + raw_blast_table_headers[1:]
+    postnovo_merged_headers = ['scan', 'xle permutation', 'mass'] + raw_blast_table_headers[1:]
 
     if from_postnovo:
         qseqid_list = raw_blast_table['qseqid'].tolist()
-        scan_col_plus_another = [qseqid.split(':') for qseqid in qseqid_list]
+        # qseqid format is, ex., (scan)14656(l_i_permutation)3(mass)1045.2342343
+        qseqid_list = [qseqid.split('(scan)')[1] for qseqid in qseqid_list]
+        temp_list_of_lists = [qseqid.split('(xle_permutation)') for qseqid in qseqid_list]
         scan_col = pd.Series(
-            [split_qseqid[0] for split_qseqid in scan_col_plus_another])
-        permut_col_score_col = pd.DataFrame(
-            [split_qseqid[1].split(';') for split_qseqid in scan_col_plus_another])
+            [temp_list[0] for temp_list in temp_list_of_lists])
+        temp_list_of_lists = [temp_list.split('(mass)') for temp_list in temp_list_of_lists]
+        permut_col = pd.Series(
+            [temp_list[0] for temp_list in temp_list_of_lists])
+        mass_col = pd.Series(
+            [temp_list[1] for temp_list in temp_list_of_lists])
         parsed_blast_table = pd.concat(
             [scan_col,
-             permut_col_score_col,
+             permut_col,
+             mass_col,
              raw_blast_table[raw_blast_table.columns[1:]]],
             axis = 1)
         parsed_blast_table.columns = postnovo_merged_headers
@@ -629,7 +634,7 @@ def filter_blast_table(blast_table, from_postnovo):
             0)
 
     if from_postnovo:
-        blast_table['postnovo score'] = blast_table['postnovo score'].apply(float)
+        #blast_table['postnovo score'] = blast_table['postnovo score'].apply(float)
         #blast_table['score penalty'] = blast_table['postnovo score'].apply(
         #    lambda score: postnovo_score_penalties[int(score / 0.2)])
         #filtered_blast_table = blast_table[
@@ -794,7 +799,7 @@ def find_parsimonious_taxonomy(augmented_blast_table, from_postnovo):
                         list_of_taxa_assignment_rows.append(
                             [id] + \
                                 [representative_row['seq']] + \
-                                [representative_row['postnovo score']] + \
+                                [representative_row['mass']] + \
                                 rank_index * ['N/A'] + \
                                 representative_row[rank:].tolist()
                             )
@@ -812,7 +817,7 @@ def find_parsimonious_taxonomy(augmented_blast_table, from_postnovo):
                 list_of_taxa_assignment_rows.append(
                     [id] + \
                         [representative_row['seq']] + \
-                        [representative_row['postnovo score']] + \
+                        [representative_row['mass']] + \
                         len(search_ranks) * ['N/A']
                     )
             else:
@@ -825,7 +830,7 @@ def find_parsimonious_taxonomy(augmented_blast_table, from_postnovo):
     if from_postnovo:
         taxa_assignment_table = pd.DataFrame(
             list_of_taxa_assignment_rows,
-            columns=['scan', 'seq', 'postnovo score'] + search_ranks)
+            columns=['scan', 'seq', 'mass'] + search_ranks)
     else:
         taxa_assignment_table = pd.DataFrame(
             list_of_taxa_assignment_rows,
