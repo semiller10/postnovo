@@ -1,5 +1,6 @@
 ''' Sequence accuracy classification model '''
 
+import difflib
 import pandas as pd
 import numpy as np
 import sklearn as sk
@@ -392,10 +393,10 @@ def make_predictions(prediction_df, db_search_ref = None):
 
         alg_group_data = prediction_df.xs(multiindex_key)
         if config.mode[0] == 'predict':
-            alg_group_data.drop(['seq', 'probability'], axis = 1, inplace = True)
+            alg_group_data.drop(['seq', 'probability', 'measured mass', 'mass error'], axis = 1, inplace = True)
         elif config.mode[0] == 'test':
             accuracy_labels = alg_group_data['ref match'].tolist()
-            alg_group_data.drop(['seq', 'ref match', 'probability'], axis = 1, inplace = True)
+            alg_group_data.drop(['seq', 'ref match', 'probability', 'measured mass', 'mass error'], axis = 1, inplace = True)
         alg_group_data.dropna(1, inplace = True)
         forest_dict[alg_group].n_jobs = config.cores[0]
         probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
@@ -426,16 +427,264 @@ def make_predictions(prediction_df, db_search_ref = None):
 
 def make_fasta(reported_prediction_df):
     
-    scans = reported_prediction_df.index.get_level_values('scan').tolist()
-    probabilities = reported_prediction_df['probability'].tolist()
-    seqs = reported_prediction_df['seq'].tolist()
+    # after assembling fasta seqs, check to make sure no seqs are in any other seqs
+    # remove duplicate shorter seqs
+
+    # df with cols: scan, seq, prob, mass, mass error
+    reduced_df = reported_prediction_df.reset_index()[
+        ['scan', 'probability', 'seq', 'measured mass', 'mass error']]
+    # sort by mass
+    reduced_df.sort('measured mass', inplace=True)
+    # extract mass list, mass error list
+    mass_list = reduced_df['measured mass'].apply(float).tolist()
+    mass_error_list = reduced_df['mass error'].apply(float).tolist()
+    # assign mass 0 to group 0
+    current_prelim_mass_group = 0
+    prelim_mass_group_list = [current_prelim_mass_group]
+    # loop through each mass, to mass n-1
+    for i in range(len(mass_list[:-1])):
+        # if next mass outside mass error of mass
+        if mass_list[i] + mass_error_list[i] < mass_list[i+1] - mass_error_list[i+1]:
+            current_prelim_mass_group += 1
+        prelim_mass_group_list.append(current_prelim_mass_group)
+    # add mass group col to df
+    reduced_df['prelim mass group'] = prelim_mass_group_list
+    current_final_mass_group = -1
+    final_mass_group_list = []
+    # min seq similarity = 7/9 rounded down to third digit
+    min_seq_similarity = 0.777
+    scan_proximity = 300
+    # scan proximity bonus = 1/9 rounded down to third digit
+    scan_proximity_bonus = 0.111
+    # length difference penalty = 1/9 rounded down to third digit
+    length_diff_penalty = 0.111
+    length_diff_multiplier = 3
+    for prelim_mass_group in set(prelim_mass_group_list):
+        prelim_mass_group_df = reduced_df[reduced_df['prelim mass group'] == prelim_mass_group]
+
+        #print(prelim_mass_group_df)
+
+        local_final_mass_group_list = [-1] * len(prelim_mass_group_df)
+        for first_row_index in range(len(prelim_mass_group_df)):
+            first_seq = prelim_mass_group_df['seq'].iloc[first_row_index]
+            first_scan = prelim_mass_group_df['scan'].iloc[first_row_index]
+            if local_final_mass_group_list[first_row_index] == -1:
+                current_final_mass_group += 1
+
+            #print('current final mass group: ' + str(current_final_mass_group))
+            #print(list(first_seq))
+
+            for second_row_index in range(first_row_index + 1, len(prelim_mass_group_df)):
+                if (local_final_mass_group_list[first_row_index] == -1 or
+                    local_final_mass_group_list[second_row_index] == -1):
+                    first_seq_list = list(first_seq)
+                    second_seq = prelim_mass_group_df['seq'].iloc[second_row_index]
+                    second_seq_list = list(second_seq)
+                    second_scan = prelim_mass_group_df['scan'].iloc[second_row_index]
+
+                    #print(second_seq_list)
+
+                    if len(first_seq) <= len(second_seq):
+                        shorter_seq_list = first_seq_list
+                        longer_seq_list = second_seq_list
+                    else:
+                        shorter_seq_list = second_seq_list
+                        longer_seq_list = first_seq_list
+                    match_count = 0
+                    mismatch_count = 0
+                    for aa in shorter_seq_list:
+                        try:
+                            del(longer_seq_list[longer_seq_list.index(aa)])
+                            match_count += 1
+                        except ValueError:
+                            mismatch_count += 1
+                    seq_similarity = match_count / len(shorter_seq_list)
+                    if abs(first_scan - second_scan) <= scan_proximity:
+                        adjusted_seq_similarity = \
+                            (seq_similarity + 
+                             scan_proximity_bonus - 
+                             (abs(len(first_seq) - len(second_seq)) // length_diff_multiplier * length_diff_penalty))
+                    else:
+                        adjusted_seq_similarity = \
+                            (seq_similarity - 
+                             (abs(len(first_seq) - len(second_seq)) // length_diff_multiplier * length_diff_penalty))
+
+                    #print('seq similarity: ' + str(seq_similarity))
+                    #print('adjusted seq similarity: ' + str(adjusted_seq_similarity))
+
+                    if adjusted_seq_similarity >= min_seq_similarity:
+                        if ((local_final_mass_group_list[first_row_index] == -1) and 
+                            (local_final_mass_group_list[second_row_index] == -1)):
+                            local_final_mass_group_list[first_row_index] = current_final_mass_group
+                            local_final_mass_group_list[second_row_index] = current_final_mass_group
+                        else:
+                            if local_final_mass_group_list[first_row_index] == -1:
+                                local_final_mass_group_list[first_row_index] = \
+                                    local_final_mass_group_list[second_row_index]
+                            if local_final_mass_group_list[second_row_index] == -1:
+                                local_final_mass_group_list[second_row_index] = \
+                                    local_final_mass_group_list[first_row_index]
+            if local_final_mass_group_list[first_row_index] == -1:
+                local_final_mass_group_list[first_row_index] = current_final_mass_group
+        final_mass_group_list += local_final_mass_group_list
+
+    #print(str(len(final_mass_group_list)))
+    #print(str(len(reduced_df)))
+
+    reduced_df['final mass group'] = final_mass_group_list
+
+    # make preliminary mass groups
+    # have a list of final mass groups
+    # keep track of the last assigned final group (bigger than each preliminary mass group)
+    # loop through group to determine seq similarity
+    # seq similarity > 
+    # ex. preliminary mass group
+    # scan  seq         prob        mass        error       final group
+    # 18920	LTVEEAK	    0.610231138	1075.575276	0.004302301 N
+    # 24760	LTEDLGGLEK	0.892213125	1075.575276	0.004302301 N+1
+    # 18825	VDALTVEEAK	0.574638	1075.576276	0.004302305 N
+    # 24856	LTEDLGGLEK	0.819234005	1075.576276	0.004302305 N+1
+    # 24953	LTEDLELNK	0.7073737	1075.576276	0.004302305 N+1
+    # assign group N to row 0
+    # make a list of chars in seq 0: [L, T, V, E, E, A, K]
+    # make a list of chars in seq 1: [L, T, E, D, L, G, G, L, E, K]
+    # loop through chars in shorter seq (seq 0)
+    # search for char in longer seq (seq 1)
+    # count matches and mismatches
+    # if found in longer seq list, del char
+    # at the end of this example: seq 1 list = [D, L, G, G, L], matches = 5, mismatches = 2
+    # if matches / # aa in shorter seq >= 0.77 (7/9), add to group N
+    # else do not add to a new final group
+    # final groups are recorded in corresponding list
+    # proceeding to the next comparison
+    # seq 0 list: [L, T, V, E, E, A, K]
+    # seq 2 list: [V, D, A, L, T, V, E, E, A, K]
+    # matches = 7, mismatches = 0 => add to group N
+    # ... moving onto second loop starting with second seq:
+    # this seq is assigned to group N+1 (last assigned final group + 1)
+    # ignore seq comparisons to seqs with final group assignment
+    # first comparison: seq 1, seq 3 => 100% match
+    # second (last) comparison: seq 1, seq 4
+    # seq 1 list: [L, T, E, D, L, G, G, L, E, K]
+    # seq 4 list: [L, T, E, D, L, E, L, N, K]
+    # matches = 8, mismatches = 1
+
+    # faa file from most probable, longest overlapping seq of each mass group
+    # loop through each mass group
+    fasta_seq_list = []
+    scan_list = []
+    mass_list = []
+    mass_error_list = []
+    min_overlap = 5
+    for current_final_mass_group in set(final_mass_group_list):
+        # xs mass group
+        final_mass_group_df = reduced_df[reduced_df['final mass group'] == current_final_mass_group]
+        # sort by prob, highest to lowest
+        final_mass_group_df.sort('probability', ascending=False, inplace=True)
+
+        #print('final mass group df:')
+        #print(final_mass_group_df)
+
+        # take highest prob seq as faa seq
+        final_mass_group_seq_list = final_mass_group_df['seq'].tolist()
+        fasta_seq = final_mass_group_seq_list[0]
+
+        #print('fasta seq: ' + fasta_seq)
+
+        # loop through subsequent seqs
+        for seq in final_mass_group_seq_list[1:]:
+            # if seq is not in faa seq
+            if seq not in fasta_seq:
+                seq_matcher_obj = difflib.SequenceMatcher(None, fasta_seq, seq)
+                # d = difflib.SequenceMatcher(None, faa seq, seq)
+                # l = d.get_matching_blocks()
+                matching_blocks_list = seq_matcher_obj.get_matching_blocks()
+                # for m in l
+                for block in matching_blocks_list:
+                    # if (m[0] == 0) and (m[1] + m[2] == len(seq))
+                    if ((block[0] == 0) and 
+                        (block[1] + block[2] == len(seq)) and 
+                        (block[2] >= min_overlap)):
+                        # this means overlap of seq with left side of faa seq
+                        # ex. faa seq = 'bcde', seq = 'abcd'
+                        # if m[2] >= min overlap (5)
+                        # faa seq = seq[:m[1]] + faa seq
+                        fasta_seq = seq[:block[1]] + fasta_seq
+
+                        #print('overlapping seq: ' + seq)
+                        #print('updated fasta seq: ' + fasta_seq)
+
+                    # elif (m[1] == 0) and (m[0] + m[2] == len(faa seq)
+                    elif ((block[1] == 0) and
+                            (block[0] + block[2] == len(fasta_seq)) and
+                            (block[2] >= min_overlap)):
+                        # this means overlap of seq with right side of faa seq
+                        # ex. faa seq = 'abcd', seq = 'bcde'
+                        # if m[2] >= min overlap (5)
+                        # faa seq = faa seq + seq[m[2]:]
+                        fasta_seq = fasta_seq + seq[block[2]:]
+
+                        #print('overlapping seq: ' + seq)
+                        #print('updated fasta seq: ' + fasta_seq)
+
+        fasta_seq_list.append(fasta_seq)
+        scan_list.append(str(final_mass_group_df['scan'].iloc[0]))
+        mass_list.append(str(final_mass_group_df['measured mass'].iloc[0]))
+        mass_error_list.append(str(final_mass_group_df['mass error'].iloc[0]))
+
+    # Have a list the length of the number of fasta seqs
+    # Initialized with 0's
+    # Change to 1's for seqs that are present in other seqs
+    # Loop through each fasta seq
+    # Compare to every other fasta seq that is not slated for removal
+    # Is the first seq in the second?
+    # Is the second seq in the first?
+    # If one seq is in the other, mark the removal list with 1 at the proper position
+    # Loop through the removal list to write to file
+    # If 0, write the L/I permuted seqs to file
+    removal_list = [0 for i in range(len(fasta_seq_list))]
+    for i, first_fasta_seq in enumerate(fasta_seq_list):
+        for j in range(i+1, len(fasta_seq_list)):
+            second_fasta_seq = fasta_seq_list[j]
+            if (first_fasta_seq in second_fasta_seq) and (removal_list[j] == 0):
+                
+                #print('first scan: ' + scan_list[i])
+                #print('first mass: ' + mass_list[i])
+                #print('first seq: ' + first_fasta_seq)
+                #print('second scan: ' + scan_list[j])
+                #print('second mass: ' + mass_list[j])
+                #print('second seq: ' + second_fasta_seq)
+
+                removal_list[i] = 1
+                break
+            elif (second_fasta_seq in first_fasta_seq) and (removal_list[i] == 0):
+
+                #print('first scan: ' + scan_list[i])
+                #print('first mass: ' + mass_list[i])
+                #print('first seq: ' + first_fasta_seq)
+                #print('second scan: ' + scan_list[j])
+                #print('second mass: ' + mass_list[j])
+                #print('second seq: ' + second_fasta_seq)
+
+                removal_list[j] = 1
+                break
+                    
+    # open faa file
     with open(os.path.join(config.iodir[0], 'postnovo_seqs.faa'), 'w') as fasta_file:
-        for i, scan in enumerate(scans):
-            if len(seqs[i]) >= config.min_blast_query_len:
-                permuted_seqs = make_l_i_permutations(seqs[i], permuted_seqs = [])[::-1]
-                for j, permuted_seq in enumerate(permuted_seqs):
-                    fasta_file.write('>' + str(scan) + ':' + str(j) + ';' + str(round(probabilities[i], 2)) + '\n')
-                    fasta_file.write(permuted_seq + '\n')
+        for i, remove in enumerate(removal_list):
+            if not remove:
+                fasta_seq = fasta_seq_list[i]
+                if len(fasta_seq) >= config.min_blast_query_len:
+                    permuted_seqs = make_l_i_permutations(fasta_seq, permuted_seqs = [])[::-1]
+                    for j, permuted_seq in enumerate(permuted_seqs):
+                        fasta_header = ('>' + 
+                                        '(scan)' + scan_list[i] + 
+                                        '(l_i_permutation)' + str(j) + 
+                                        '(mass)' + mass_list[i] + 
+                                        '(mass_error)' + mass_error_list[i] + 
+                                        '\n')
+                        fasta_file.write(fasta_header)
+                        fasta_file.write(permuted_seq + '\n')
 
 def make_l_i_permutations(seq, residue_number = 0, permuted_seqs = None):
 

@@ -90,7 +90,7 @@ def update_prediction_df(prediction_df):
     # concatenate full array columnwise with prediction_df
     prediction_df = pd.concat([prediction_df, interspec_df], axis = 1)
 
-    prediction_df.drop(['measured mass', 'mass error'], axis = 1, inplace = True)
+    # prediction_df.drop(['measured mass', 'mass error'], axis = 1, inplace = True)
     prediction_df.reset_index(inplace = True)
     prediction_df.set_index(config.is_alg_col_names + ['scan'], inplace = True)
     prediction_df.sort_index(level = ['scan'] + config.is_alg_col_names, inplace = True)

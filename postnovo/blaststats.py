@@ -29,7 +29,6 @@ blast_table_headers = ['query_id',
                        'e_value',
                        'bit_score',
                        'percent_identity',
-                       'gaps',
                        'taxon_id']
 
 def main():

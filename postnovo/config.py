@@ -188,4 +188,5 @@ reported_df_cols = ['seq', 'probability', 'ref match',
                     'avg rank', 'peaks rank', 'pn rank',
                     'len', 'fraction novor parent len', 'fraction peaks parent len', 'fraction pn parent len',
                     'is longest consensus', 'is top rank consensus', 'is top rank single alg',
-                    'sqs', 'retention time']
+                    'sqs', 'retention time',
+                    'measured mass', 'mass error']
