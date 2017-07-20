@@ -81,6 +81,16 @@ def parse_args():
               'postnovo output stored in directory if no iodir is specified')
         )
     parser.add_argument(
+        '--psm_fp_list',
+        nargs='+',
+        help=('provide any MSGF+ PSM tsv files to compare with postnovo output')
+        )
+    parser.add_argument(
+        '--psm_name_list',
+        nargs='+',
+        help=('provide corresponding names for MSGF+ PSM datasets specified in psm_fp_list')
+        )
+    parser.add_argument(
         '--cores',
         type=int,
         default=1,
@@ -203,6 +213,14 @@ def check_args(parser, args):
     if args.denovogui_fp:
         check_path(args.denovogui_fp, args.iodir)
         check_path(args.mgf_fp, args.iodir)
+
+    if (args.psm_fp_list != None) ^ (args.psm_name_list != None):
+        parser.error('both psm_fp_list and psm_name_list are needed')
+    if args.psm_fp_list:
+        if len(psm_fp_list) != len(psm_name_list):
+            parser.error('specify an equal number of inputs to psm_fp_list and psm_name_list')
+        for psm_fp in psm_fp_list:
+            check_path(psm_fp, args.iodir)
 
     if args.cores > cpu_count() or args.cores < 1:
         parser.error(str(cpu_count()) + ' cores are available')
@@ -348,6 +366,13 @@ def set_global_vars(args):
         config.fixed_mods.append(fixed_mod)
     for variable_mod in args.variable_mods:
         config.variable_mods.append(variable_mod)
+
+    if args.psm_fp_list:
+        for i, psm_fp in enumerate(args.psm_fp_list):
+            config.psm_fp_list.append(
+                os.path.join(config.iodir[0], psm_fp))
+            config.psm_name_list.append(
+                os.path.join(config.iodir[0], args.psm_name_list[i]))
 
     config.cores[0] = args.cores
     config.min_len[0] = args.min_len

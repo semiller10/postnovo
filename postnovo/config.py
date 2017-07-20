@@ -81,6 +81,8 @@ alg_combo_list = []
 novor_files = []
 peaks_files = []
 pn_files = []
+psm_fp_list = []
+psm_name_list = []
 ## example
 ## alg_combo_list = [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn'), ('novor', 'peaks', 'pn')]
 is_alg_col_names = []
@@ -102,6 +104,7 @@ tol_basenames_dict = OrderedDict()
 novor_seq_sub_fn = partial(re.sub, pattern = '\(.*\)|\[.*\]|\||\^|\+|[0-9]', repl = '')
 # delete, in order: anything between parens, anything between square brackets, ^, +, -, ., numbers
 pn_seq_sub_fn = partial(re.sub, pattern = '\(.*\)|\[.*\]|\^|\+|\-|\.|[0-9]', repl = '')
+total_seq_sub_fn = partial(re.sub, pattern='\(.*\)|\[.*\]|\||\^|\+|\-|\.|[0-9]', repl='')
 precursor_mass_tol = [4.0]
 
 # training parameters
