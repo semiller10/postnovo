@@ -428,6 +428,7 @@ def make_predictions(prediction_df, db_search_ref = None):
 
     return reported_prediction_df
 
+#postnovo_df = pd.read_csv('C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\best_predictions.csv', header=0)
 def merge_predictions(postnovo_df):
 
     # Compare postnovo to psm seqs
@@ -435,12 +436,14 @@ def merge_predictions(postnovo_df):
     # Loop through each psm dataset
     # UNCOMMENT
     #for i, psm_fp in enumerate(config.psm_fp_list):
-    for i, psm_fp in enumerate(['C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\042017_toolik_core_2_2_1_1_sem.ERR1022687.fgs.tsv',
-                                'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\042017_toolik_core_2_2_1_1_sem.ERR1034454.fgs.tsv']):
+    for i, psm_fp in enumerate(['C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\042017_toolik_core_2_2_1_1_sem.ERR1022687.fgs.fixedKR.tsv',
+                                'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\042017_toolik_core_2_2_1_1_sem.ERR1022687.graph2pep.fixedKR.tsv',
+                                'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\042017_toolik_core_2_2_1_1_sem.ERR1034454.fgs.fixedKR.tsv',
+                                'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\042017_toolik_core_2_2_1_1_sem.ERR1034454.graph2pep.fixedKR.tsv']):
         # Use a string to indicate the metagenome based on the filename
         # UNCOMMENT
         #psm_name = config.psm_name_list[i]
-        psm_name = ['ERR1022687.fgs', 'ERR1034454.fgs'][i]
+        psm_name = ['ERR1022687.fgs', 'ERR1022687.graph2pep', 'ERR1034454.fgs', 'ERR1034454.graph2pep'][i]
         # Load MSGF tsv output as search df
         psm_df = pd.read_csv(psm_fp, sep='\t', header=0)
         # There is a row of col labels
@@ -509,12 +512,12 @@ def merge_predictions(postnovo_df):
     # Map dataset names to tuple score and seq positions
     # UNCOMMENT
     #name_list = ['postnovo'] + config.psm_name_list
-    name_list = ['postnovo', 'ERR1022687.fgs', 'ERR1034454.fgs']
+    name_list = ['postnovo', 'ERR1022687.fgs', 'ERR1022687.graph2pep', 'ERR1034454.fgs', 'ERR1034454.graph2pep']
     score_col_dict = OrderedDict([('postnovo', col_dict['probability'])])
     seq_col_dict = OrderedDict([('postnovo', col_dict['seq'])])
     # UNCOMMENT
     #for psm_name in config.psm_name_list:
-    for psm_name in ['ERR1022687.fgs', 'ERR1034454.fgs']:
+    for psm_name in ['ERR1022687.fgs', 'ERR1022687.graph2pep', 'ERR1034454.fgs', 'ERR1034454.graph2pep']:
         score_col_dict[psm_name] = col_dict['1-psm_qvalue_' + psm_name]
         seq_col_dict[psm_name] = col_dict['psm_seq_' + psm_name]
     row_count = 0
@@ -547,7 +550,7 @@ def merge_predictions(postnovo_df):
     # UNCOMMENT
     #for mass_col in ['measured mass'] + ['precursor_mass_' + name for name in config.psm_name_list]:
     merged_mass_col = []
-    mass_col_headers = ['measured mass'] + ['precursor_mass_' + name for name in ['ERR1022687.fgs', 'ERR1034454.fgs']]
+    mass_col_headers = ['measured mass'] + ['precursor_mass_' + name for name in ['ERR1022687.fgs', 'ERR1022687.graph2pep', 'ERR1034454.fgs', 'ERR1034454.graph2pep']]
     mass_col_lists = [merged_df[header].tolist() for header in mass_col_headers]
     for row in range(len(mass_col_lists[0])):
         for col in range(len(mass_col_lists)):
@@ -564,7 +567,7 @@ def merge_predictions(postnovo_df):
     retained_cols = ['scan', 'seq', 'probability', 'measured mass']
     # UNCOMMENT
     #for name in config.psm_name_list[i]:
-    for name in ['ERR1022687.fgs', 'ERR1034454.fgs']:
+    for name in ['ERR1022687.fgs', 'ERR1022687.graph2pep', 'ERR1034454.fgs', 'ERR1034454.graph2pep']:
         retained_cols.append('psm_seq_' + name)
         retained_cols.append('1-psm_qvalue_' + name)
     retained_cols += ['best_seq', 'best_predicts_from', 'has_predicts_from']
@@ -640,12 +643,12 @@ def group_predictions(merged_df):
     col_dict = OrderedDict([(merged_df.columns[i], i) for i in range(len(merged_df.columns))])
     # UNCOMMENT
     #name_list = ['postnovo'] + config.psm_name_list
-    name_list = ['postnovo', 'ERR1022687.fgs', 'ERR1034454.fgs']
+    name_list = ['postnovo', 'ERR1022687.fgs', 'ERR1022687.graph2pep', 'ERR1034454.fgs', 'ERR1034454.graph2pep']
     score_col_dict = OrderedDict([('postnovo', col_dict['probability'])])
     seq_col_dict = OrderedDict([('postnovo', col_dict['seq'])])
     # UNCOMMENT
     #for psm_name in config.psm_name_list:
-    for psm_name in ['ERR1022687.fgs', 'ERR1034454.fgs']:
+    for psm_name in ['ERR1022687.fgs', 'ERR1022687.graph2pep', 'ERR1034454.fgs', 'ERR1034454.graph2pep']:
         score_col_dict[psm_name] = col_dict['1-psm_qvalue_' + psm_name]
         seq_col_dict[psm_name] = col_dict['psm_seq_' + psm_name]
 
@@ -680,17 +683,16 @@ def group_predictions(merged_df):
                 if pd.isnull(first_seq):
                     continue
 
-                #print('current final mass group: ' + str(current_final_mass_group))
                 #print(list(first_seq))
 
                 for second_row_index in range(first_row_index + 1, len(prelim_mass_group_df)):
                     if (local_final_mass_group_list[first_row_index] == -1 or
                         local_final_mass_group_list[second_row_index] == -1):
-                        first_seq_list = list(first_seq)
 
                         # Loop through each seq in the row
                         for second_seq_origin, second_seq_col in seq_col_dict.items():
 
+                            first_seq_list = list(first_seq)
                             second_seq = prelim_mass_group_df.iloc[second_row_index, second_seq_col]
                             if pd.isnull(second_seq):
                                 continue
@@ -750,12 +752,12 @@ def lengthen_seqs(mass_grouped_df):
     col_dict = OrderedDict([(mass_grouped_df.columns[i], i) for i in range(len(mass_grouped_df.columns))])
     # UNCOMMENT
     #name_list = ['postnovo'] + config.psm_name_list
-    name_list = ['postnovo', 'ERR1022687.fgs', 'ERR1034454.fgs']
+    name_list = ['postnovo', 'ERR1022687.fgs', 'ERR1022687.graph2pep', 'ERR1034454.fgs', 'ERR1034454.graph2pep']
     score_col_dict = OrderedDict([('postnovo', col_dict['probability'])])
     seq_col_dict = OrderedDict([('postnovo', col_dict['seq'])])
     # UNCOMMENT
     #for psm_name in config.psm_name_list:
-    for psm_name in ['ERR1022687.fgs', 'ERR1034454.fgs']:
+    for psm_name in ['ERR1022687.fgs', 'ERR1022687.graph2pep', 'ERR1034454.fgs', 'ERR1034454.graph2pep']:
         score_col_dict[psm_name] = col_dict['1-psm_qvalue_' + psm_name]
         seq_col_dict[psm_name] = col_dict['psm_seq_' + psm_name]
 
@@ -929,7 +931,7 @@ def make_fasta(retained_seq_dict):
                         scan_list_of_lists[i] += scan_list_of_lists[j]
                         break
       
-    # fasta header string: >(scan_list)1,2,3,4,5(xle_permutation)3(precursor_mass)1034.345(score)0.90\n              
+    # fasta header string: >(scan_list)1,2,3,4,5(xle_permutation)3(precursor_mass)1034.345(seq_score)0.90\n              
     # open faa file
     # UNCOMMENT
     #with open(os.path.join(config.iodir[0], 'postnovo_seqs.faa'), 'w') as fasta_file:
@@ -949,7 +951,7 @@ def make_fasta(retained_seq_dict):
                                         '(scan_list)' + ','.join(map(str, scan_list_of_lists[i])) + 
                                         '(xle_permutation)' + str(j) + 
                                         '(precursor_mass)' + str(mass_list[i]) + 
-                                        '(score)' + str(round(score_list[i], 3)) + 
+                                        '(seq_score)' + str(round(score_list[i], 3)) + 
                                         '(seq_origin)' + seq_origin + 
                                         '\n')
                         fasta_file.write(fasta_header)

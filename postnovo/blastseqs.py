@@ -35,34 +35,56 @@ eggnog_output_headers = ['query', 'seed ortholog', 'evalue', 'score', 'predicted
 def main():
 
     args = parse_args()
-    args = make_fasta(args)
+    #args = make_fasta(args)
 
-    split_fasta_pathname_list = split_fasta(args.faa_fp, args.cores, args.max_seqs_per_process)
-    run_blast(split_fasta_pathname_list, args.blastp_fp, args.db_fp, args.cores)
+    #split_fasta_pathname_list = split_fasta(args.faa_fp, args.cores, args.max_seqs_per_process)
+    #run_blast(split_fasta_pathname_list, args.blastp_fp, args.db_fp, args.cores)
 
-    last_file_number = int(split_fasta_pathname_list[-1].split('.faa')[0].split('_')[-1])
-    file_prefix = split_fasta_pathname_list[0].split('_1.faa')[0]
-    xml_files = [file_prefix + '_' + str(i) + '.out' for i in range(1, last_file_number + 1)]
-    xml_out = file_prefix + '.merged.xml'
-    # write the full xml output of the BLAST search for use in BLAST2GO as needed
-    merge_xml(xml_files, xml_out)
+    #last_file_number = int(split_fasta_pathname_list[-1].split('.faa')[0].split('_')[-1])
+    #file_prefix = split_fasta_pathname_list[0].split('_1.faa')[0]
+    #xml_files = [file_prefix + '_' + str(i) + '.out' for i in range(1, last_file_number + 1)]
+    #xml_out = file_prefix + '.merged.xml'
+    ## write the full xml output of the BLAST search for use in BLAST2GO as needed
+    #merge_xml(xml_files, xml_out)
 
-    # convert xml to tabular format
-    multiprocessing_pool = Pool(args.cores)
-    blast_table_df_list = multiprocessing_pool.map(xml_to_tabular, xml_files)
-    multiprocessing_pool.close()
-    multiprocessing_pool.join()
-    merged_blast_table = pd.concat(blast_table_df_list, axis=0)
+    #split_fasta_pathname_list = ['C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\postnovo_seqs_' + str(i) + '.faa'
+    #                             for i in range(1, 31)]
+    #xml_files = ['C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\postnovo_seqs_' + str(i) + '.out'
+    #             for i in range(1, 31)]
+    split_fasta_pathname_list = ['/home/samuelmiller/metagenome_vs_postnovo/blast_output/postnovo_seqs_' + str(i) + '.faa'
+                                 for i in range(1, 31)]
+    xml_files = ['/home/samuelmiller/metagenome_vs_postnovo/blast_output/postnovo_seqs_' + str(i) + '.out'
+                 for i in range(1, 31)]
 
-    parsed_blast_table = parse_blast_table(args.from_postnovo, args.faa_fp, merged_blast_table)
-    filtered_blast_table = filter_blast_table(parsed_blast_table, args.from_postnovo)
-    with open('/home/samuelmiller/metagenome_vs_postnovo/toolik_2_2_filtered_blast_table.pkl', 'wb') as f:
-        pkl.dump(filtered_blast_table, f, 2)
-    import sys
-    sys.exit()
-    #with open('C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\filtered_blast_table.pkl', 'rb') as f:
+    ## convert xml to tabular format
+    #multiprocessing_pool = Pool(args.cores)
+    #blast_table_df_list = multiprocessing_pool.map(xml_to_tabular, xml_files)
+    #multiprocessing_pool.close()
+    #multiprocessing_pool.join()
+    #merged_blast_table = pd.concat(blast_table_df_list, axis=0)
+
+    #with open('/home/samuelmiller/metagenome_vs_postnovo/blast_output/merged_blast_table.pkl', 'wb') as f:
+    #    pkl.dump(merged_blast_table, f, 2)
+    #with open('C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\merged_blast_table.pkl', 'rb') as f:
+    #    merged_blast_table = pkl.load(f)
+    #with open('/home/samuelmiller/metagenome_vs_postnovo/blast_output/merged_blast_table.pkl', 'rb') as f:
+    #    merged_blast_table = pkl.load(f)
+
+    #parsed_blast_table = parse_blast_table(args.from_postnovo, args.faa_fp, merged_blast_table)
+    #filtered_blast_table = filter_blast_table(parsed_blast_table, args.from_postnovo)
+
+    #with open('/home/samuelmiller/metagenome_vs_postnovo/blast_output/filtered_blast_table.pkl', 'wb') as f:
+    #    pkl.dump(filtered_blast_table, f, 2)
+    #with open('/home/samuelmiller/metagenome_vs_postnovo/blast_output/filtered_blast_table.pkl', 'rb') as f:
     #    filtered_blast_table = pkl.load(f)
-    augmented_blast_table = retrieve_taxonomy(filtered_blast_table, args.cores, args.from_postnovo)
+
+    #augmented_blast_table = retrieve_taxonomy(filtered_blast_table, args.cores, args.from_postnovo)
+
+    #with open('/home/samuelmiller/metagenome_vs_postnovo/blast_output/augmented_blast_table.pkl', 'wb') as f:
+    #    pkl.dump(augmented_blast_table, f, 2)
+    with open('/home/samuelmiller/metagenome_vs_postnovo/blast_output/augmented_blast_table.pkl', 'rb') as f:
+        augmented_blast_table = pkl.load(f)
+
     taxa_assignment_table, taxa_count_table = \
         find_parsimonious_taxonomy(augmented_blast_table, args.from_postnovo)
 
@@ -95,94 +117,87 @@ def main():
     #    header=0
     #    )
 
-    # Write a fasta file containing the full subject sequences of the top hit
-    full_hit_seq_fasta_path = os.path.join(
-        os.path.dirname(args.faa_fp),
-        os.path.splitext(os.path.basename(args.faa_fp))[0] + '_full_hit_seq.faa')
-    make_full_hit_seq_fasta(augmented_blast_table, taxa_assignment_table, full_hit_seq_fasta_path, args.from_postnovo, args.cores)
-
-    sys.exit(0)
-
-
+    #sys.exit(0)
 
     # Plan to parse BLAST table
     # Create taxonomically annotated table
     # Add a hit col to df
-    scan_list = augmented_blast_table['scan'].tolist()
-    last_scan = scan_list[0]
+    augmented_blast_table.reset_index(inplace=True)
+    scan_list_list = augmented_blast_table['scan_list'].tolist()
+    last_scan_list = scan_list_list[0]
     hit_list = [0]
-    for scan in scan_list[1:]:
-        if scan != last_scan:
-            last_scan = scan
+    for scan_list in scan_list_list[1:]:
+        if scan_list != last_scan_list:
+            last_scan_list = scan_list
             hit_list.append(0)
         else:
             hit_list.append(hit_list[-1] + 1)
     augmented_blast_table['hit'] = hit_list
 
-    # Draw up to 10 hits from each scan group
-    # Evenly sample scan groups over 10, starting with hit 0
-    scan_groups = augmented_blast_table.groupby('scan')
-    sampled_table = scan_groups.apply(sample_hits)
+    # Draw up to 10 hits from each scan list group
+    # Evenly sample scan list groups larger than 10, starting with hit 0
+    scan_list_groups = augmented_blast_table.groupby('scan_list')
+    sampled_table = scan_list_groups.apply(sample_hits)
     # Make fasta file for eggnog-mapper
-    # Header: >(scan)scan(hit)hit number
+    # Header: >(scan_list)scan lists(hit)hit number
     # Seq: full subject seq for each hit
     # Sort into fasta files based on superkingdom (up to 3 files total)
     eggnog_mapper_first_faa = os.path.join(
         os.path.dirname(args.faa_fp),
         os.path.splitext(os.path.basename(args.faa_fp))[0] + '_eggnog_mapper_first_round.faa')
-    #eggnog_fasta_path_list = make_full_hit_seq_fasta1(sampled_table, eggnog_mapper_first_faa, args.cores)
+    eggnog_fasta_path_list = make_full_hit_seq_fasta(sampled_table, eggnog_mapper_first_faa, args.cores)
 
-    eggnog_fasta_path_list = [
-        '/home/samuelmiller/6-23-17/postnovo_test/postnovo_seqs_eggnog_mapper_first_round.archaea_0.faa',
-        '/home/samuelmiller/6-23-17/postnovo_test/postnovo_seqs_eggnog_mapper_first_round.bacteria_0.faa',
-        '/home/samuelmiller/6-23-17/postnovo_test/postnovo_seqs_eggnog_mapper_first_round.bacteria_1.faa',
-        '/home/samuelmiller/6-23-17/postnovo_test/postnovo_seqs_eggnog_mapper_first_round.eukaryota_0.faa'
-        ]
+    #eggnog_fasta_path_list = [
+    #    '/home/samuelmiller/6-23-17/postnovo_test/postnovo_seqs_eggnog_mapper_first_round.archaea_0.faa',
+    #    '/home/samuelmiller/6-23-17/postnovo_test/postnovo_seqs_eggnog_mapper_first_round.bacteria_0.faa',
+    #    '/home/samuelmiller/6-23-17/postnovo_test/postnovo_seqs_eggnog_mapper_first_round.bacteria_1.faa',
+    #    '/home/samuelmiller/6-23-17/postnovo_test/postnovo_seqs_eggnog_mapper_first_round.eukaryota_0.faa'
+    #    ]
 
     # Run eggnog-mapper on each file using HMMER
     # Download annotations
     print('Run eggnog-mapper with the fasta files.')
-    #input('Press enter to continue once you have placed the eggnog-mapper output in the fasta directory.')
+    input('Press enter to continue once you have placed the eggnog-mapper output in the fasta directory.')
     # Load as dataframe 
     # Assign predefined column names
-    # Concat (up to 3) annotation dfs
+    # Concat annotation dfs
     eggnog_output_path_list = [faa + '.emapper.annotations' for faa in eggnog_fasta_path_list]
     eggnog_first_round_df = pd.DataFrame(columns=eggnog_output_headers)
     for output_path in eggnog_output_path_list:
         eggnog_output_df = pd.read_csv(output_path, sep='\t', header=None, names=eggnog_output_headers)
         eggnog_first_round_df = pd.concat([eggnog_first_round_df, eggnog_output_df], axis=0)
-    # Split header into two cols for scans and hits
+    # Split header into two cols for scan lists and hits
     query_list = eggnog_first_round_df['query'].tolist()
-    query_list = [query.split('(scan)')[1] for query in query_list]
+    query_list = [query.split('(scan_list)')[1] for query in query_list]
     temp_list_of_lists = [query.split('(hit)') for query in query_list]
-    scan_list = [temp_list[0] for temp_list in temp_list_of_lists]
+    scan_list_list = [temp_list[0] for temp_list in temp_list_of_lists]
     hit_list = [temp_list[1] for temp_list in temp_list_of_lists]
     eggnog_first_round_df.drop('query', axis=1, inplace=True)
-    eggnog_first_round_df['scan'] = scan_list
+    eggnog_first_round_df['scan_list'] = scan_list_list
     eggnog_first_round_df['hit'] = hit_list
 
-    # Loop through each scan group
-    scan_set_list = list(set(scan_list))
+    # Loop through each scan list group
+    scan_list_set_list = list(set(scan_list_list))
     conserv_func_df_list = []
-    for scan in scan_set_list:
-        scan_df = eggnog_first_round_df[eggnog_first_round_df['scan'] == scan]
-        # Are all the eggnog descriptions the same?
-        if (scan_df['eggnog hmm desc'] == scan_df['eggnog hmm desc'].iloc[0]).all():
-            # If true, the group is functionally conserved
-            conserv_func_df_list.append(scan_df)
-        # If false, make a list of each COG category, splitting by comma (e.g., 'C, T')
+    nonconserv_func_df_list = []
+    for scan_list in scan_list_set_list:
+        scan_list_df = eggnog_first_round_df[eggnog_first_round_df['scan_list'] == scan_list]
+        # If all the eggnog annotations are the same, the group is functionally conserved
+        if (scan_list_df['eggnog hmm desc'] == scan_list_df['eggnog hmm desc'].iloc[0]).all():
+            conserv_func_df_list.append(scan_list_df)
         else:
-            cog_cat_list
-    # Loop through each COG category in the list
-    # Is the category found in each entry?
-    # If so, break and the group is maintained
-    # If there is functional conservation, place the group into df1, else df2
+            nonconserv_func_df_list.append(scan_list_df)
+    conserv_func_df = pd.concat(conserv_func_df_list)
+    nonconserv_func_df = pd.concat(nonconserv_func_df_list)
+
     # Merge with taxonomically annotated table to attach taxonomic info to df1 results
+    augmented_blast_table.join(conserv_func_df)
     # The usefulness of the results in df2 is unknown as yet
-    # Recover groups from taxonomic df corresponding to groups in df2
+    # Recover scan groups from taxonomic df corresponding to groups in df2
+
     # Place these groups in df2.1
-    # Analyze the groups in df2.1 based on taxonomic profile of taxonomically conserved groups of df1
-    # Find scan groups in df1 that have the same taxa at the species, genus or family level
+    # Analyze the groups in df2.1 based on taxonomic profile of taxonomically conserved, high-scoring groups of df1
+    # Find scan groups in df1 that have the same taxa at the species, genus or family level and seq scores > 0.8
     # Place these groups into df1.1
     # Make lists, then sets, of species, genus and family in df1.1
     # Remove empty strings from sets but not lists
@@ -217,7 +232,7 @@ def sample_hits(scan_group, sample_size = 10):
         sample_rows = [scan_group_rows[i * div + min(i, mod)] for i in range(sample_size)]
         return scan_group.iloc[sample_rows]
 
-def make_full_hit_seq_fasta1(df, write_path, cores):
+def make_full_hit_seq_fasta(df, write_path, cores):
     
     gi_list = df['sallseqid'].tolist()
     multiprocessing_pool = Pool(cores)
@@ -225,18 +240,18 @@ def make_full_hit_seq_fasta1(df, write_path, cores):
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
-    df['scan'] = df['scan'].apply(str)
+    df['scan'] = df['scan_list'].apply(str)
     df['hit'] = df['hit'].apply(str)
     df['full seq'] = full_hit_seq_list
 
     eggnog_fasta_path_list = []
     for superkingdom in superkingdoms:
         superkingdom_df = df[df['superkingdom'] == superkingdom]
-        superkingdom_scan_list = superkingdom_df['scan'].tolist()
+        superkingdom_scan_list = superkingdom_df['scan_list'].tolist()
         superkingdom_hit_list = superkingdom_df['hit'].tolist()
         superkingdom_seq_list = superkingdom_df['full seq'].tolist()
         superkingdom_header_list = [
-            '>' + '(scan)' + superkingdom_scan_list[i] + '(hit)' + superkingdom_hit_list[i]
+            '>' + '(scan_list)' + superkingdom_scan_list[i] + '(hit)' + superkingdom_hit_list[i]
             for i in range(len(superkingdom_scan_list))
             ]
         superkingdom_header_seq_dict = {
@@ -244,81 +259,19 @@ def make_full_hit_seq_fasta1(df, write_path, cores):
             for i in range(len(superkingdom_header_list))
             }
 
+        previous_last_row = 0
         for i in range(len(superkingdom_header_list) // hmmer_seq_count_limit + 1):
             superkingdom_write_path = write_path.replace('.faa', '.' + superkingdom.lower() + '_' + str(i) + '.faa')
             eggnog_fasta_path_list.append(superkingdom_write_path)
             with open(superkingdom_write_path, 'w') as f:
-                for j, header in enumerate(superkingdom_header_list):
+                for j, header in enumerate(superkingdom_header_list[previous_last_row:]):
                     f.write(header + '\n')
                     f.write(superkingdom_header_seq_dict[header] + '\n')
-                    if j + 1 == hmmer_seq_count_limit * (i + 1):
+                    if j+1 == hmmer_seq_count_limit:
+                        previous_last_row = j+1
                         break
     return eggnog_fasta_path_list
     
-def make_full_hit_seq_fasta(augmented_blast_table, taxa_assignment_table, write_path, from_postnovo, cores):
-
-    # augmented_blast_table groupby scan (qseqid) index
-    # make df of first row of each group
-    # make list of scans (qseqids) from df index
-    # make list of gi's from df sallseqid col
-    # recover full seq from Entrez using gi
-    # make dict with scan keys and full seqs
-    # taxa_assignment_table extract rows with NaN superkingdom
-    # make list of scans (qseqids) from df index
-    # for each superkingdom
-    # taxa_assignment_table extract rows for superkingdom
-    # make list of scans (qseqids) from df index
-    # open fasta file to write
-    # for each scan (qseqid) in superkingdom list and null list
-    # write scan (qseqid) as header
-    # write seq recovered from dict
-
-
-    if from_postnovo:
-        index_label = 'scan'
-    else:
-        index_label = 'qseqid'
-    augmented_blast_table.reset_index(inplace=True)
-    first_hits_df = augmented_blast_table.groupby(index_label).first()
-
-    first_hits_df.reset_index(inplace=True)
-    full_header_list = first_hits_df[index_label].apply(str).tolist()
-    full_gi_list = first_hits_df['sallseqid'].tolist()
-
-    #full_hit_seq_list = []
-    #for gi in gi_list:
-    #    full_hit_seq_list.append(query_ncbi_protein(gi))
-
-    multiprocessing_pool = Pool(cores)
-    full_hit_seq_list = multiprocessing_pool.map(query_ncbi_protein, full_gi_list)
-    multiprocessing_pool.close()
-    multiprocessing_pool.join()
-
-    #with open('C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\full_hit_seq_list.pkl', 'wb') as f:
-    #    pkl.dump(full_hit_seq_list, f, 2)
-    #with open('C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\full_hit_seq_list.pkl', 'rb') as f:
-    #    full_hit_seq_list = pkl.load(f)
-
-    header_seq_dict = {full_header_list[i]: full_hit_seq_list[i] for i in range(len(full_header_list))}
-
-    taxa_assignment_table.reset_index(inplace=True)
-    null_superkingdom_df = taxa_assignment_table[pd.isnull(taxa_assignment_table['superkingdom'])]
-    null_superkingdom_header_list = null_superkingdom_df[index_label].apply(str).tolist()
-
-    for superkingdom in superkingdoms:
-        superkingdom_df = taxa_assignment_table[
-            taxa_assignment_table['superkingdom'] == superkingdom]
-        superkingdom_header_list = superkingdom_df[index_label].apply(str).tolist()
-
-        superkingdom_write_path = write_path.replace('.faa', '.' + superkingdom.lower() + '.faa')
-        with open(superkingdom_write_path, 'w') as f:
-            for header in superkingdom_header_list:
-                f.write('>' + header + '\n')
-                f.write(header_seq_dict[header] + '\n')
-            for header in null_superkingdom_header_list:
-                f.write('>' + header + '\n')
-                f.write(header_seq_dict[header] + '\n')
-
 def query_ncbi_protein(gi):
 
     while True:
@@ -327,7 +280,7 @@ def query_ncbi_protein(gi):
             break
         except:
             print(gi + ': Entrez query no response')
-            time.sleep(30)
+            time.sleep(10)
 
     return full_seq
 
@@ -476,11 +429,13 @@ def parse_args():
         description = 'BLAST+ and taxonomic identification of peptide sequences'
         )
     parser.add_argument('--from_postnovo',
+                        #default=True,
                         action='store_true',
                         help='seqs were generated by postnovo')
     seq_input_group = parser.add_mutually_exclusive_group()
     seq_input_group.add_argument('--faa_fp',
-                                 default='C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\postnovo_seqs.faa',
+                                 #default='C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\blast_seqs_test\\postnovo_seqs.faa',
+                                 default='/home/samuelmiller/metagenome_vs_postnovo/blast_output/postnovo_seqs.faa',
                                  help=('faa input filepath: '
                                        'should have faa extension')
                                  )
@@ -498,7 +453,7 @@ def parse_args():
                         )
     parser.add_argument('--cores',
                         type=int,
-                        default=4,
+                        default=30,
                         help = 'number of cores to use')
     parser.add_argument('--max_seqs_per_process',
                         type=int,
@@ -696,11 +651,12 @@ def merge_xml(xml_files, xml_out):
 
 def parse_blast_table(from_postnovo, faa_fp, raw_blast_table):
 
-    postnovo_merged_headers = ['scan_list', 'xle permutation', 'precursor_mass', 'score', 'seq_origin'] + raw_blast_table_headers[1:]
+    postnovo_merged_headers = ['scan_list', 'xle_permutation', 'precursor_mass', 'seq_score', 'seq_origin'] + raw_blast_table_headers[1:]
 
     if from_postnovo:
+        # Split the info in the headers into cols of info
         qseqid_list = raw_blast_table['qseqid'].tolist()
-        # qseqid format is, ex., (scan_list)1,2(xle_permutation)0(precursor_mass)1000.000(score)0.55(seq_origin)postnovo
+        # qseqid format is, ex., (scan_list)1,2(xle_permutation)0(precursor_mass)1000.000(seq_score)0.55(seq_origin)postnovo
         qseqid_list = [qseqid.split('(scan_list)')[1] for qseqid in qseqid_list]
         temp_list_of_lists = [qseqid.split('(xle_permutation)') for qseqid in qseqid_list]
         scan_col = pd.Series(
@@ -708,7 +664,7 @@ def parse_blast_table(from_postnovo, faa_fp, raw_blast_table):
         temp_list_of_lists = [temp_list[1].split('(precursor_mass)') for temp_list in temp_list_of_lists]
         permut_col = pd.Series(
             [temp_list[0] for temp_list in temp_list_of_lists])
-        temp_list_of_lists = [temp_list[1].split('(score)') for temp_list in temp_list_of_lists]
+        temp_list_of_lists = [temp_list[1].split('(seq_score)') for temp_list in temp_list_of_lists]
         mass_col = pd.Series(
             [temp_list[0] for temp_list in temp_list_of_lists])
         temp_list_of_lists = [temp_list[1].split('(seq_origin)') for temp_list in temp_list_of_lists]
@@ -729,7 +685,7 @@ def parse_blast_table(from_postnovo, faa_fp, raw_blast_table):
         parsed_blast_table = raw_blast_table
 
     if from_postnovo:
-        parsed_blast_table.set_index(['scan_list', 'xle permutation', 'precursor_mass', 'score', 'seq_origin'], inplace = True)
+        parsed_blast_table.set_index(['scan_list', 'xle_permutation'], inplace = True)
     else:
         parsed_blast_table.set_index(['qseqid'], inplace = True)
 
@@ -746,17 +702,17 @@ def tabulate_fasta(from_postnovo, faa_fp):
     seq_col.index = range(len(seq_col))
 
     if from_postnovo:
-        # header format is, ex., >(scan_list)1,2(xle_permutation)0(precursor_mass)1000.000(score)0.55(seq_origin)postnovo
+        # header format is, ex., >(scan_list)1,2(xle_permutation)0(precursor_mass)1000.000(seq_score)0.55(seq_origin)postnovo
         fasta_headers_list = [fasta_header.strip('>(scan_list)') for fasta_header in fasta_headers_list]
-        temp_list_of_lists = [qseqid.split('(xle_permutation)') for qseqid in qseqid_list]
+        temp_list_of_lists = [header.split('(xle_permutation)') for header in fasta_headers_list]
         scan_col = pd.Series(
             [temp_list[0] for temp_list in temp_list_of_lists])
         temp_list_of_lists = [temp_list[1].split('(precursor_mass)') for temp_list in temp_list_of_lists]
         permut_col = pd.Series(
             [temp_list[0] for temp_list in temp_list_of_lists])
         seq_table = pd.concat([scan_col, permut_col, seq_col], axis = 1)
-        seq_table.columns = ['scan_list', 'xle permutation', 'seq']
-        seq_table.set_index(['scan', 'xle permutation'], inplace = True)
+        seq_table.columns = ['scan_list', 'xle_permutation', 'seq']
+        seq_table.set_index(['scan_list', 'xle_permutation'], inplace = True)
     else:
         id_col = pd.Series([fasta_header.strip('>') for fasta_header in fasta_headers_list])
         seq_table = pd.concat([id_col, seq_col], axis=1)
@@ -803,15 +759,15 @@ def filter_blast_table(blast_table, from_postnovo):
         filtered_blast_table = blast_table
         scan_groups = filtered_blast_table.groupby(level='scan_list', group_keys=False)
         filtered_blast_table = scan_groups.apply(
-            lambda g: g[g['nonident'] == g['nonident'].min()])
-        filtered_blast_table.index = filtered_blast_table.index.droplevel('xle permutation')
+            lambda g: g[(g['nonident'] == g['nonident'].min()) | (g['bitscore'] == g['bitscore'].max())])
+        filtered_blast_table.index = filtered_blast_table.index.droplevel('xle_permutation')
     else:
         #filtered_blast_table = blast_table[
         #    blast_table['len'] - blast_table['nonident'] >= 9]
         filtered_blast_table = blast_table
         qseqid_groups = filtered_blast_table.groupby(filtered_blast_table.index, group_keys=False)
         filtered_blast_table = qseqid_groups.apply(
-            lambda g: g[g['nonident'] == g['nonident'].min()])
+            lambda g: g[(g['nonident'] == g['nonident'].min()) | (g['bitscore'] == g['bitscore'].max())])
 
     filtered_blast_table['taxon'] = filtered_blast_table['salltitles'].apply(
         lambda x: extract_taxon(x))
@@ -899,7 +855,7 @@ def query_entrez_taxonomy_db(taxon, rank_dict, search_ranks_set, one_percent_num
     #        if percent_complete <= 100:
     #            utils.verbose_print_over_same_line('Entrez taxonomy search progress: ' + str(percent_complete) + '%')
 
-    print(taxon)
+    #print(taxon)
     taxon_ranks_set = set()
     no_response_count = 0
     no_response_count_limit = 5
@@ -909,7 +865,7 @@ def query_entrez_taxonomy_db(taxon, rank_dict, search_ranks_set, one_percent_num
             # Favor the lowest taxon id
             # There are occasional taxonomic confusions such as the walking stick genus, Bacillus,
             # which result in multiple returned taxon id's:
-            # the lower the number, the more general the rank, the more likely the assignment
+            # the lower the taxid number, the more general the rank, the more likely the assignment
             taxon_id = min([int(id) for id in taxon_id_list])
             taxon_info = Entrez.read(Entrez.efetch(db='Taxonomy', id=str(taxon_id)))
             taxon_rank = taxon_info[0]['Rank']
@@ -941,7 +897,7 @@ def query_entrez_taxonomy_db(taxon, rank_dict, search_ranks_set, one_percent_num
 def find_parsimonious_taxonomy(augmented_blast_table, from_postnovo):
 
     if from_postnovo:
-        id_type = 'scan'
+        id_type = 'scan_list'
     else:
         id_type = 'qseqid'
     list_of_taxa_assignment_rows = []
@@ -961,7 +917,9 @@ def find_parsimonious_taxonomy(augmented_blast_table, from_postnovo):
                         list_of_taxa_assignment_rows.append(
                             [id] + \
                                 [representative_row['seq']] + \
-                                [representative_row['mass']] + \
+                                [representative_row['precursor_mass']] + \
+                                [representative_row['seq_score']] + \
+                                [representative_row['seq_origin']] + \
                                 rank_index * ['N/A'] + \
                                 representative_row[rank:].tolist()
                             )
@@ -979,7 +937,9 @@ def find_parsimonious_taxonomy(augmented_blast_table, from_postnovo):
                 list_of_taxa_assignment_rows.append(
                     [id] + \
                         [representative_row['seq']] + \
-                        [representative_row['mass']] + \
+                        [representative_row['precursor_mass']] + \
+                        [representative_row['seq_score']] + \
+                        [representative_row['seq_origin']] + \
                         len(search_ranks) * ['N/A']
                     )
             else:
@@ -992,7 +952,7 @@ def find_parsimonious_taxonomy(augmented_blast_table, from_postnovo):
     if from_postnovo:
         taxa_assignment_table = pd.DataFrame(
             list_of_taxa_assignment_rows,
-            columns=['scan', 'seq', 'mass'] + search_ranks)
+            columns=['scan_list', 'seq', 'precursor_mass', 'seq_score', 'seq_origin'] + search_ranks)
     else:
         taxa_assignment_table = pd.DataFrame(
             list_of_taxa_assignment_rows,
