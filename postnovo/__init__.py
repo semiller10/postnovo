@@ -27,8 +27,8 @@ def main():
     alg_basename_dfs_dict = input.load_files()
     utils.save_pkl_objects(config.iodir[0], **{'alg_basename_dfs_dict': alg_basename_dfs_dict})
     #alg_basename_dfs_dict = utils.load_pkl_objects(config.iodir[0], 'alg_basename_dfs_dict')
-    ## example:
-    ## alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
+    # example:
+    # alg_basename_dfs_dict = odict('novor': novor input df, 'pn': pn input df)
 
     prediction_df = consensus.make_prediction_df(alg_basename_dfs_dict)
     utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})

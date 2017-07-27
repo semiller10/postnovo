@@ -21,7 +21,7 @@ do
 	# When a process can be added, prepare a new BLAST+ instance
 	out_file="$(dirname $fasta_file)/$(basename $fasta_file .faa).out"
 
-	nohup $BLAST_PATH -db $DB_DIR -query $fasta_file -out $out_file -evalue 1000000 -max_target_seqs 1 -max_hsps 1 -comp_based_stats 0 -outfmt "6 qseqid sacc qstart qend sstart send evalue bitscore pident gaps staxids" &
+	nohup $BLAST_PATH -task blastp-short -db $DB_DIR -query $fasta_file -out $out_file -evalue 1000000 -max_target_seqs 1 -max_hsps 1 -comp_based_stats 0 -outfmt "6 qseqid sacc qstart qend sstart send evalue bitscore pident gaps staxids" &
 	process_ids=(`pgrep -u $(id -u -n) $BLAST_PROCESS`)
 done
 

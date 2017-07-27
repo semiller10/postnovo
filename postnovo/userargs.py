@@ -177,20 +177,21 @@ def check_args(parser, args):
                 try:
                     missing_files.append(
                         check_path(args.filename + '.' + mass_tol + '.novor.csv',
-                                   config.iodir[0], return_str = True) + '\n'
+                                   config.iodir[0], return_str = True)
                         )
                 except TypeError:
                     pass
                 try:
                     missing_files.append(
                         check_path(args.filename + '.' + mass_tol + '.mgf.out',
-                                   config.iodir[0], return_str = True) + '\n'
+                                   config.iodir[0], return_str = True)
                         )
                 except TypeError:
                     pass
         if missing_files:
             for missing_file in missing_files:
-                print(missing_file)
+                if missing_file != None:
+                    print(missing_file)
 
     if args.mode == 'predict' and \
         (args.db_search_psm_file != None or args.db_search_ref_file != None):
@@ -217,9 +218,9 @@ def check_args(parser, args):
     if (args.psm_fp_list != None) ^ (args.psm_name_list != None):
         parser.error('both psm_fp_list and psm_name_list are needed')
     if args.psm_fp_list:
-        if len(psm_fp_list) != len(psm_name_list):
+        if len(args.psm_fp_list) != len(args.psm_name_list):
             parser.error('specify an equal number of inputs to psm_fp_list and psm_name_list')
-        for psm_fp in psm_fp_list:
+        for psm_fp in args.psm_fp_list:
             check_path(psm_fp, args.iodir)
 
     if args.cores > cpu_count() or args.cores < 1:
@@ -257,7 +258,7 @@ def check_path(path, iodir = None, return_str = False):
         full_path = os.path.join(iodir, path)
         if os.path.exists(full_path) == False:
             if return_str:
-                return path + ' does not exist'
+                return full_path + ' does not exist'
             print(full_path + ' does not exist')
             sys.exit(1)
 
@@ -371,8 +372,7 @@ def set_global_vars(args):
         for i, psm_fp in enumerate(args.psm_fp_list):
             config.psm_fp_list.append(
                 os.path.join(config.iodir[0], psm_fp))
-            config.psm_name_list.append(
-                os.path.join(config.iodir[0], args.psm_name_list[i]))
+            config.psm_name_list.append(args.psm_name_list[i])
 
     config.cores[0] = args.cores
     config.min_len[0] = args.min_len

@@ -38,6 +38,9 @@
     <Compile Include="consensus.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="dbsearch.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="input.py">
       <SubType>Code</SubType>
     </Compile>
