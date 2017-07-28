@@ -99,8 +99,10 @@ def load_novor_file(novor_file):
 
 def check_file_fragment_mass_tol(novor_file, user_mass_tol):
 
-    file_mass_tol = pd.read_csv(novor_file, nrows = 12).iloc[11][0]
-    if user_mass_tol not in file_mass_tol:
+    file_mass_tol_line = pd.read_csv(novor_file, nrows = 12).iloc[11][0]
+    file_mass_tol = round(float(file_mass_tol_line.strip('# fragmentIonErrorTol = ').strip('Da')) * 10) / 10
+
+    if float(user_mass_tol) != file_mass_tol:
         raise AssertionError(
             'Order of mass tol args does not correspond to order of Novor files')
 
