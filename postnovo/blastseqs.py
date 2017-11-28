@@ -40,7 +40,7 @@ blast_out_hdr = [
     'bitscore', 
     'stitle'
     ]
-search_out_hdr = [
+align_out_hdr = [
     'qseqid',
     'accession',
     'evalue',
@@ -194,6 +194,49 @@ def make_query_files(args):
 
         sys.exit()
 
+    # Find the set of accession ID's in all of the merged blast tables corresponding to different db's
+    # Read the accession2taxid file line by line, starting with the second line
+    # Split the line by tab (field 1: accession, 2: accession.version, 3: taxid, 4: gi
+    # Check if the BLAST and file accessions are the same
+    # If so, place the taxid in a dict keyed by the accession
+    # Remove the accession from the set list
+    # Do all of this while the set list is non-empty
+    
+    # Remove the version number from the accession in the DIAMOND output file
+
+    # Load the postnovo fasta file as a DataFrame,
+    # so the query sequence can be added to the alignment output tables
+    seq_table = tabulate_fasta(fasta_input_fp)
+
+    # Load the BLAST output from alignments against each db
+    db_names = [os.path.basename(blast_db_fp) for blast_db_fp in args.blast_dbs]
+    blast_out_dict = OrderedDict().fromkeys(db_names)
+    for db_name in db_names:
+        blast_out_dict[db_name] = pd.DataFrame(columns=blast_out_hdr)
+        # Piece the BLAST table together from its parts
+        for partial_blast_out_fp in split_blast_out_fp_list:
+            partial_blast_out_table = pd.read_csv(
+                partial_blast_out_fp, sep='\t', header=None, names=blast_out_hdr
+                )
+            blast_out_dict[db_name] = pd.concat(
+                [blast_out_dict[db_name], partial_blast_out_table], ignore_index=True
+                )
+
+        # For debugging purposes, write the current db BLAST table to file
+        if args.intermediate_files:
+            blast_out_dict[db_name].to_csv(
+                os.path.join(out_dir, db_name + '_merged_df.csv'), index=False
+                )
+
+        # Retrieve additional information for the BLAST table from postnovo_seqs_info.tsv
+        blast_out_dict[db_name] = parse_blast_table(blast_out_dict[db_name], fasta_input_fp, )
+        if args.intermediate_files:
+            parsed_blast_table.to_csv(
+                os.path.join(out_dir, db_name + '_parsed_blast_table.csv'), index=False
+                )
+        parsed_blast_table_list.append(parsed_blast_table)
+
+
     for blast_db_fp in args.blast_dbs:
         db_name = os.path.basename(blast_db_fp)
 
@@ -205,48 +248,47 @@ def make_query_files(args):
                 [merged_blast_table, partial_blast_table], ignore_index=True
                 )
 
-        # Retrieve taxids from the accession2taxid file
-        subject_accession_list = merged_blast_table['accession'].tolist()
-        subject_accession_set_list = list(set(subject_accession_list))
-        subject_accession_dict = OrderedDict().fromkeys(subject_accession_set_list)
-        taxonmap_df = pd.read_csv(args.taxonmap, sep='\t', header=0)[['accession', 'taxid']]
-        taxonmap_accession_list = taxonmap_df['accession']
-        taxonmap_taxid_list = taxonmap_df['taxid']
-        for i, taxonmap_accession in taxonmap_accession_list:
-            if taxonmap_accession in subject_accession_set_list:
-                if taxonmap_accession not in subject_accession_dict.keys():
-                    subject_accession_dict[taxonmap_accession] = taxonmap_taxid_list[i]
-                # REMOVE AFTER TESTING
-                else:
-                    # Check whether the new taxid is the same as the one already in the dict
-                    if subject_accession_dict[taxonmap_accession] != taxonmap_taxid_list[i]:
-                        raise Exception(
-                            taxonmap_accession + 'maps to multiple taxids: ' + 
-                            str(subject_accession_dict[taxonmap_accession]) + ' and ' + 
-                            str(taxonmap_taxid_list[i])
-                            )
-        subject_taxid_list = []
-        for subject_accession in subject_accession_list:
-            subject_taxid_list.append(subject_accession_dict[subject_accession])
-        merged_blast_table['taxid'] = subject_taxid_list
-        # Rearrange the columns to correspond with DIAMOND
-        merged_blast_table = merged_blast_table[search_out_hdr]
+    # Load taxonmap
+    taxonmap_df = pd.read_csv(args.taxonmap, sep='\t', header=0)[['accession', 'taxid']]
+    taxonmap_accession_list = taxonmap_df['accession'].tolist()
+    taxonmap_taxid_list = taxonmap_df['taxid'].tolist()
+    # Retrieve taxids from the accession2taxid file
+    subject_accession_list = merged_blast_table['accession'].tolist()
+    subject_accession_set_list = list(set(subject_accession_list))
+    subject_accession_dict = OrderedDict().fromkeys(subject_accession_set_list)
+    for i, taxonmap_accession in taxonmap_accession_list:
+        if taxonmap_accession in subject_accession_set_list:
+            if taxonmap_accession not in subject_accession_dict.keys():
+                subject_accession_dict[taxonmap_accession] = taxonmap_taxid_list[i]
+            # REMOVE AFTER TESTING
+            else:
+                # Check whether the new taxid is the same as the one already in the dict
+                if subject_accession_dict[taxonmap_accession] != taxonmap_taxid_list[i]:
+                    raise Exception(
+                        taxonmap_accession + 'maps to multiple taxids: ' + 
+                        str(subject_accession_dict[taxonmap_accession]) + ' and ' + 
+                        str(taxonmap_taxid_list[i])
+                        )
+    subject_taxid_list = []
+    for subject_accession in subject_accession_list:
+        subject_taxid_list.append(subject_accession_dict[subject_accession])
+    merged_blast_table['taxid'] = subject_taxid_list
+    # Rearrange the columns to correspond with DIAMOND
+    merged_blast_table = merged_blast_table[align_out_hdr]
 
-        if args.intermediate_files:
-            merged_blast_table.to_csv(
-                os.path.join(out_dir, db_name + '_merged_df.csv'), index=False
-                )
 
-        parsed_blast_table = parse_blast_table(fasta_input_fp, merged_blast_table)
-        if args.intermediate_files:
-            parsed_blast_table.to_csv(
-                os.path.join(out_dir, db_name + '_parsed_blast_table.csv'), index=False
-                )
-        parsed_blast_table_list.append(parsed_blast_table)
+
+    # Retrieve additional information for blast table from postnovo_seqs_info.tsv
+    parsed_blast_table = parse_blast_table(fasta_input_fp, merged_blast_table)
+    if args.intermediate_files:
+        parsed_blast_table.to_csv(
+            os.path.join(out_dir, db_name + '_parsed_blast_table.csv'), index=False
+            )
+    parsed_blast_table_list.append(parsed_blast_table)
 
     # Load the DIAMOND output
     diamond_out_table = pd.read_csv(
-        os.path.splitext(fasta_input_fp)[0] + '.diamond.out', sep='\t', header=None, names=search_out_hdr
+        os.path.splitext(fasta_input_fp)[0] + '.diamond.out', sep='\t', header=None, names=align_out_hdr
         )
 
     #merged_blast_table = pd.DataFrame(columns=blast_hdr)
@@ -548,30 +590,6 @@ def check_args(parser, args):
                 'high_prob_taxa_assign_df.csv, '
                 'eggnog_fasta_path_list.pkl'
                 )
-
-def make_fasta_input(seq_table_fp):
-    '''
-    Make a fasta file from a csv input formatted as a column of headers and a column of seqs
-    '''
-
-    global fasta_input_fp
-    fasta_input_fp = os.path.join(
-        os.path.dirname(seq_table_fp),
-        os.path.splitext(seq_table_fp)[0] + '.faa'
-        )
-    seq_table = pd.read_csv(seq_table_fp, header=None)
-    seq_table.columns = ['headers', 'seqs']
-    seq_table['headers'] = seq_table['headers'].apply(
-        lambda header: '>' + header
-        )
-    seq_table['seqs'] = seq_table['seqs'].apply(
-        lambda seq: utils.remove_mod_chars(seq=seq)
-        )
-    fasta_input_series = seq_table.stack()
-    fasta_input_series.to_csv(fasta_input_fp, index=False, header=False)
-    fasta_list = fasta_input_series.tolist()
-
-    return fasta_list
 
 def split_blast_fasta(fasta_list, max_seqs_per_process):
     '''
@@ -882,6 +900,9 @@ def optimize_blast_table(parsed_blast_table_list):
     parsed_blast_table = pd.concat(parsed_blast_table_list, ignore_index=True)
 
     return parsed_blast_table
+
+def tabulate_fasta(fasta_input_fp):
+    pass
 
 def tabulate_fasta(fasta_input_fp):
 
