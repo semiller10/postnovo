@@ -1,54 +1,57 @@
 ''' Sequence accuracy classification model '''
 
-import pandas as pd
-import numpy as np
-import sklearn as sk
+import datetime
 import matplotlib
 # Set backend to make image files on server
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import matplotlib.collections as mcoll
-import datetime
+import matplotlib.pyplot as plt
+import numpy as np
+import os.path
+import pandas as pd
+import sklearn as sk
+import sys
 import warnings
 warnings.filterwarnings('ignore')
-import os.path
 
-import postnovo.config as config
-import postnovo.dbsearch as dbsearch
-import postnovo.utils as utils
-
-#import config
-#import utils
-
+from collections import Counter, OrderedDict
 from functools import partial
-from collections import OrderedDict
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, GridSearchCV
+from multiprocessing import Pool
+from os.path import join, basename
+from scipy.stats import norm
 from sklearn.cluster import Birch
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_curve, average_precision_score
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_curve, average_precision_score
-from os.path import join, basename
-from multiprocessing import Pool, current_process
-from collections import Counter
-from scipy.stats import norm
 
-multiprocessing_seq_matching_count = 0
+if 'postnovo' in sys.modules:
+    import postnovo.config as config
+    import postnovo.dbsearch as dbsearch
+    import postnovo.utils as utils
+else:
+    import config
+    import dbsearch
+    import utils
 
 def classify(prediction_df = None):
     utils.verbose_print()
+    #UNCOMMENT!
+    #if config.mode[0] in ['train', 'test', 'optimize']:
+    #    prediction_df, ref_correspondence_df, db_search_ref = find_target_accuracy(prediction_df)
 
-    if config.mode[0] in ['train', 'test', 'optimize']:
-        prediction_df, ref_correspondence_df, db_search_ref = find_target_accuracy(prediction_df)
-
-    utils.verbose_print('formatting data for compatability with model')
-    prediction_df = standardize_prediction_df_cols(prediction_df)
-    utils.save_pkl_objects(config.iodir[0], **{'prediction_df': prediction_df})
-    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'prediction_df')
+    #utils.verbose_print('formatting data for compatability with model')
+    #prediction_df = standardize_prediction_df_cols(prediction_df)
+    #utils.save_pkl_objects(config.iodir[0], **{'prediction_df': prediction_df})
+    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'prediction_df')
 
     if config.mode[0] == 'predict':
-        reported_prediction_df = make_predictions(prediction_df)
-        reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
+        # UNCOMMENT!
+        #reported_prediction_df = make_predictions(prediction_df)
+        #reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
+        reported_prediction_df = pd.read_csv(os.path.join(config.iodir[0], 'best_predictions.csv'), header=0)
+
         df = reported_prediction_df.reset_index()
         if config.psm_fp_list:
             df = dbsearch.merge_predictions(df)
@@ -118,10 +121,16 @@ def find_target_accuracy(prediction_df):
     #config.min_ref_match_len = find_min_seq_len(fasta_ref = fasta_ref, cores = config.cores[0])
     one_percent_number_denovo_seqs = len(unique_long_denovo_seqs) / 100 / config.cores[0]
 
+    # Multiprocess
     multiprocessing_pool = Pool(config.cores[0])
-    single_var_match_seq = partial(match_seq_to_fasta_ref, fasta_ref = fasta_ref,
-                                   one_percent_number_denovo_seqs = one_percent_number_denovo_seqs, cores = config.cores[0])
-    fasta_matches = multiprocessing_pool.map(single_var_match_seq, unique_long_denovo_seqs)
+    print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
+                                        procedure_str = 'reference sequence matching progress: ',
+                                        one_percent_total_count = one_percent_number_denovo_seqs,
+                                        cores = config.cores[0])
+    single_var_match_seq_to_fasta_ref = partial(match_seq_to_fasta_ref,
+                                                fasta_ref = fasta_ref,
+                                                print_percent_progress_fn = print_percent_progress_fn)
+    fasta_matches = multiprocessing_pool.map(single_var_match_seq_to_fasta_ref, unique_long_denovo_seqs)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
@@ -191,15 +200,9 @@ def load_fasta_ref_file(fasta_ref_file_path):
 
     return fasta_ref
 
-def match_seq_to_fasta_ref(denovo_seq, fasta_ref, one_percent_number_denovo_seqs, cores):
+def match_seq_to_fasta_ref(denovo_seq, fasta_ref, print_percent_progress_fn):
 
-    if current_process()._identity[0] % cores == 1:
-        global multiprocessing_seq_matching_count
-        multiprocessing_seq_matching_count += 1
-        if int(multiprocessing_seq_matching_count % one_percent_number_denovo_seqs) == 0:
-            percent_complete = int(multiprocessing_seq_matching_count / one_percent_number_denovo_seqs)
-            if percent_complete <= 100:
-                utils.verbose_print_over_same_line('reference sequence matching progress: ' + str(percent_complete) + '%')
+    print_percent_progress_fn()
 
     for fasta_seq in fasta_ref:
         if denovo_seq in fasta_seq:
@@ -390,6 +393,7 @@ def update_training_data(prediction_df):
 
 def make_predictions(prediction_df, db_search_ref = None):
 
+    print(config.data_dir)
     forest_dict = utils.load_pkl_objects(config.data_dir, 'forest_dict')
 
     prediction_df['probability'] = np.nan

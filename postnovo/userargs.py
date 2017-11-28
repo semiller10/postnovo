@@ -1,30 +1,37 @@
 ''' Command line script: this module processes user input '''
 
-import getopt
 import argparse
-import sys
-import subprocess
+import getopt
 import datetime
 import os
+import pandas as pd
+import re
+import subprocess
+import sys
 
-import postnovo.config as config
-import postnovo.utils as utils
-
-from multiprocessing import cpu_count
-from itertools import combinations, product
 from collections import OrderedDict
-from pkg_resources import resource_filename
 from copy import deepcopy
+from itertools import combinations, product
+from multiprocessing import cpu_count
+from pkg_resources import resource_filename
 
-def setup():
+if 'postnovo' in sys.modules:
+    import postnovo.config as config
+    import postnovo.utils as utils
+else:
+    import config
+    import utils
 
-    args = parse_args()
-    run_denovogui(args)
+def setup(test_argv=None):
+
+    args = parse_args(test_argv)
+    if args.denovogui_fp != None:
+        run_denovogui(args)
     set_global_vars(args)
 
     return args
     
-def parse_args():
+def parse_args(test_argv=None):
     
     parser = argparse.ArgumentParser(
         description='postnovo post-processes peptide de novo sequences to improve their accuracy'
@@ -32,8 +39,7 @@ def parse_args():
 
     parser.add_argument(
         '--filename',
-        help=('specify the name of output and, if provided, Novor/PepNovo+ input files: '
-              'if Novor and PepNovo+ {0}-{1} Da files are provided rather than an mgf file, '
+        help=('if Novor and PepNovo+ {0}-{1} Da files are provided rather than an mgf file, '
               'provide the prefix as filename, '
               'e.g., <filename>.0.2.novor.csv, <filename>.0.2.mgf.out'
               .format(config.frag_mass_tols[0], config.frag_mass_tols[1]))
@@ -81,15 +87,53 @@ def parse_args():
               'postnovo output stored in directory if no iodir is specified')
         )
     parser.add_argument(
-        '--psm_fp_list',
+        '--db_name_list',
         nargs='+',
-        help=('provide any MSGF+ PSM tsv files to compare with postnovo output')
+        help=(
+            'provide the names of databases associated with MSGF+ searches: '
+            'each name should be UNIQUE to a PAIR of .tsv PSM and .fasta db files in iodir, '
+            'e.g., input of "db1, db2" would find files such as '
+            '"proteome1.db1.tsv, proteome1.db1.fasta, proteome1.db2.tsv, proteome1.db2.fasta"'
+            )
         )
-    parser.add_argument(
-        '--psm_name_list',
-        nargs='+',
-        help=('provide corresponding names for MSGF+ PSM datasets specified in psm_fp_list')
-        )
+    # REMOVE!
+    #parser.add_argument(
+    #    '--db_search_name_list',
+    #    nargs='+',
+    #    help=(
+    #        'provide the names of MSGF+ searches, in the format "proteome_name.db_name", '
+    #        'e.g., "proteome1.db1, proteome1.db2" '
+    #        'and place the corresponding .tsv and .fasta PSM and database files '
+    #        'beginning with this string in iodir'
+    #        )
+    #    )
+    #parser.add_argument(
+    #    '--psm_fp_list',
+    #    nargs='+',
+    #    help=(
+    #        'provide any MSGF+ PSM tsv files to compare with postnovo output, ',
+    #        'e.g., "proteome1.db1.DBGraphPep2Pro.fixedKR.0.01.tsv, ',
+    #        'proteome1.db2.DBGraphPep2Pro.fixedKR.0.01.tsv"'
+    #        )
+    #    )
+    #parser.add_argument(
+    #    '--db_fp_list',
+    #    nargs='+',
+    #    help=(
+    #        'provide corresponding names of MSGF+ fasta database files that were searched, ',
+    #        'e.g., "proteome1.db1.DBGraphPep2Pro.fixedKR.fasta, ',
+    #        'proteome1.db2.DBGraphPep2Pro.fixedKR.fasta"'
+    #        )
+    #    )
+    #parser.add_argument(
+    #    '--db_name_list',
+    #    nargs='+',
+    #    help=(
+    #        'provide corresponding names of MSGF+ database to identify the origin of PSMs, ',
+    #        'e.g., "db1, ',
+    #        'db2"'
+    #        )
+    #    )
     parser.add_argument(
         '--cores',
         type=int,
@@ -128,7 +172,10 @@ def parse_args():
         help='display list of accepted mods'
         )
 
-    raw_args = parser.parse_args()
+    if test_argv:
+        raw_args = parser.parse_args(test_argv)
+    else:
+        raw_args = parser.parse_args()
     report_info(raw_args)
     # config.iodir[0] is assigned before other package-wide variables
     determine_iodir(raw_args)
@@ -188,10 +235,19 @@ def check_args(parser, args):
                         )
                 except TypeError:
                     pass
-        if missing_files:
-            for missing_file in missing_files:
-                if missing_file != None:
-                    print(missing_file)
+            if missing_files:
+                for missing_file in missing_files:
+                    if missing_file != None:
+                        print(missing_file)
+
+        for tol in config.frag_mass_tols:
+            novor_fp = os.path.join(config.iodir[0], args.filename + '.' + tol + '.novor.csv')
+            file_mass_tol_line = pd.read_csv(novor_fp, nrows = 12).iloc[11][0]
+            file_mass_tol = round(float(
+                file_mass_tol_line.strip('# fragmentIonErrorTol = ').strip('Da')) * 10) / 10
+            if float(tol) != file_mass_tol:
+                raise AssertionError(
+                    'Novor files do not have the asserted order')
 
     if args.mode == 'predict' and \
         (args.db_search_psm_file != None or args.db_search_ref_file != None):
@@ -214,14 +270,65 @@ def check_args(parser, args):
     if args.denovogui_fp:
         check_path(args.denovogui_fp, args.iodir)
         check_path(args.mgf_fp, args.iodir)
+        check_mgf(args.mgf_fp, args.iodir)
 
-    if (args.psm_fp_list != None) ^ (args.psm_name_list != None):
-        parser.error('both psm_fp_list and psm_name_list are needed')
-    if args.psm_fp_list:
-        if len(args.psm_fp_list) != len(args.psm_name_list):
-            parser.error('specify an equal number of inputs to psm_fp_list and psm_name_list')
-        for psm_fp in args.psm_fp_list:
-            check_path(psm_fp, args.iodir)
+    if args.db_name_list:
+        iodir_files = [f for f in os.listdir(args.iodir) if os.path.isfile(os.path.join(args.iodir, f))]
+        for name in args.db_name_list:
+            matching_tsv_files = []
+            matching_db_files = []
+            for f in iodir_files:
+                if os.path.splitext(f)[1] == '.tsv' and name in f:
+                    matching_tsv_files.append(f)
+                elif os.path.splitext(f)[1] == '.fasta' and name in f:
+                    matching_db_files.append(f)
+            if matching_tsv_files and matching_db_files:
+                if len(matching_tsv_files) > 1 or len(matching_db_files) > 1:
+                    parser.error(
+                        'for each name in db_name_list, '
+                        'there must be exactly one corresponding .tsv PSM file containing this string, '
+                        'and exactly one .fasta database file containing this string in iodir'
+                        )
+            else:
+                parser.error(
+                    'for each name in db_name_list, '
+                    'there must be two corresponding .tsv PSM and .fasta db files in iodir'
+                    )
+
+    # REMOVE!
+    #if args.db_search_name_list:
+    #    # Check for the presence of files starting with this name
+    #    iodir_files = [f for f in os.listdir(args.iodir) if os.path.isfile(os.path.join(args.iodir, f))]
+    #    for name in args.db_search_name_list:
+    #        found_tsv_file = False
+    #        found_db_file = False
+    #        for f in iodir_files:
+    #            if os.path.splitext(f)[1] == '.tsv' and f.index(name) == 0:
+    #                found_tsv_file = True
+    #            elif os.path.splitext(f)[1] == '.fasta' and f.index(name) == 0:
+    #                found_db_file = True
+    #        if not found_tsv_file or not found_db_file:
+    #            parser.error(
+    #                'for each db_search_name in db_search_name_list '
+    #                'there must be two PSM and database files in iodir beginning with db_search_name '
+    #                'and ending with .tsv and .fasta extensions'
+    #                )
+
+    ## REMOVE!
+    ## If no db search results specified
+    #if (args.psm_fp_list == None) and (args.db_fp_list == None) and (args.db_name_list == None):
+    #    pass
+    ## Elif db search results are specified correctly by three arguments
+    #elif (args.psm_fp_list != None) and (args.db_fp_list != None) and (args.db_name_list != None):
+    #    # Check validity of the argument values
+    #    if len(args.psm_fp_list) == len(args.db_fp_list) == len(args.db_name_list):
+    #        pass
+    #    else:
+    #        parser.error('specify an equal number of inputs to psm_fp_list, db_fp_list, and db_name_list')
+    #    for psm_fp in args.psm_fp_list:
+    #        check_path(psm_fp, args.iodir)
+    #    for db_fp in args.db_fp_list:
+    #        check_path(db_fp, args.iodir)
 
     if args.cores > cpu_count() or args.cores < 1:
         parser.error(str(cpu_count()) + ' cores are available')
@@ -262,16 +369,131 @@ def check_path(path, iodir = None, return_str = False):
             print(full_path + ' does not exist')
             sys.exit(1)
 
-def run_denovogui(args):
+def check_mgf(mgf_fp, iodir):
+    '''
+    Check to see if mgf is formatted in standard (default Proteome Discoverer raw -> mgf) fashion
+    '''
     
-    if args.denovogui_fp == None:
-        return
+    # Default Proteome Discoverer raw -> mgf format, as I have seen it
+    # MASS=Monoisotopic [at very top of file]
+    # BEGIN IONS
+    # TITLE=File: "<path to raw file>"; [continuing...]
+    # SpectrumID: "<spectrum count>"; [continuing...]
+    # scans: "<scan>"
+    # PEPMASS=<m/z to the hundred-thousandth separated by one space from intensity to the hundred-thousandth>
+    # CHARGE=<charge state, e.g., 2+>
+    # RTINSECONDS=<retention time to the zeroth, e.g., 0>
+    # SCANS=<scan>
+    # <peak list: m/z to the thousandth separated by one space from intensity to six sig figs>
+    
+    # The only thing I ignore when reformatting thusly is rounding
+
+    if iodir is not None:
+        mgf_fp = os.path.join(iodir, mgf_fp)
+    with open(mgf_fp) as f:
+        for line in f:
+            if 'TITLE=' in line:
+                try:
+                    # Proteome Discoverer raw -> mgf output for Orbitrap Elite
+                    # works in all the programs of the pipeline
+                    if (
+                        line.index('File: \"') <
+                        line.index('SpectrumID: \"') <
+                        line.index('scans: \"')
+                        ):
+                        break
+                except:
+                    # Default ProteoWizard msconvert output for Orbitrap Elite
+                    if (
+                        line.index('File:\"') <
+                        line.index('NativeID:\"') <
+                        line.index('scan=')
+                        ):
+                        reformat_msconvert_mgf(mgf_fp)
+                        break
+
+def reformat_msconvert_mgf(mgf_fp):
+    '''
+    Reformat default ProteoWizard msconvert raw -> mgf output to Proteome Discoverer format
+    '''
+
+    # Default ProteoWizard msconvert raw -> mgf format, as I have seen it
+    # BEGIN IONS
+    # TITLE=<file basename w/out extension>.<scan>.<scan>.2 [continuing...]
+    # File:"<file basename w/ extension>", [continuing...]
+    # NativeID:"controllerType=0 controllerNumber=1 scan=<scan>"
+    # RTINSECONDS=<retention time to the ten-thousandth>
+    # PEPMASS=<m/z to the trillionth separated by one space from intensity to the trillionth>
+    # CHARGE=<charge state, e.g., 2+>
+    # <peak list: m/z to the ten-millionth separated by one space from intensity to the ten-billionth>
+
+    path_to_original_mgf = os.path.splitext(mgf_fp)[0] + '_ORIGINAL.mgf'
+    subprocess.call(
+        'cp {0} {1}'.format(mgf_fp, path_to_original_mgf),
+        shell=True
+        )
+    with open(mgf_fp) as f:
+        old_mgf_list = f.readlines()
+
+    raw_fp_for_title = '\"' + os.path.splitext(mgf_fp)[0] + '.raw' + '\"'
+    spectrum_id_count = 0
+    title_line_list = []
+    scan_line_list = []
+    rt_line_list = []
+    pepmass_line_list = []
+    charge_line_list = []
+    for line in old_mgf_list:
+        if 'BEGIN IONS' in line:
+            spectrum_id_count += 1
+        elif 'TITLE' in line:
+            scan = line[line.index('scan=') + 5: line.index('\"\n')]
+            scan_line_list.append('SCANS={0}\n'.format(scan))
+            title_line_list.append(
+                'TITLE=File: ' + raw_fp_for_title + '; '
+                'SpectrumID: \"{0}\"; '
+                'scans: \"{1}\"\n'.format(str(spectrum_id_count), scan)
+                )
+        elif 'RTINSECONDS' in line:
+            rt_line_list.append(line)
+        elif 'PEPMASS' in line:
+            pepmass_line_list.append(line)
+        elif 'CHARGE' in line:
+            charge_line_list.append(line)
+                
+    new_mgf_list = ['MASS=Monoisotopic\n']
+    spectrum_index = 0
+    for line in old_mgf_list:
+        if 'TITLE' in line:
+            new_mgf_list.append(title_line_list[spectrum_index])
+            new_mgf_list.append(pepmass_line_list[spectrum_index])
+            new_mgf_list.append(charge_line_list[spectrum_index])
+            new_mgf_list.append(rt_line_list[spectrum_index])
+            new_mgf_list.append(scan_line_list[spectrum_index])
+            spectrum_index += 1
+        elif 'RTINSECONDS' in line:
+            pass
+        elif 'PEPMASS' in line:
+            pass
+        elif 'CHARGE' in line:
+            pass
+        else:
+            new_mgf_list.append(line)
+
+    with open(mgf_fp, 'w') as f:
+        for line in new_mgf_list:
+            f.write(line)
+
+def run_denovogui(args):
 
     denovogui_param_args = \
         OrderedDict().fromkeys(
-            ['-out', '-frag_tol',
-             '-fixed_mods', '-variable_mods',
-             '-pepnovo_hitlist_length', '-novor_fragmentation', '-novor_mass_analyzer']
+            ['-out',
+             '-frag_tol',
+             '-fixed_mods',
+             '-variable_mods',
+             '-pepnovo_hitlist_length',
+             '-novor_fragmentation',
+             '-novor_mass_analyzer']
             )
     denovogui_param_args['-fixed_mods'] = '\"' + ', '.join(args.fixed_mods) + '\"'
     denovogui_param_args['-variable_mods'] = '\"' + ', '.join(args.variable_mods) + '\"'
@@ -325,6 +547,8 @@ def run_denovogui(args):
 
 def set_global_vars(args):
 
+    config.filename.append(args.filename)
+
     for alg in args.algs.split(', '):
         config.alg_list.append(alg)
     for combo_level in range(2, len(config.alg_list) + 1):
@@ -338,6 +562,17 @@ def set_global_vars(args):
     is_alg_col_multiindex_list = list(product((0, 1), repeat = len(config.alg_list)))
     for multiindex_key in is_alg_col_multiindex_list[1:]:
         config.is_alg_col_multiindex_keys.append(multiindex_key)
+    
+    precursor_mass_tol_info_str = pd.read_csv(
+        os.path.join(config.iodir[0], 
+                     config.filename[0] + '.' + config.frag_mass_tols[0] + '.novor.csv'),
+        nrows = 13).iloc[12][0]
+    try:
+        config.precursor_mass_tol[0] = float(
+            re.search('(?<=# precursorErrorTol = )(.*)(?=ppm)', 
+                      precursor_mass_tol_info_str).group(0))
+    except ValueError:
+        pass
 
     for tol in config.frag_mass_tols:
         config.novor_files.append(
@@ -347,19 +582,6 @@ def set_global_vars(args):
     alg_fp_lists = {'novor': config.novor_files,
                     'peaks': config.peaks_files,
                     'pn': config.pn_files}
-    for alg in config.alg_list:
-        config.alg_tols_dict[alg] = OrderedDict(
-            zip(config.frag_mass_tols,
-                [os.path.basename(fp) for fp in alg_fp_lists[alg]]))
-
-    tol_alg_dict_local = invert_dict_of_lists(config.alg_tols_dict)
-    for k, v in tol_alg_dict_local.items():
-        config.tol_alg_dict[k] = v
-    for tol in config.frag_mass_tols:
-        config.tol_basenames_dict[tol] = []
-    for alg in config.alg_tols_dict:
-        for tol in config.alg_tols_dict[alg]:
-            config.tol_basenames_dict[tol] += [config.alg_tols_dict[alg][tol]]
 
     config.mode[0] = args.mode
 
@@ -368,11 +590,34 @@ def set_global_vars(args):
     for variable_mod in args.variable_mods:
         config.variable_mods.append(variable_mod)
 
-    if args.psm_fp_list:
-        for i, psm_fp in enumerate(args.psm_fp_list):
-            config.psm_fp_list.append(
-                os.path.join(config.iodir[0], psm_fp))
-            config.psm_name_list.append(args.psm_name_list[i])
+    if args.db_name_list:
+        iodir_files = [f for f in os.listdir(args.iodir) if os.path.isfile(os.path.join(args.iodir, f))]
+        for name in args.db_name_list:
+            config.db_name_list.append(name)
+            for f in iodir_files:
+                if os.path.splitext(f)[1] == '.tsv' and name in f:
+                    config.psm_fp_list.append(os.path.join(config.iodir[0], f))
+                if os.path.splitext(f)[1] == '.fasta' and name in f:
+                    config.db_fp_list.append(os.path.join(config.iodir[0], f))
+
+    # REMOVE!
+    #if args.db_search_name_list:
+    #    iodir_files = [f for f in os.listdir(args.iodir) if os.path.isfile(os.path.join(args.iodir, f))]
+    #    for name in args.db_search_name_list:
+    #        # record the names of the databases in order to keep track of where sequences came from
+    #        config.db_name_list.append(name.split('.')[1])
+    #        for f in iodir_files:
+    #            if os.path.splitext(f)[1] == '.tsv' and f.index(name) == 0:
+    #                config.psm_fp_list.append(os.path.join(config.iodir[0], name))
+    #            if os.path.splitext(f)[1] == '.fasta' and f.index(name) == 0:
+    #                config.db_fp_list.append(os.path.join(config.iodir[0], name))
+
+    # REMOVE!
+    #if args.psm_fp_list:
+    #    for i, psm_fp in enumerate(args.psm_fp_list):
+    #        config.psm_fp_list.append(os.path.join(config.iodir[0], psm_fp))
+    #        config.db_fp_list.append(os.path.join(config.iodir[0], args.db_fp_list[i]))
+    #        config.db_name_list.append(args.db_name_list[i])
 
     config.cores[0] = args.cores
     config.min_len[0] = args.min_len
@@ -386,9 +631,3 @@ def set_global_vars(args):
             config.db_search_ref_file[0] = os.path.join(args.iodir, args.db_search_ref_file)
     if args.quiet:
         config.verbose[0] = False
-
-def invert_dict_of_lists(d):
-    values = set(a for b in d.values() for a in b)
-    values = sorted(list(values))
-    invert_d = OrderedDict((new_k, [k for k, v in d.items() if new_k in v]) for new_k in values)
-    return invert_d

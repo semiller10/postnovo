@@ -2,23 +2,24 @@
 
 import numpy as np
 import pandas as pd
+import sys
 
-import postnovo.config as config
-import postnovo.utils as utils
-
-#import config
-#import utils
-
+from collections import OrderedDict
 from functools import partial
 from itertools import groupby, combinations, product
-from collections import OrderedDict
-from multiprocessing import Pool, current_process
+from multiprocessing import Pool
 from re import finditer
 
-multiprocessing_scan_count = 0
+if 'postnovo' in sys.modules:
+    import postnovo.config as config
+    import postnovo.utils as utils
+else:
+    import config
+    import utils
 
+progress_count = 0
 
-def make_prediction_df(alg_basename_dfs_dict):
+def make_prediction_df(input_df_dict):
     utils.verbose_print()
 
     if config.mode[0] in ['train', 'optimize']:
@@ -29,15 +30,9 @@ def make_prediction_df(alg_basename_dfs_dict):
     tol_prediction_df_list = []
     for tol in config.frag_mass_tols:
         utils.verbose_print('setting up', tol, 'Da consensus comparison')
-        alg_compar_list = config.tol_alg_dict[tol]
-
-        if len(alg_compar_list) > 1:
-            df_name_compar_list = config.tol_basenames_dict[tol]
-            alg_df_dict = OrderedDict([(alg, alg_basename_dfs_dict[alg][df_name_compar_list[i]])
-                                       for i, alg in enumerate(alg_compar_list)])
-
-            tol_prediction_df = make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol)
-            tol_prediction_df_list.append(tol_prediction_df)
+        alg_df_dict = OrderedDict([(alg, input_df_dict[alg][tol]) for alg in config.alg_list])
+        tol_prediction_df = make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol)
+        tol_prediction_df_list.append(tol_prediction_df)
 
     prediction_df = pd.concat(tol_prediction_df_list)
     grouped_by_scan = prediction_df.groupby(['scan'])
@@ -109,30 +104,46 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     ##    3: odict(
     ##    ('novor', 'peaks', 'pn'): odict('novor': (0, 0), 'peaks': (0, 1), 'pn': (1, 0))))
 
-    # multiprocessing method
-    multiprocessing_pool = Pool(config.cores[0],
-                                initializer = child_initialize,
-                                initargs = (alg_consensus_source_df_dict, scan_consensus_info_dict, scan_generator_fns_dict,
-                                            scan_common_substrings_info_dict, consensus_min_len, first_seq_second_seq_rank_comparisons_dict,
-                                            first_seq_second_seq_max_ranks_dict, first_seq_second_seq_alg_positions_dict,
-                                            tol, config.cores[0], one_percent_number_consensus_scans)
-                                )
-    utils.verbose_print('finding', tol, 'Da consensus sequences')
-    grand_scan_prediction_dict_list = multiprocessing_pool.map(make_scan_prediction_dicts, consensus_scan_list)
-    multiprocessing_pool.close()
-    multiprocessing_pool.join()
-
     ## single processor method
+    #print_percent_progress_fn = partial(utils.print_percent_progress_singlethreaded,
+    #                                    procedure_str = tol + ' Da progress: ',
+    #                                    one_percent_total_count = one_percent_number_consensus_scans)
     #child_initialize(alg_consensus_source_df_dict,
-    #                 scan_consensus_info_dict, scan_generator_fns_dict,
-    #                 scan_common_substrings_info_dict, consensus_min_len,
-    #                 first_seq_second_seq_rank_comparisons_dict, first_seq_second_seq_max_ranks_dict,
-    #                 first_seq_second_seq_alg_positions_dict, tol)
+    #                 scan_consensus_info_dict,
+    #                 scan_generator_fns_dict,
+    #                 scan_common_substrings_info_dict,
+    #                 consensus_min_len,
+    #                 first_seq_second_seq_rank_comparisons_dict,
+    #                 first_seq_second_seq_max_ranks_dict,
+    #                 first_seq_second_seq_alg_positions_dict,
+    #                 print_percent_progress_fn)
     #grand_scan_prediction_dict_list = []
     #utils.verbose_print('finding', tol, 'Da consensus sequences')
     #for consensus_scan in consensus_scan_list:
     #    grand_scan_prediction_dict_list.append(
     #        make_scan_prediction_dicts(consensus_scan))
+
+    # multiprocessing method
+    print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
+                                        procedure_str = tol + ' Da progress: ',
+                                        one_percent_total_count = one_percent_number_consensus_scans,
+                                        cores = config.cores[0])
+    multiprocessing_pool = Pool(config.cores[0],
+                                initializer = child_initialize,
+                                initargs = (alg_consensus_source_df_dict,
+                                            scan_consensus_info_dict,
+                                            scan_generator_fns_dict,
+                                            scan_common_substrings_info_dict,
+                                            consensus_min_len,
+                                            first_seq_second_seq_rank_comparisons_dict,
+                                            first_seq_second_seq_max_ranks_dict,
+                                            first_seq_second_seq_alg_positions_dict,
+                                            print_percent_progress_fn)
+                                )
+    utils.verbose_print('finding', tol, 'Da consensus sequences')
+    grand_scan_prediction_dict_list = multiprocessing_pool.map(make_scan_prediction_dicts, consensus_scan_list)
+    multiprocessing_pool.close()
+    multiprocessing_pool.join()
 
     scan_prediction_dict_list = [seq_prediction_dict
                                  for scan_prediction_dict_list in grand_scan_prediction_dict_list
@@ -142,15 +153,25 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     
     return tol_prediction_df
 
-def child_initialize(_alg_consensus_source_df_dict, _scan_consensus_info_dict, _scan_generator_fns_dict,
-                     _scan_common_substrings_info_dict, _consensus_min_len, _first_seq_second_seq_rank_comparisons_dict,
-                     _first_seq_second_seq_max_ranks_dict, _first_seq_second_seq_alg_positions_dict,
-                     _tol, _cores = 1, _one_percent_number_consensus_scans = None):
+def child_initialize(_alg_consensus_source_df_dict,
+                     _scan_consensus_info_dict,
+                     _scan_generator_fns_dict,
+                     _scan_common_substrings_info_dict,
+                     _consensus_min_len,
+                     _first_seq_second_seq_rank_comparisons_dict,
+                     _first_seq_second_seq_max_ranks_dict,
+                     _first_seq_second_seq_alg_positions_dict,
+                     _print_percent_progress_fn):
 
-     global alg_consensus_source_df_dict, scan_consensus_info_dict, scan_generator_fns_dict,\
-     scan_common_substrings_info_dict, consensus_min_len, first_seq_second_seq_rank_comparisons_dict,\
-     first_seq_second_seq_max_ranks_dict, first_seq_second_seq_alg_positions_dict,\
-     one_percent_number_consensus_scans, tol, cores
+     global alg_consensus_source_df_dict
+     global scan_consensus_info_dict
+     global scan_generator_fns_dict
+     global scan_common_substrings_info_dict
+     global consensus_min_len
+     global first_seq_second_seq_rank_comparisons_dict
+     global first_seq_second_seq_max_ranks_dict
+     global first_seq_second_seq_alg_positions_dict
+     global print_percent_progress_fn
 
      alg_consensus_source_df_dict = _alg_consensus_source_df_dict
      scan_consensus_info_dict = _scan_consensus_info_dict
@@ -160,19 +181,11 @@ def child_initialize(_alg_consensus_source_df_dict, _scan_consensus_info_dict, _
      first_seq_second_seq_rank_comparisons_dict = _first_seq_second_seq_rank_comparisons_dict
      first_seq_second_seq_max_ranks_dict = _first_seq_second_seq_max_ranks_dict
      first_seq_second_seq_alg_positions_dict = _first_seq_second_seq_alg_positions_dict
-     one_percent_number_consensus_scans = _one_percent_number_consensus_scans
-     tol = _tol
-     cores = _cores
+     print_percent_progress_fn = _print_percent_progress_fn
 
 def make_scan_prediction_dicts(consensus_scan):
 
-    if current_process()._identity[0] % cores == 1:
-        global multiprocessing_scan_count
-        multiprocessing_scan_count += 1
-        if int(multiprocessing_scan_count % one_percent_number_consensus_scans) == 0:
-            percent_complete = int(multiprocessing_scan_count / one_percent_number_consensus_scans)
-            if percent_complete <= 100:
-                utils.verbose_print_over_same_line(tol + ' Da progress: ' + str(percent_complete) + '%')
+    print_percent_progress_fn()
 
     scan_prediction_dict_list = []
 

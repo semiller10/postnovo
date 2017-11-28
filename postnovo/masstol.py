@@ -1,20 +1,18 @@
 ''' Compare sequences predicted with different fragment mass tolerances '''
 
-import sys
-
 import numpy as np
 import pandas as pd
+import sys
 
-import postnovo.config as config
-import postnovo.utils as utils
+from functools import partial
+from multiprocessing import Pool
 
-#import config
-#import utils
-
-from multiprocessing import Pool, current_process
-
-multiprocessing_scan_count = 0
-
+if 'postnovo' in sys.modules:
+    import postnovo.config as config
+    import postnovo.utils as utils
+else:
+    import config
+    import utils
 
 def update_prediction_df(prediction_df):
     utils.verbose_print()
@@ -40,17 +38,30 @@ def update_prediction_df(prediction_df):
     mass_tol_compar_df = prediction_df[['seq', 'combo level']]
     scan_groups = mass_tol_compar_df.groupby(level = 'scan')
 
-    # single processor method
-    #child_initialize(scan_groups, config.frag_mass_tols, tol_group_key_list)
+    ## Single process
     #tol_match_array_list = []
+    #print_percent_progress_fn = partial(utils.print_percent_progress_singlethreaded,
+    #                                    procedure_str = 'mass tolerance comparison progress: ',
+    #                                    one_percent_total_count = one_percent_number_scans)
+    #child_initialize(scan_groups,
+    #                 config.frag_mass_tols,
+    #                 tol_group_key_list,
+    #                 print_percent_progress_fn)
     #utils.verbose_print('performing mass tolerance comparison')
     #for scan in scan_list:
     #    tol_match_array_list.append(make_mass_tol_match_array(scan))
 
+    # Multiprocess
+    print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
+                                        procedure_str = 'mass tolerance comparison progress: ',
+                                        one_percent_total_count = one_percent_number_scans,
+                                        cores = config.cores[0])
     multiprocessing_pool = Pool(config.cores[0],
                                 initializer = child_initialize,
-                                initargs = (scan_groups, config.frag_mass_tols, tol_group_key_list,
-                                            config.cores[0], one_percent_number_scans)
+                                initargs = (scan_groups,
+                                            config.frag_mass_tols,
+                                            tol_group_key_list,
+                                            print_percent_progress_fn)
                                 )
     utils.verbose_print('performing mass tolerance comparison')
     tol_match_array_list = multiprocessing_pool.map(make_mass_tol_match_array, scan_list)
@@ -69,27 +80,18 @@ def update_prediction_df(prediction_df):
 
     return prediction_df
 
-def child_initialize(_scan_groups, _frag_mass_tols, _tol_group_key_list, _cores = 1, _one_percent_number_scans = None):
+def child_initialize(_scan_groups, _frag_mass_tols, _tol_group_key_list, _print_percent_progress_fn):
 
-    global scan_groups, frag_mass_tols, tol_group_key_list, cores, one_percent_number_scans
+    global scan_groups, frag_mass_tols, tol_group_key_list, print_percent_progress_fn
 
     scan_groups = _scan_groups
     frag_mass_tols = _frag_mass_tols
     tol_group_key_list = _tol_group_key_list
-    cores = _cores
-    one_percent_number_scans = _one_percent_number_scans
-
-    return
+    print_percent_progress_fn = _print_percent_progress_fn
 
 def make_mass_tol_match_array(scan):
 
-    if current_process()._identity[0] % cores == 1:
-        global multiprocessing_scan_count
-        multiprocessing_scan_count += 1
-        if int(multiprocessing_scan_count % one_percent_number_scans) == 0:
-            percent_complete = int(multiprocessing_scan_count / one_percent_number_scans)
-            if percent_complete <= 100:
-                utils.verbose_print_over_same_line('mass tolerance comparison progress: ' + str(percent_complete) + '%')
+    print_percent_progress_fn()
 
     scan_group_df = scan_groups.get_group(scan)
     scan_group_df.index = scan_group_df.index.droplevel('scan')

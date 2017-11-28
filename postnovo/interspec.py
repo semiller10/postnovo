@@ -2,17 +2,17 @@
 
 import numpy as np
 import pandas as pd
+import sys
 
-import postnovo.config as config
-import postnovo.utils as utils
+from functools import partial
+from multiprocessing import Pool
 
-#import config
-#import utils
-
-from multiprocessing import Pool, current_process
-
-multiprocessing_precursor_count = 0
-
+if 'postnovo' in sys.modules:
+    import postnovo.config as config
+    import postnovo.utils as utils
+else:
+    import config
+    import utils
 
 def update_prediction_df(prediction_df):
     utils.verbose_print()
@@ -61,20 +61,29 @@ def update_prediction_df(prediction_df):
                 precursor_indices.append(precursor_index)
             tol_df['precursor index'] = precursor_indices
             precursor_groups = tol_df.groupby('precursor index')
-
-            ## single processor method
-            #tol_group_precursor_array_list = []
-            #utils.verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
-            #for precursor_index in range(precursor_indices[-1] + 1):
-            #    child_initialize(precursor_groups)
-            #    tol_group_precursor_array_list.append(make_precursor_info_array(precursor_index))
-
-            ## multiprocessing method
             precursor_range = range(precursor_indices[-1] + 1)
             one_percent_number_precursors = len(precursor_range) / 100 / config.cores[0]
+
+            ## Single process
+            #tol_group_precursor_array_list = []
+            #print_percent_progress_fn = partial(utils.print_percent_progress_singlethreaded, 
+            #                                    procedure_str = 'inter-spectrum comparison progress: ', 
+            #                                    one_percent_total_count = one_percent_number_precursors)
+            #utils.verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
+            #child_initialize(precursor_groups,
+            #                 print_percent_progress_fn)
+            #for precursor_index in precursor_range:
+            #    tol_group_precursor_array_list.append(make_precursor_info_array(precursor_index))
+
+            # Multiprocess
+            print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
+                                                procedure_str = 'inter-spectrum comparison progress: ',
+                                                one_percent_total_count = one_percent_number_precursors,
+                                                cores = config.cores[0])
             multiprocessing_pool = Pool(config.cores[0],
                                         initializer = child_initialize,
-                                        initargs = (precursor_groups, config.cores[0], one_percent_number_precursors)
+                                        initargs = (precursor_groups,
+                                                    print_percent_progress_fn)
                                         )
             utils.verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
             tol_group_precursor_array_list = multiprocessing_pool.map(make_precursor_info_array,
@@ -97,21 +106,16 @@ def update_prediction_df(prediction_df):
 
     return prediction_df
 
-def child_initialize(_precursor_groups, _cores = 1, _one_percent_number_precursors = None):
-    global precursor_groups, cores, one_percent_number_precursors
+def child_initialize(_precursor_groups, _print_percent_progress_fn):
+
+    global precursor_groups, print_percent_progress_fn
+
     precursor_groups = _precursor_groups
-    cores = _cores
-    one_percent_number_precursors = _one_percent_number_precursors
+    print_percent_progress_fn = _print_percent_progress_fn
 
 def make_precursor_info_array(precursor_index):
 
-    if current_process()._identity[0] % cores == 1:
-        global multiprocessing_precursor_count
-        multiprocessing_precursor_count += 1
-        if int(multiprocessing_precursor_count % one_percent_number_precursors) == 0:
-            percent_complete = int(multiprocessing_precursor_count / one_percent_number_precursors)
-            if percent_complete <= 100:
-                utils.verbose_print_over_same_line('inter-spectrum comparison progress: ' + str(percent_complete) + '%')
+    print_percent_progress_fn()
 
     precursor_seqs = precursor_groups.get_group(precursor_index)['seq']
     precursor_group_size = len(precursor_seqs)

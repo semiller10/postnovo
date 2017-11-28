@@ -1,55 +1,47 @@
 ''' Load de novo sequence data '''
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import re
-
-import postnovo.config as config
-import postnovo.utils as utils
-
-#import config
-#import utils
+import sys
 
 from collections import OrderedDict
-from os.path import basename
 from itertools import combinations
+from os.path import basename
 import warnings
 warnings.filterwarnings('ignore')
 
+if 'postnovo' in sys.modules:
+    import postnovo.config as config
+    import postnovo.utils as utils
+else:
+    import config
+    import utils
 
 def load_files():
 
-    alg_basename_dfs_dict = OrderedDict()
+    ## input_df_dict format =
+    ## OrderedDict('novor': OrderedDict('0.2': df, ..., '0.7': df), 'pn': ...)
+    input_df_dict = OrderedDict()
 
     if config.novor_files:
-        alg_basename_dfs_dict['novor'] = OrderedDict.fromkeys(
+        input_df_dict['novor'] = OrderedDict.fromkeys(
             [basename(novor_file) for novor_file in config.novor_files])
         for i, novor_file in enumerate(config.novor_files):
             utils.verbose_print('loading', basename(novor_file))
-            check_file_fragment_mass_tol(novor_file, config.frag_mass_tols[i])
-            if i == 0:
-                find_precursor_mass_tol(novor_file)
-
-            alg_basename_dfs_dict['novor'][basename(novor_file)] = load_novor_file(novor_file)
-    
-    if config.peaks_files:
-        alg_basename_dfs_dict['peaks'] = OrderedDict.fromkeys(
-            [basename(peaks_file) for peaks_file in config.peaks_files])
-        for i, peaks_file in enumerate(config.peaks_files):
-            utils.verbose_print('loading', basename(peaks_file))
-            alg_basename_dfs_dict['peaks'][basename(peaks_file)] = load_peaks_file(peaks_file)
+            input_df_dict['novor'][config.frag_mass_tols[i]] = load_novor_file(novor_file)
 
     if config.pn_files:
-        alg_basename_dfs_dict['pn'] = OrderedDict.fromkeys(
+        input_df_dict['pn'] = OrderedDict.fromkeys(
             [basename(pn_file) for pn_file in config.pn_files])
         for i, pn_file in enumerate(config.pn_files):
             utils.verbose_print('loading', basename(pn_file))
-            alg_basename_dfs_dict['pn'][basename(pn_file)] = load_pn_file(pn_file)
+            input_df_dict['pn'][config.frag_mass_tols[i]] = load_pn_file(pn_file)
 
     utils.verbose_print('cleaning up input data')
-    alg_basename_dfs_dict = filter_shared_scans(alg_basename_dfs_dict)
+    input_df_dict = filter_shared_scans(input_df_dict)
 
-    return alg_basename_dfs_dict
+    return input_df_dict
 
 def load_novor_file(novor_file):
     
@@ -83,7 +75,7 @@ def load_novor_file(novor_file):
                                   config.proton_mass * novor_df['charge'])
     
     novor_df['seq'] = novor_df['seq'].apply(
-        lambda seq: config.novor_seq_sub_fn(string = seq))
+        lambda seq: utils.remove_mod_chars(seq = seq))
 
     novor_df['aa score'] = novor_df['aa score'].apply(
         lambda score_string: score_string.split('-')).apply(
@@ -96,25 +88,6 @@ def load_novor_file(novor_file):
     novor_df.set_index(['scan', 'rank'], inplace = True)
 
     return novor_df
-
-def check_file_fragment_mass_tol(novor_file, user_mass_tol):
-
-    file_mass_tol_line = pd.read_csv(novor_file, nrows = 12).iloc[11][0]
-    file_mass_tol = round(float(file_mass_tol_line.strip('# fragmentIonErrorTol = ').strip('Da')) * 10) / 10
-
-    if float(user_mass_tol) != file_mass_tol:
-        raise AssertionError(
-            'Order of mass tol args does not correspond to order of Novor files')
-
-def find_precursor_mass_tol(novor_file):
-    precursor_mass_tol_info_str = pd.read_csv(novor_file, nrows = 13).iloc[12][0]
-    try:
-        config.precursor_mass_tol[0] = float(re.search('(?<=# precursorErrorTol = )(.*)(?=ppm)', precursor_mass_tol_info_str).group(0))
-    except ValueError:
-        pass
-
-def load_peaks_file(peaks_file):
-    pass
 
 def load_pn_file(pn_file):
     
@@ -148,7 +121,7 @@ def load_pn_file(pn_file):
     try:
         pn_df['scan'] = grouped['rank'].first().apply(
             lambda str: re.search(
-                scan_start_substr + '(.*)' + scan_end_substr, str).group(1)
+                scan_start_substr + '([0-9]+)' + scan_end_substr, str).group(1)
             )
     except TypeError as e:
         raise Exception('scan # not found on \">>\" header line.\n\
@@ -173,7 +146,7 @@ def load_pn_file(pn_file):
     pn_df['seq'].replace(
         to_replace = np.nan, value = '', inplace = True)
     pn_df['seq'] = pn_df['seq'].apply(
-        lambda seq: config.pn_seq_sub_fn(string = seq))
+        lambda seq: utils.remove_mod_chars(seq = seq))
 
     pn_df_cols = ['scan', 'rank', 'm/z',
                   'charge', 'n-gap', 'c-gap',
@@ -191,24 +164,17 @@ def load_pn_file(pn_file):
 
     return pn_df
 
-def filter_shared_scans(alg_basename_dfs_dict):
-
+def filter_shared_scans(input_df_dict):
     for tol in config.frag_mass_tols:
-
         for alg0, alg1 in combinations(config.alg_list, 2):
-            if (tol in config.alg_tols_dict[alg0].keys()
-                and tol in config.alg_tols_dict[alg1].keys()):
+            df0 = input_df_dict[alg0][tol]
+            df1 = input_df_dict[alg1][tol]
 
-                df_name0 = config.alg_tols_dict[alg0][tol]
-                df_name1 = config.alg_tols_dict[alg1][tol]
-                df0 = alg_basename_dfs_dict[alg0][df_name0]
-                df1 = alg_basename_dfs_dict[alg1][df_name1]
+            common = df0.iloc[:, :1].join(
+                df1.iloc[:, :1], lsuffix = '_l', rsuffix = '_r')
+            df0 = df0[df0.index.get_level_values(0).isin(
+                common.index.get_level_values(0))]
+            df1 = df1[df1.index.get_level_values(0).isin(
+                common.index.get_level_values(0))]
 
-                common = df0.iloc[:, :1].join(
-                    df1.iloc[:, :1], lsuffix = '_l', rsuffix = '_r')
-                df0 = df0[df0.index.get_level_values(0).isin(
-                    common.index.get_level_values(0))]
-                df1 = df1[df1.index.get_level_values(0).isin(
-                    common.index.get_level_values(0))]
-
-    return alg_basename_dfs_dict
+    return input_df_dict

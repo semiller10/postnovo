@@ -7,7 +7,6 @@ from itertools import product
 from collections import OrderedDict
 from functools import partial
 
-
 # websites
 forest_dict_url = ''
 
@@ -76,36 +75,23 @@ iodir = []
 data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 # global info from user input
+filename = []
 alg_list = []
 alg_combo_list = []
 novor_files = []
 peaks_files = []
 pn_files = []
+db_name_list = []
 psm_fp_list = []
-psm_name_list = []
+db_fp_list = []
 ## example
 ## alg_combo_list = [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn'), ('novor', 'peaks', 'pn')]
 is_alg_col_names = []
 is_alg_col_multiindex_keys = []
-alg_tols_dict = OrderedDict()
-## example
-## alg_tols_dict = odict('novor': odict('0.4': 'proteome-0.4.novor.csv', '0.5': 'proteome-0.5.novor.csv'),
-##                     'pn': odict('0.4': 'proteome-0.4.mgf.out', '0.5': 'proteome-0.5.mgf.out'))
-tol_alg_dict = OrderedDict()
-## example
-## tol_alg_dict = odict('0.4': ['novor', 'pn'], '0.5': ['novor', 'pn'])
-tol_basenames_dict = OrderedDict()
-## example
-## tol_basenames_dict = odict('0.4': ['proteome-0.4.novor.csv', 'proteome-0.4.mgf.out'],
-##                              '0.5': ['proteome-0.5.novor.csv', 'proteome-0.5.mgf.out'])
+precursor_mass_tol = [10.0]
 
 # de novo output characteristics
-# delete, in order: anything between parens, anything between square brackets, |, ^, +, numbers
-novor_seq_sub_fn = partial(re.sub, pattern = '\(.*\)|\[.*\]|\||\^|\+|[0-9]', repl = '')
-# delete, in order: anything between parens, anything between square brackets, ^, +, -, ., numbers
-pn_seq_sub_fn = partial(re.sub, pattern = '\(.*\)|\[.*\]|\^|\+|\-|\.|[0-9]', repl = '')
-total_seq_sub_fn = partial(re.sub, pattern='\(.*\)|\[.*\]|\||\^|\+|\-|\.|[0-9]', repl='')
-precursor_mass_tol = [4.0]
+mod_chars = ['.', '|', '^', '+', '-'] + [str(i) for i in range(10)]
 
 # training parameters
 min_fdr = 0.05

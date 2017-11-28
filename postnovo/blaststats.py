@@ -20,6 +20,7 @@ from collections import OrderedDict
 from Bio import SeqIO
 from attrdict import AttrDict
 
+# take 'gaps' out of the list 
 blast_table_headers = ['query_id',
                        'subject_accession',
                        'query_start',
@@ -29,6 +30,7 @@ blast_table_headers = ['query_id',
                        'e_value',
                        'bit_score',
                        'percent_identity',
+                       'gaps',
                        'taxon_id']
 
 def main():
@@ -37,21 +39,21 @@ def main():
     #test_args(args)
     # TEST CODE: REPLACE CMD LINE ARGS WITH ANALOGOUS ATTRDICT
     args = AttrDict()
-    args.out_dir = 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test2'
-    #args.out_dir = '/home/samuelmiller/FragGeneScanPlus/tmp'
-    args.blast_batch_path = '/home/samuelmiller/FragGeneScanPlus/tmp/blaststats_blast_batch.sh'
-    args.cores = 24
+    #args.out_dir = 'C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test2'
+    args.out_dir = '/home/samuelmiller/blast_null_models'
+    args.blast_batch_path = '/home/samuelmiller/8-3-17/postnovo/postnovo/bashscripts/blaststats_blast_batch.sh'
+    args.cores = 32
     #args.max_seqs_per_process = 1
     args.max_seqs_per_process = 2000
     args.max_nonident = 4
-    args.translated_seqs_path = '/home/samuelmiller/FragGeneScanPlus/tmp/ERR1019366_1.trimmed.fgsp.pep_list.faa'
+    args.translated_seqs_path = '/home/samuelmiller/8-3-17/ERR1019366.contigs.fa'
     #args.min_peptide_length = 10
     args.min_peptide_length = 7
     #args.max_peptide_length = 11
-    args.max_peptide_length = 17
+    args.max_peptide_length = 16
     args.peptide_length_interval = 1
     #args.peptide_sample_size = 8
-    args.peptide_sample_size = 5000
+    args.peptide_sample_size = 1000
     args.dna_reads_path = None
     args.min_dna_length = None
     args.max_dna_length = None
@@ -60,17 +62,21 @@ def main():
     args.blastn_path = None
     args.nt_db_dir = None
     args.blastp_path = '/home/samuelmiller/ncbi-blast-2.6.0+/bin/blastp'
-    args.aa_db_dir = '/home/samuelmiller/refseq_protein/refseq_protein'
+    args.aa_db_dir = '/home/samuelmiller/refseq_protein_072117/refseq_protein'
 
     if args.dna_sample_size is not None:
         raise NotImplementedError('DNA searches are not implemented.')
     if args.peptide_sample_size is not None:
         #aa_seq_filepath = peptide_setup(args)
         #seq_sample_dict = draw_seqs('aa', args, aa_seq_filepath)
+        # UNCOMMENT
         #split_fasta_pathname_list = make_fasta_files('aa', args, seq_sample_dict)
         #blast_seqs('aa', args, split_fasta_pathname_list)
-        split_fasta_pathname_list = ['C:\\Users\\Samuel\\Documents\\Visual Studio 2015\\Projects\\postnovo\\test2\\peptide_sample_' + str(i) + '.faa'
-                                     for i in range(1, 29)]
+        # REMOVE
+        split_fasta_pathname_list = [
+            '/home/samuelmiller/blast_null_models/peptide_sample_' + str(i) + '.faa'
+            for i in range(1, 33)
+            ]
         analyze_blast_output('aa', args, split_fasta_pathname_list)
 
     #seq_sample_dict = draw_seqs(args)
@@ -138,7 +144,6 @@ def analyze_blast_output(seq_type, args, split_fasta_pathname_list):
         blast_df = pd.read_csv(os.path.join(args.out_dir, blast_table_pathname), sep='\t', header=None)
         blast_df.columns = blast_table_headers
 
-        # SAMUEL: Remove when done testing
         blast_df = blast_df.groupby('query_id').first().reset_index()
 
         blast_df['query_length'] = blast_df['query_id']\
@@ -213,19 +218,20 @@ def plot_nonident(seq_type, args, length_nonident_dict, nonident_bins):
         db_name = os.path.basename(args.aa_db_dir)
 
     fig, ax = plt.subplots()
-    ax.set_title(
-        title_type + ' sequence hits to ' + db_name + ':\n'
-        + 'Proportion of query seqs with N residues non-identical to the subject\n'
-        + 'for different query seq lengths',
-        horizontalalignment='center',
-        multialignment='center',
-        fontsize=12
-        )
+    #ax.set_title(
+    #    title_type + ' sequence hits to ' + db_name + ':\n'
+    #    + 'Proportion of query seqs with N residues non-identical to the subject\n'
+    #    + 'for different query seq lengths',
+    #    horizontalalignment='center',
+    #    multialignment='center',
+    #    fontsize=12
+    #    )
 
     x_positions = list(range(len(length_nonident_dict)))
     bar_gap = 0.2
     bar_width = 1 / (len(length_nonident_dict[min_length]))
     
+    cmap_points = np.linspace(0, 1, len(length_nonident_dict[min_length]))
     for i, nonident_bin in enumerate(range(len(length_nonident_dict[min_length]))):
         x_values = [position + bar_width * (i + 0.5) + bar_gap * j for (j, position) in enumerate(x_positions)]
         y_values = [length_nonident_dict[length][nonident_bin]
@@ -234,7 +240,7 @@ def plot_nonident(seq_type, args, length_nonident_dict, nonident_bins):
                y_values,
                bar_width,
                alpha=0.6,
-               color=cm.jet(i / len(length_nonident_dict[min_length]))
+               color=cm.jet(cmap_points[i])
                )
 
     ax.set_xticks(
@@ -242,24 +248,31 @@ def plot_nonident(seq_type, args, length_nonident_dict, nonident_bins):
          for position in x_positions]
         )
     ax.set_xticklabels(length_nonident_dict.keys())
-    ax.set_xlabel('Query seq length')
+    ax.set_xlabel('sequence length')
     ax.set_xlim(-bar_gap, len(x_positions) * (1 + bar_gap))
-    ax.set_ylabel('Proportion of query seqs with N non-identical residues')
+    ax.set_ylabel('proportion of sequences with N non-identical amino acids')
     ax.set_ylim(0, 1)
     if args.max_nonident < max_length:
-        ax.legend(
-            [str(nonident) for nonident in nonident_bins + ['> ' + str(args.max_nonident)]],
-             loc = 'upper right'
-             )
-    else:
-        ax.legend(
-            [str(nonident) for nonident in nonident_bins],
-            loc = 'upper right'
+        lgd = ax.legend(
+            [str(nonident) for nonident in nonident_bins + ['>' + str(args.max_nonident)]],
+            title='non-identical',
+            bbox_to_anchor=(1.05, 1),
+            loc=2,
+            borderaxespad=0.
             )
-    ax.grid()
-    fig.tight_layout()
+    else:
+        lgd = ax.legend(
+            [str(nonident) for nonident in nonident_bins],
+            title='non-identical',
+            bbox_to_anchor=(1.05, 1),
+            loc=2,
+            borderaxespad=0.
+            )
+    lgd._legend_box.align = "left"
+    #ax.grid()
+    #fig.tight_layout()
     save_path = os.path.join(args.out_dir, results_type + '_results.pdf')
-    fig.savefig(save_path, bbox_inches = 'tight')
+    fig.savefig(save_path, bbox_extra_artists=(lgd,), bbox_inches='tight')
     plt.close()
 
 # Convert fastq to fastn format
