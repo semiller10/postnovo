@@ -40,6 +40,14 @@ blast_out_hdr = [
     'bitscore', 
     'stitle'
     ]
+search_out_hdr = [
+    'qseqid',
+    'accession',
+    'evalue',
+    'bitscore',
+    'taxid', 
+    'stitle'
+    ]
 
 max_float = np.finfo('f').max
 max_int = np.finfo('d').max
@@ -199,28 +207,47 @@ def make_query_files(args):
 
         # Retrieve taxids from the accession2taxid file
         subject_accession_list = merged_blast_table['accession'].tolist()
-        subject_accession_dict = OrderedDict().fromkeys(subject_accession_list)
+        subject_accession_set_list = list(set(subject_accession_list))
+        subject_accession_dict = OrderedDict().fromkeys(subject_accession_set_list)
         taxonmap_df = pd.read_csv(args.taxonmap, sep='\t', header=0)[['accession', 'taxid']]
         taxonmap_accession_list = taxonmap_df['accession']
         taxonmap_taxid_list = taxonmap_df['taxid']
         for i, taxonmap_accession in taxonmap_accession_list:
-            if taxonmap_accession in subject_accession_list:
-                subject_accession_dict[taxonmap_accession] = taxonmap_taxid_list[i]
+            if taxonmap_accession in subject_accession_set_list:
+                if taxonmap_accession not in subject_accession_dict.keys():
+                    subject_accession_dict[taxonmap_accession] = taxonmap_taxid_list[i]
+                # REMOVE AFTER TESTING
+                else:
+                    # Check whether the new taxid is the same as the one already in the dict
+                    if subject_accession_dict[taxonmap_accession] != taxonmap_taxid_list[i]:
+                        raise Exception(
+                            taxonmap_accession + 'maps to multiple taxids: ' + 
+                            str(subject_accession_dict[taxonmap_accession]) + ' and ' + 
+                            str(taxonmap_taxid_list[i])
+                            )
         subject_taxid_list = []
         for subject_accession in subject_accession_list:
             subject_taxid_list.append(subject_accession_dict[subject_accession])
         merged_blast_table['taxid'] = subject_taxid_list
+        # Rearrange the columns to correspond with DIAMOND
+        merged_blast_table = merged_blast_table[search_out_hdr]
 
         if args.intermediate_files:
             merged_blast_table.to_csv(
                 os.path.join(out_dir, db_name + '_merged_df.csv'), index=False
                 )
+
         parsed_blast_table = parse_blast_table(fasta_input_fp, merged_blast_table)
         if args.intermediate_files:
             parsed_blast_table.to_csv(
                 os.path.join(out_dir, db_name + '_parsed_blast_table.csv'), index=False
                 )
         parsed_blast_table_list.append(parsed_blast_table)
+
+    # Load the DIAMOND output
+    diamond_out_table = pd.read_csv(
+        os.path.splitext(fasta_input_fp)[0] + '.diamond.out', sep='\t', header=None, names=search_out_hdr
+        )
 
     #merged_blast_table = pd.DataFrame(columns=blast_hdr)
     #for out_fp in blast_out_fp_list:
