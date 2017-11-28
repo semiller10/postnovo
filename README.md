@@ -4,6 +4,8 @@ Post-processing peptide de novo sequences to improve their accuracy
 ## Requirements
 Python 3.4 or higher
 
+Standard Anaconda distribution Python packages
+
 ### Training model: a pickled dictionary of random forests
 #### A file named *forest_dict.pkl* must go in the *postnovo/training* directory.
 #### The default *forest_dict.pkl* file can be downloaded here:
@@ -57,7 +59,7 @@ Optimize = same as train, but some random forest parameters are tuned
 
 `[--denovogui_mgf_path "/home/ms_files/spectra.mgf"]`
 
-#### Options for using as postnovo input the *Novor* and *PepNovo+* output files corresponding to 7 fragment mass tolerances
+#### Options for using as postnovo input the *Novor* and *PepNovo+* output files corresponding to 6 fragment mass tolerances
 ##### Files must be in order of fragment mass tolerance from lowest to highest.
 ##### Use of *DeNovoGUI* on an mgf file overrides these options (see --denovogui_path and --denovogui_mgf_path above).
 
