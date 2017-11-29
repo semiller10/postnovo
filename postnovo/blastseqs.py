@@ -211,29 +211,46 @@ def make_query_files(args):
     db_names = [os.path.basename(blast_db_fp) for blast_db_fp in args.blast_dbs]
     blast_out_dict = OrderedDict().fromkeys(db_names)
     for db_name in db_names:
-        blast_out_dict[db_name] = pd.DataFrame(columns=blast_out_hdr)
+        blast_out_table = pd.DataFrame(columns=blast_out_hdr)
         # Piece the BLAST table together from its parts
         for partial_blast_out_fp in split_blast_out_fp_list:
             partial_blast_out_table = pd.read_csv(
                 partial_blast_out_fp, sep='\t', header=None, names=blast_out_hdr
                 )
-            blast_out_dict[db_name] = pd.concat(
-                [blast_out_dict[db_name], partial_blast_out_table], ignore_index=True
+            blast_out_table = pd.concat(
+                [blast_out_table, partial_blast_out_table], ignore_index=True
                 )
 
         # For debugging purposes, write the current db BLAST table to file
         if args.intermediate_files:
-            blast_out_dict[db_name].to_csv(
+            blast_out_table.to_csv(
                 os.path.join(out_dir, db_name + '_merged_df.csv'), index=False
                 )
 
-        # Retrieve additional information for the BLAST table from postnovo_seqs_info.tsv
-        blast_out_dict[db_name] = parse_blast_table(blast_out_dict[db_name], fasta_input_fp, )
-        if args.intermediate_files:
-            parsed_blast_table.to_csv(
-                os.path.join(out_dir, db_name + '_parsed_blast_table.csv'), index=False
-                )
-        parsed_blast_table_list.append(parsed_blast_table)
+        # Reorganize the qseqid column into the seq_number column
+        blast_out_table['seq_number'] = [
+            int(qseqid.replace('(seq_number)', ''))
+            for qseqid in blast_out_table['qseqid'].tolist()
+            ]
+
+        # Add a hit_number column to keep track of the alignment rank
+        hit_number = 0
+        hit_number_list = [0]
+        last_seq_number = 0
+        for seq_number in blast_out_table['seq_number'].tolist()[1:]:
+            if seq_number != last_seq_number:
+                hit_number = 0
+                hit_number_list.append(hit_number)
+                last_seq_number = seq_number
+            else:
+                hit_number += 1
+                hit_number_list.append(hit_number)
+        blast_out_table['hit_number'] = hit_number_list
+
+        # Add seq info to the blast output table
+        blast_out_table = blast_out_table.merge(seq_info_table, on=['seq_number'])
+
+        blast_out_dict[db_name] = blast_out_table
 
 
     for blast_db_fp in args.blast_dbs:
@@ -803,62 +820,6 @@ def run_blast(db_fp_list, fasta_fp_list, blastp_fp):
     #    temp_blast_batch_file.write(temp_blast_batch_script)
     #os.chmod(temp_blast_batch_fp, 0o777)
     #subprocess.call([temp_blast_batch_fp])
-
-def parse_blast_table(fasta_input_fp, raw_blast_table):
-    '''
-    Parse the different parts of qseqid into cols
-    Retrieve the query seqs from the fasta file
-    '''
-
-    # REVISIT
-    postnovo_merged_headers = ['scan_list', 'xle_permutation', 'precursor_mass', 'seq_score', 'seq_origin'] + blast_hdr[1:]
-
-    # Split the info in the headers into cols of info
-    qseqid_list = raw_blast_table['qseqid'].tolist()
-    # qseqid format is, ex., (scan_list)1,2(xle_permutation)0(precursor_mass)1000.000(seq_score)0.55(seq_origin)postnovo
-    qseqid_list = [qseqid.split('(scan_list)')[1] for qseqid in qseqid_list]
-    temp_list_of_lists = [qseqid.split('(xle_permutation)') for qseqid in qseqid_list]
-    scan_col = pd.Series(
-        [temp_list[0] for temp_list in temp_list_of_lists])
-    temp_list_of_lists = [temp_list[1].split('(precursor_mass)') for temp_list in temp_list_of_lists]
-    permut_col = pd.Series(
-        [temp_list[0] for temp_list in temp_list_of_lists])
-    temp_list_of_lists = [temp_list[1].split('(seq_score)') for temp_list in temp_list_of_lists]
-    mass_col = pd.Series(
-        [temp_list[0] for temp_list in temp_list_of_lists])
-    temp_list_of_lists = [temp_list[1].split('(seq_origin)') for temp_list in temp_list_of_lists]
-    score_col = pd.Series(
-        [temp_list[0] for temp_list in temp_list_of_lists])
-    origin_col = pd.Series(
-        [temp_list[1] for temp_list in temp_list_of_lists])
-    parsed_blast_table = pd.concat(
-        [scan_col,
-            permut_col,
-            mass_col,
-            score_col,
-            origin_col,
-            raw_blast_table[raw_blast_table.columns[1:]].reset_index(drop=True)],
-        axis = 1)
-    parsed_blast_table.columns = postnovo_merged_headers
-
-    # Add a hit column to df
-    scan_list_list = parsed_blast_table[id_type].tolist()
-    last_scan_list = scan_list_list[0]
-    hit_list = [0]
-    for scan_list in scan_list_list[1:]:
-        if scan_list != last_scan_list:
-            last_scan_list = scan_list
-            hit_list.append(0)
-        else:
-            hit_list.append(hit_list[-1] + 1)
-    parsed_blast_table['hit'] = hit_list
-
-    seq_table = tabulate_fasta(fasta_input_fp)
-    merged_blast_table = seq_table.merge(
-        parsed_blast_table, on=['scan_list', 'xle_permutation']
-        )
-
-    return merged_blast_table
 
 def optimize_blast_table(parsed_blast_table_list):
 
