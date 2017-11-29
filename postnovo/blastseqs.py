@@ -275,7 +275,7 @@ def make_query_files(args):
     for accession in blast_out_table['accession'].tolist():
         taxid_list.append(taxid_dict[accession])
     blast_out_table['taxid'] = taxid_list
-    # Rearrange the columns to correspond with DIAMOND
+    # Rearrange the cols in a predictable order
     blast_out_table = blast_out_table[align_out_hdr]
 
     # Load the DIAMOND output
@@ -297,16 +297,34 @@ def make_query_files(args):
     diamond_out_table.drop('staxids', inplace=True)
     # Remove the accession.version substring from stitle to make it consistent with BLAST
     diamond_out_table['stitle'] = diamond_out_table['stitle'].apply(lambda x: x[x.index(' ') + 1:])
+    # Rearrange the cols in a predictable order
+    diamond_out_table = diamond_out_table[align_out_hdr]
 
     # Combine DIAMOND and BLAST output
     align_out_table = pd.concat([diamond_out_table, blast_out_table], ignore_index=True)
     align_out_table.sort_values(['seq_number', 'hit'], inplace=True)
+
+    # REMOVE
+    # For debugging, report any seqs that return multiple taxids:
+    # these should be separated by a semicolon (according to DIAMOND manual),
+    # and the column datatype is therefore an object rather than numeric
+    if not pd.api.types.is_numeric_dtype(align_out_table['taxid']):
+        print(align_out_table[align_out_table['taxid'].apply(lambda x: ';' in x)], flush=True)
 
     # For debugging purposes, write the alignment output table to file
     if args.intermediate_files:
         align_out_table.to_csv(
             os.path.join(out_dir, 'align_out.csv'), index=False
             )
+
+    # Test the data types of the columns to avoid unexpected surprises
+    assert pd.api.types.is_numeric_dtype(align_out_table['seq_number'])
+    assert pd.api.types.is_numeric_dtype(align_out_table['hit_number'])
+    assert pd.api.types.is_object_dtype(align_out_table['accession'])
+    assert pd.api.types.is_numeric_dtype(align_out_table['evalue'])
+    assert pd.api.types.is_numeric_dtype(align_out_table['bitscore'])
+    assert pd.api.types.is_numeric_dtype(align_out_table['taxid'])
+    assert pd.api.types.is_object_dtype(align_out_table['stitle'])
 
     #high_prob_df, low_prob_df, filtered_df = filter_blast_table(parsed_blast_table)
     #if args.intermediate_files:
@@ -908,241 +926,7 @@ def filter_blast_table(blast_table):
     low_prob_df = pd.concat(low_prob_df_list, ignore_index=True)
     filtered_df = pd.concat(filtered_df_list, ignore_index=True)
 
-    # If a BLAST database was constructed without taxids, they must be recovered
-    if pd.isnull(filtered_df['taxid']).any():
-        df_needing_taxids = filtered_df[pd.isnull(filtered_df['taxid'])]
-        filtered_df.loc[df_needing_taxids.index, 'taxid'] = retrieve_taxids(df_needing_taxids)
-        high_prob_df.drop('taxid', axis=1, inplace=True)
-        high_prob_df = high_prob_df.merge(
-            filtered_df[[id_type, 'hit', 'taxid']], how='inner', on=[id_type, 'hit']
-            )
-        low_prob_df.drop('taxid', axis=1, inplace=True)
-        low_prob_df = low_prob_df.merge(
-            filtered_df[[id_type, 'hit', 'taxid']], how='inner', on=[id_type, 'hit']
-            )
-
     return high_prob_df, low_prob_df, filtered_df
-
-def retrieve_taxids(df):
-
-    # The only way of accurately retrieving the taxid from the information at hand
-    # is not by directly querying with the taxonomic name in the subject title,
-    # as this can be ambiguous (e.g., 'Bacillus' is a bacterium and walking stick insect),
-    # but by querying the protein db with the accession.
-    # Assume that no two organisms share a taxonomic name in the sample.
-    # Find the list of unique taxonomic names in the sample.
-    # Sample the first accession corresponding to this name as a representative query.
-
-    df['taxon'] = df['stitle'].apply(get_taxon)
-    unique_taxon_list = df['taxon'].unique().tolist()
-    one_percent_number_taxa = len(unique_taxon_list) / 100 / cores
-    
-    ## Single process
-    #accession_list = []
-    #print_percent_progress_fn = partial(utils.print_percent_progress_singlethreaded,
-    #                                    procedure_str = 'Representative accession retrieval progress: ',
-    #                                    one_percent_total_count = one_percent_number_taxa * cores)
-    #child_initialize(df, print_percent_progress_fn)
-    ##single_var_get_representative_accession = partial(get_representative_accession,
-    ##                                                  df = df,
-    ##                                                  print_percent_progress_fn = print_percent_progress_fn)
-    #for taxon in unique_taxon_list:
-    #    accession_list.append(get_representative_accession(taxon))
-
-    # Multiprocess
-    print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
-                                        procedure_str = 'Representative accession retrieval progress: ',
-                                        one_percent_total_count = one_percent_number_taxa,
-                                        cores = cores)
-    child_initialize(df, print_percent_progress_fn)
-    #single_var_get_representative_accession = partial(get_representative_accession,
-    #                                                  df = df,
-    #                                                  print_percent_progress_fn = print_percent_progress_fn)
-    multiprocessing_pool = Pool(cores,
-                                initializer=child_initialize,
-                                initargs=(df,
-                                          print_percent_progress_fn)
-                                )
-    accession_list = multiprocessing_pool.map(get_representative_accession, unique_taxon_list)
-    multiprocessing_pool.close()
-    multiprocessing_pool.join()
-
-    ## Single process
-    #unique_taxid_list = []
-    #print_percent_progress_fn = partial(utils.print_percent_progress_singlethreaded,
-    #                                    procedure_str = 'Taxid retrieval progress: ',
-    #                                    one_percent_total_count = one_percent_number_taxa * cores)
-    #single_var_get_taxid = partial(get_taxid,
-    #                               print_percent_progress_fn = print_percent_progress_fn)
-    #for accession in accession_list:
-    #    unique_taxid_list.append(single_var_get_taxid(accession))
-
-    # Multiprocess
-    print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
-                                        procedure_str = 'Taxid retrieval progress: ',
-                                        one_percent_total_count = one_percent_number_taxa,
-                                        cores = cores)
-    single_var_get_taxid = partial(get_taxid,
-                                   print_percent_progress_fn = print_percent_progress_fn)
-    multiprocessing_pool = Pool(cores)
-    unique_taxid_list = multiprocessing_pool.map(single_var_get_taxid, accession_list)
-    multiprocessing_pool.close()
-    multiprocessing_pool.join()
-
-    taxon_taxid_dict = OrderedDict().fromkeys(unique_taxon_list)
-    for i, taxon in enumerate(taxon_taxid_dict):
-        taxon_taxid_dict[taxon] = unique_taxid_list[i]
-
-    taxid_list = []
-    for taxon in df['taxon'].tolist():
-        taxid_list.append(taxon_taxid_dict[taxon])
-    #df['taxid'] = taxid_list
-    #df.drop('taxon', axis=1, inplace=True)
-
-    ## Pull down the taxid given the taxon string
-    #unique_taxon_list = df['taxon'].unique().tolist()
-    #unique_taxon_dict = {}.fromkeys(unique_taxon_list)
-    #one_percent_number_taxa = len(unique_taxon_list) / 100 / cores
-
-    ### Single process
-    ##unique_taxid_list = []
-    ##print_percent_progress_fn = partial(utils.print_percent_progress_singlethreaded,
-    ##                                    procedure_str = 'Taxid retrieval progress: ',
-    ##                                    one_percent_total_count = one_percent_number_taxa * cores)
-    ##single_var_get_taxid = partial(get_taxid,
-    ##                               print_percent_progress_fn = print_percent_progress_fn)
-    ##for taxon in unique_taxon_list:
-    ##    unique_taxid_list.append(single_var_get_taxid(taxon))
-
-    ## Multiprocess
-    #print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
-    #                                    procedure_str = 'Taxid retrieval progress: ',
-    #                                    one_percent_total_count = one_percent_number_taxa,
-    #                                    cores = cores)
-    #single_var_get_taxid = partial(get_taxid,
-    #                               print_percent_progress_fn = print_percent_progress_fn)
-    #multiprocessing_pool = Pool(cores)
-    #unique_taxid_list = multiprocessing_pool.map(single_var_get_taxid, unique_taxon_list)
-    #multiprocessing_pool.close()
-    #multiprocessing_pool.join()
-
-    #for i, taxon in enumerate(unique_taxon_list):
-    #    unique_taxon_dict[taxon] = unique_taxid_list[i]
-
-    ## The query procedure sometimes times out indefinitely for certain queries,
-    ## so clean up taxids that were not retrieved
-    #cleanup_number = 1
-    #while 'timeout' in unique_taxon_dict.values():
-    #    missed_taxa = [taxon for taxon in unique_taxon_dict if unique_taxon_dict[taxon] == 'timeout']
-
-    #    one_percent_number_taxa = len(missed_taxa) / 100 / cores
-
-    #    ## Single process
-    #    #additional_taxid_list = []
-    #    #print_percent_progress_fn = partial(utils.print_percent_progress_singlethreaded,
-    #    #                                    procedure_str = 'Taxid clean-up retrieval #' + str(cleanup_number) + ' progress: ',
-    #    #                                    one_percent_total_count = one_percent_number_taxa * cores)
-    #    #single_var_get_taxid = partial(get_taxid,
-    #    #                               print_percent_progress_fn = print_percent_progress_fn)
-    #    #for taxon in missed_taxa:
-    #    #    additional_taxid_list.append(single_var_get_taxid(taxon))
-
-    #    # Multiprocess
-    #    print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
-    #                                        procedure_str = 'Taxid clean-up retrieval #' + str(cleanup_number) + ' progress: ',
-    #                                        one_percent_total_count = one_percent_number_taxa,
-    #                                        cores = cores)
-    #    single_var_get_taxid = partial(get_taxid,
-    #                                   print_percent_progress_fn = print_percent_progress_fn)
-    #    multiprocessing_pool = Pool(cores)
-    #    missed_taxid_list = multiprocessing_pool.map(single_var_get_taxid, missed_taxa)
-    #    multiprocessing_pool.close()
-    #    multiprocessing_pool.join()
-
-    #    cleanup_number += 1
-
-    #    for i, taxon in enumerate(missed_taxa):
-    #        unique_taxon_dict[taxon] = missed_taxid_list[i]
-
-    #taxid_list = []
-    #for taxon in df['taxon'].tolist():
-    #    taxid_list.append(unique_taxon_dict[taxon])
-    #df['taxid'] = taxid_list
-    #df.drop('taxon', axis=1, inplace=True)
-
-    return taxid_list
-
-def get_taxon(stitle):
-
-    closed_bracket_count = 0
-    open_bracket_count = 0
-    for i, char in enumerate(stitle[::-1]):
-        if char == ']':
-            closed_bracket_count += 1
-        elif char == '[':
-            open_bracket_count += 1
-        if open_bracket_count == closed_bracket_count:
-            return stitle[-i: -1]
-    print(stitle + 'did not work')
-
-def get_representative_accession(taxon):
-
-    print_percent_progress_fn()
-
-    accession = df[df['taxon'] == taxon].iloc[0]['accession']
-
-    return accession
-
-def child_initialize(_df, _print_percent_progress_fn):
-
-    global df, print_percent_progress_fn
-
-    df = _df
-    print_percent_progress_fn = _print_percent_progress_fn
-
-def get_taxid(accession, print_percent_progress_fn):
-
-    print_percent_progress_fn()
-
-    no_response_count = 0
-    no_response_count_limit = 5
-
-    while True:
-        try:
-            esummary = Entrez.read(Entrez.esummary(db='protein', id=accession))
-            taxid = esummary[0]['TaxId']
-            try:
-                int(taxid)
-                break
-            except ValueError:
-                print('Null taxid returned: ', esummary)
-        except:
-            print('Waiting for accession: ' + accession, flush=True)
-            time.sleep(2)
-
-    return taxid
-
-#def get_taxid(taxon, print_percent_progress_fn):
-
-#    print_percent_progress_fn()
-
-#    no_response_count = 0
-#    no_response_count_limit = 5
-
-#    while True:
-#        try:
-#            taxid = Entrez.read(Entrez.esearch(db='Taxonomy', term='\"' + taxon + '\"'))['IdList'][0]
-#            break
-#        except:
-#            if no_response_count == no_response_count_limit:
-#                return 'timeout'
-#            print('Waiting for taxon ' + str(taxon), flush=True)
-#            no_response_count += 1
-#            if '\'' in taxon:
-#                taxon = taxon.replace('\'', '')
-#            time.sleep(2)
-
-#    return taxid
 
 def retrieve_taxonomic_hierarchy(high_prob_df, low_prob_df, filtered_df):
     '''
