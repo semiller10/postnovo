@@ -219,10 +219,10 @@ def make_query_files(args):
                 )
 
         # Reorganize the qseqid column into the seq_number column
-        blast_out_table['seq_number'] = [
-            int(qseqid.replace('(seq_number)', ''))
-            for qseqid in blast_out_table['qseqid'].tolist()
-            ]
+        blast_out_table['seq_number'] = blast_out_table['qseqid'].apply(
+            lambda x: int(x.replace('(seq_number)', ''))
+            )
+        blast_out_table.drop('qseqid', inplace=True)
 
         # Add a hit_number column to keep track of the alignment rank
         hit_number = 0
@@ -248,17 +248,6 @@ def make_query_files(args):
         blast_out_table = list(blast_out_dict.values())[0]
     else:
         blast_out_table = refine_blast_table(blast_out_dict)
-
-
-    # Find the set of accession ID's in all of the merged blast tables corresponding to different db's
-    # Read the accession2taxid file line by line, starting with the second line
-    # Split the line by tab (field 1: accession, 2: accession.version, 3: taxid, 4: gi
-    # Check if the BLAST and file accessions are the same
-    # If so, place the taxid in a dict keyed by the accession
-    # Remove the accession from the set list
-    # Do all of this while the set list is non-empty
-    
-    # Remove the version number from the accession in the DIAMOND output file
 
     # Unzipped taxonmap file should be provided in the same dir as zipped file
     taxonmap_fp = os.path.splitext(args.taxonmap)[0]
@@ -294,29 +283,20 @@ def make_query_files(args):
     diamond_out_table = pd.read_csv(
         os.path.splitext(fasta_input_fp)[0] + '.diamond.out', sep='\t', header=None, names=align_out_hdr
         )
+    # Remove seqs without an alignment
+    diamond_out_table = diamond_out_table[diamond_out_table['accession'] != '*']
+    diamond_out_table['seq_number'] = diamond_out_table['seq_number'].apply(
+        lambda x: x.replace('(seq_number)', '')
+        )
+    # Remove the version number from the accession to make it consistent with BLAST
+    diamond_out_table['accession'] = diamond_out_table['accession'].apply(lambda x: x.split('.')[0])
+    # Remove the accession.version substring from stitle to make it consistent with BLAST
+    diamond_out_table['stitle'] = diamond_out_table['stitle'].apply(lambda x: x[x.index(' ') + 1:])
 
-    #merged_blast_table = pd.DataFrame(columns=blast_hdr)
-    #for out_fp in blast_out_fp_list:
-    #    part_blast_table = pd.read_csv(out_fp, sep='\t', header=None, names=blast_hdr)
-    #    merged_blast_table = pd.concat(
-    #        [merged_blast_table, part_blast_table], ignore_index=True
-    #        )
-    #if args.intermediate_files:
-    #    merged_blast_table.to_csv(
-    #        os.path.join(out_dir, db_name + '_merged_df.csv'), index=False
-    #        )
-    #parsed_blast_table = parse_blast_table(fasta_input_fp, merged_blast_table)
-    #if args.intermediate_files:
-    #    parsed_blast_table.to_csv(
-    #        os.path.join(out_dir, db_name + '_parsed_blast_table.csv'), index=False
-    #        )
-    #parsed_blast_table_list.append(parsed_blast_table)
+    # Combine DIAMOND and BLAST output
+    align_out_table = pd.concat([diamond_out_table, blast_out_table], ignore_index=True)
+    align_out_table.sort_values(['seq_number', 'hit'], inplace=True)
 
-    #if len(parsed_blast_table_list) == 1:
-    #    parsed_blast_table = parsed_blast_table_list[0]
-    #else:
-    #    # multiple blast db's were queried
-    #    parsed_blast_table = optimize_blast_table(parsed_blast_table_list)
 
     #high_prob_df, low_prob_df, filtered_df = filter_blast_table(parsed_blast_table)
     #if args.intermediate_files:
