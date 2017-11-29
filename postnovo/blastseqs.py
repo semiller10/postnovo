@@ -204,9 +204,8 @@ def make_query_files(args):
     
     # Remove the version number from the accession in the DIAMOND output file
 
-    # Load the postnovo fasta file as a DataFrame,
-    # so the query sequence can be added to the alignment output tables
-    seq_table = tabulate_fasta(fasta_input_fp)
+    # Make a table of sequence information to add to the alignment output
+    seq_info_table = make_info_table(fasta_input_fp, args.postnovo_seqs_info)
 
     # Load the BLAST output from alignments against each db
     db_names = [os.path.basename(blast_db_fp) for blast_db_fp in args.blast_dbs]
@@ -901,34 +900,18 @@ def optimize_blast_table(parsed_blast_table_list):
 
     return parsed_blast_table
 
-def tabulate_fasta(fasta_input_fp):
-    pass
+def make_info_table(fasta_input_fp, info_fp):
 
-def tabulate_fasta(fasta_input_fp):
+    # Retrieve the query sequences from the postnovo fasta file
+    with open(fasta_input_fp) as handle:
+        fasta_input_list = handle.readlines()
+    query_seqs = [seq.rstrip() for seq in fasta_input_list[1::2]]
 
-    raw_fasta_input = pd.read_table(fasta_input_fp, header = None)
-    fasta_headers_list = raw_fasta_input.ix[::2, 0].tolist()
-    seq_col = raw_fasta_input.ix[1::2, 0]
-    seq_col.index = range(len(seq_col))
-
-    # header format is, ex., >(scan_list)1,2(xle_permutation)0(precursor_mass)1000.000(seq_score)0.55(seq_origin)postnovo
-    fasta_headers_list = [
-        fasta_header.strip('>(scan_list)') for fasta_header in fasta_headers_list
-        ]
-    temp_list_of_lists = [header.split('(xle_permutation)') for header in fasta_headers_list]
-    scan_col = pd.Series(
-        [temp_list[0] for temp_list in temp_list_of_lists])
-    temp_list_of_lists = [
-        temp_list[1].split('(precursor_mass)') for temp_list in temp_list_of_lists
-        ]
-    permut_col = pd.Series(
-        [temp_list[0] for temp_list in temp_list_of_lists])
-    seq_table = pd.concat([scan_col, permut_col, seq_col], axis = 1)
-    seq_table.columns = ['scan_list', 'xle_permutation', 'seq']
-
-    seq_table['len'] = seq_table['seq'].apply(lambda seq: len(seq))
-
-    return seq_table
+    # Retrieve scan list, score, and best prediction and subseq origin lists
+    # for each seq from postnovo_seqs_info.tsv
+    info_table = pd.read_csv(info_fp, sep='\t', header=0)
+    info_table['query_seq'] = query_seqs
+    return info_table
 
 def filter_blast_table(blast_table):
     '''
