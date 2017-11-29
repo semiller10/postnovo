@@ -41,7 +41,7 @@ blast_out_hdr = [
     'stitle'
     ]
 align_out_hdr = [
-    'qseqid',
+    'seq_number',
     'accession',
     'evalue',
     'bitscore',
@@ -195,16 +195,6 @@ def make_query_files(args):
 
         sys.exit()
 
-    # Find the set of accession ID's in all of the merged blast tables corresponding to different db's
-    # Read the accession2taxid file line by line, starting with the second line
-    # Split the line by tab (field 1: accession, 2: accession.version, 3: taxid, 4: gi
-    # Check if the BLAST and file accessions are the same
-    # If so, place the taxid in a dict keyed by the accession
-    # Remove the accession from the set list
-    # Do all of this while the set list is non-empty
-    
-    # Remove the version number from the accession in the DIAMOND output file
-
     # Make a table of sequence information to add to the alignment output
     seq_info_table = make_info_table(fasta_input_fp, args.postnovo_seqs_info)
 
@@ -260,33 +250,45 @@ def make_query_files(args):
         blast_out_table = refine_blast_table(blast_out_dict)
 
 
-    # Load taxonmap
-    taxonmap_df = pd.read_csv(args.taxonmap, sep='\t', header=0)[['accession', 'taxid']]
-    taxonmap_accession_list = taxonmap_df['accession'].tolist()
-    taxonmap_taxid_list = taxonmap_df['taxid'].tolist()
-    # Retrieve taxids from the accession2taxid file
-    subject_accession_list = merged_blast_table['accession'].tolist()
-    subject_accession_set_list = list(set(subject_accession_list))
-    subject_accession_dict = OrderedDict().fromkeys(subject_accession_set_list)
-    for i, taxonmap_accession in taxonmap_accession_list:
-        if taxonmap_accession in subject_accession_set_list:
-            if taxonmap_accession not in subject_accession_dict.keys():
-                subject_accession_dict[taxonmap_accession] = taxonmap_taxid_list[i]
-            # REMOVE AFTER TESTING
-            else:
-                # Check whether the new taxid is the same as the one already in the dict
-                if subject_accession_dict[taxonmap_accession] != taxonmap_taxid_list[i]:
-                    raise Exception(
-                        taxonmap_accession + 'maps to multiple taxids: ' + 
-                        str(subject_accession_dict[taxonmap_accession]) + ' and ' + 
-                        str(taxonmap_taxid_list[i])
-                        )
-    subject_taxid_list = []
-    for subject_accession in subject_accession_list:
-        subject_taxid_list.append(subject_accession_dict[subject_accession])
-    merged_blast_table['taxid'] = subject_taxid_list
+    # Find the set of accession ID's in all of the merged blast tables corresponding to different db's
+    # Read the accession2taxid file line by line, starting with the second line
+    # Split the line by tab (field 1: accession, 2: accession.version, 3: taxid, 4: gi
+    # Check if the BLAST and file accessions are the same
+    # If so, place the taxid in a dict keyed by the accession
+    # Remove the accession from the set list
+    # Do all of this while the set list is non-empty
+    
+    # Remove the version number from the accession in the DIAMOND output file
+
+    # Unzipped taxonmap file should be provided in the same dir as zipped file
+    taxonmap_fp = os.path.splitext(args.taxonmap)[0]
+    # List the accessions in the (refined) BLAST results
+    out_accessions = list(set(blast_out_table['accession'].tolist()))
+    taxid_dict = OrderedDict().fromkeys(out_accessions)
+    with open(args.taxonmap) as handle:
+        # Search the file for accessions until all have been found
+        for line in handle:
+            # The first field of accession2taxid is the accession
+            accession = line.split('\t')[0]
+            if accession in out_accessions:
+                # The third field is the taxid
+                taxid_dict[accession] = line.split('\t')[2]
+                out_accessions.remove(accession)
+                if not out_accessions:
+                    break
+    # Throw an exception if accessions remain unassigned
+    if out_accessions:
+        raise Exception(
+            'The following accessions were not found in ' + 
+            os.path.basename(taxonmap_fp) + ': ' +
+            ', '.join(out_accessions)
+            )
+    taxid_list = []
+    for accession in blast_out_table['accession'].tolist():
+        taxid_list.append(taxid_dict[accession])
+    blast_out_table['taxid'] = taxid_list
     # Rearrange the columns to correspond with DIAMOND
-    merged_blast_table = merged_blast_table[align_out_hdr]
+    blast_out_table = blast_out_table[align_out_hdr]
 
     # Load the DIAMOND output
     diamond_out_table = pd.read_csv(
