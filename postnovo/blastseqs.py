@@ -103,7 +103,8 @@ parsed_conserv_func_df_headers_list = [
     'eggnog hmm desc'
     ]
 
-taxa_profile_evalue = 0.1
+# The e-value cutoff for "confident," "non-random" alignments
+confident_evalue = 0.1
 
 def main(test_argv=None):
     global local_eggnog, out_dir
@@ -252,17 +253,12 @@ def make_query_files(args):
 
         blast_out_dict[db_name] = blast_out_table
 
+    # Compare results from multiple databases
+    if len(blast_out_dict) == 1:
+        blast_out_table = list(blast_out_dict.values())[0]
+    else:
+        blast_out_table = refine_blast_table(blast_out_dict)
 
-    for blast_db_fp in args.blast_dbs:
-        db_name = os.path.basename(blast_db_fp)
-
-        # Merge all of the split BLAST tables into a single table
-        merged_blast_table = pd.DataFrame(columns=blast_out_hdr)
-        for out_fp in split_blast_out_fp_list:
-            partial_blast_table = pd.read_csv(out_fp, sep='\t', header=None, names=blast_out_hdr)
-            merged_blast_table = pd.concat(
-                [merged_blast_table, partial_blast_table], ignore_index=True
-                )
 
     # Load taxonmap
     taxonmap_df = pd.read_csv(args.taxonmap, sep='\t', header=0)[['accession', 'taxid']]
@@ -291,16 +287,6 @@ def make_query_files(args):
     merged_blast_table['taxid'] = subject_taxid_list
     # Rearrange the columns to correspond with DIAMOND
     merged_blast_table = merged_blast_table[align_out_hdr]
-
-
-
-    # Retrieve additional information for blast table from postnovo_seqs_info.tsv
-    parsed_blast_table = parse_blast_table(fasta_input_fp, merged_blast_table)
-    if args.intermediate_files:
-        parsed_blast_table.to_csv(
-            os.path.join(out_dir, db_name + '_parsed_blast_table.csv'), index=False
-            )
-    parsed_blast_table_list.append(parsed_blast_table)
 
     # Load the DIAMOND output
     diamond_out_table = pd.read_csv(
@@ -821,45 +807,57 @@ def run_blast(db_fp_list, fasta_fp_list, blastp_fp):
     #os.chmod(temp_blast_batch_fp, 0o777)
     #subprocess.call([temp_blast_batch_fp])
 
-def optimize_blast_table(parsed_blast_table_list):
+def refine_blast_table(blast_out_dict):
 
-    # Make a set of all ID's
-    id_list = []
-    grouped_parsed_blast_table_list = []
-    for parsed_blast_table in parsed_blast_table_list:
-        id_list += parsed_blast_table[id_type].tolist()
-        grouped_parsed_blast_table_list.append(parsed_blast_table.groupby(id_type))
-    id_set = set(id_list)
-    parsed_blast_table_list = []
-    # Loop through each ID
-    for id in id_set:
+    # Make a list of all the seq numbers in the BLAST output
+    # (This ignores seqs that are not reported at all
+    # when the alignment has an e-value greater than the threshold.)
+    # Create a groupby (seq number) object for each blast table
+    seq_numbers = []
+    groupby_dict = OrderedDict().fromkeys(blast_out_dict)
+    for db_name, blast_out_table in blast_out_dict.items():
+        seq_numbers += blast_out_table['seq_number'].tolist()
+        groupby_dict[db_name] = blast_out_table.groupby('seq_number')
+    seq_number_set = set(seq_numbers)
+    
+    # Loop through each seq to consider alignments against the different db's
+    # First, screen by a "non-random alignment" e-value cutoff
+    # If a seq has one or more alignments below this cutoff,
+    # take the results from the database with the lowest e-value
+    # Second, if no seq has an alignment below this cutoff,
+    # take the results from the first (most general) database
+    refined_blast_results = []
+    for seq_number in seq_number_set:
         lowest_evalue = max_float
-        lowest_evalue_table_index = 0
-        # Find the blast result with the lowest evalue
-        for i, grouped_parsed_blast_table in enumerate(grouped_parsed_blast_table_list):
+        optimum_db_name = None
+        for db_name, groupby_table in groupby_dict.items():
+            # The table may not have an alignment for the seq
             try:
-                evalue = grouped_parsed_blast_table.get_group(id)['evalue'].min()
+                evalue = groupby_table.get_group(seq_number)['evalue'].min()
                 if evalue < lowest_evalue:
                     lowest_evalue = evalue
-                    lowest_evalue_table_index = i
+                    optimum_db = db_name
             except KeyError:
                 pass
-        # Put the best blast result in a list of df's
-        # If no evalue < "non-random" cutoff, use the first results from the db list
-        if lowest_evalue < taxa_profile_evalue:
-            parsed_blast_table_list.append(
-                grouped_parsed_blast_table_list[lowest_evalue_table_index].get_group(id))
-        else:
-            for grouped_parsed_blast_table in grouped_parsed_blast_table_list:
-                try:
-                    parsed_blast_table_list.append(
-                        grouped_parsed_blast_table.get_group(id))
-                    break
-                except KeyError:
-                    pass
-    parsed_blast_table = pd.concat(parsed_blast_table_list, ignore_index=True)
+            # Store the db results in a list to be concatenated into a full table
+            if lowest_evalue < confident_evalue:
+                refined_blast_results.append(
+                    groupby_dict[optimum_db].get_group(seq_number)
+                    )
+            else:
+                # Find the most general db (db's should be in order of generality)
+                # containing an alignment for any seq that does not meet the e-value cutoff
+                for _, groupby_table1 in groupby_dict.items():
+                    try:
+                        refined_blast_results.append(
+                            groupby_table1.get_group(seq_number)
+                            )
+                        break
+                    except KeyError:
+                        pass
+    refined_blast_table = pd.concat(refined_blast_results, ignore_index=True)
 
-    return parsed_blast_table
+    return refined_blast_table
 
 def make_info_table(fasta_input_fp, info_fp):
 
@@ -889,7 +887,7 @@ def filter_blast_table(blast_table):
     gb = blast_table.groupby(id_type)
     for id in id_set_list:
         id_df = gb.get_group(id)
-        if id_df['evalue'].min() <= taxa_profile_evalue:
+        if id_df['evalue'].min() <= confident_evalue:
             high_prob_df = id_df[id_df['bitscore'] == id_df['bitscore'].max()]
             high_prob_df_list.append(high_prob_df)
             filtered_df_list.append(high_prob_df)
