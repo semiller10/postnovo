@@ -326,17 +326,21 @@ def make_query_files(args):
     assert pd.api.types.is_numeric_dtype(align_out_table['taxid'])
     assert pd.api.types.is_object_dtype(align_out_table['stitle'])
 
-    #high_prob_df, low_prob_df, filtered_df = filter_blast_table(parsed_blast_table)
-    #if args.intermediate_files:
-    #    high_prob_df.to_csv(
-    #        os.path.join(out_dir, 'high_prob_df.csv'), index=False
-    #        )
-    #    low_prob_df.to_csv(
-    #        os.path.join(out_dir, 'low_prob_df.csv'), index=False
-    #        )
-    #    filtered_df.to_csv(
-    #        os.path.join(out_dir, 'filtered_df.csv'), index=False
-    #        )
+    # Filter the alignment output table by evalue,
+    # sorting into high- and low-probability sub-tables
+    high_prob_out_table, lower_prob_out_table, filtered_out_table = filter_align_out_table(align_out_table)
+
+    if args.intermediate_files:
+        high_prob_out_table.to_csv(
+            os.path.join(out_dir, 'high_prob_out.csv'), index=False
+            )
+        lower_prob_out_table.to_csv(
+            os.path.join(out_dir, 'lower_prob_out.csv'), index=False
+            )
+        filtered_out_table.to_csv(
+            os.path.join(out_dir, 'filtered_out.csv'), index=False
+            )
+
     #augmented_blast_table, high_prob_df, low_prob_df = retrieve_taxonomic_hierarchy(
     #    high_prob_df, low_prob_df, filtered_df
     #    )
@@ -411,6 +415,98 @@ def make_hit_number_list(id_list):
     blast_out_table['hit_number'] = hit_number_list
 
     return hit_number_list
+
+def make_info_table(fasta_input_fp, info_fp):
+
+    # Retrieve the query sequences from the postnovo fasta file
+    with open(fasta_input_fp) as handle:
+        fasta_input_list = handle.readlines()
+    query_seqs = [seq.rstrip() for seq in fasta_input_list[1::2]]
+
+    # Retrieve scan list, score, and best prediction and subseq origin lists
+    # for each seq from postnovo_seqs_info.tsv
+    info_table = pd.read_csv(info_fp, sep='\t', header=0)
+    info_table['query_seq'] = query_seqs
+
+    return info_table
+
+def refine_blast_table(blast_out_dict):
+
+    # Make a list of all the seq numbers in the BLAST output
+    # (This ignores seqs that are not reported at all
+    # when the alignment has an e-value greater than the threshold.)
+    # Create a groupby (seq number) object for each blast table
+    seq_numbers = []
+    groupby_dict = OrderedDict().fromkeys(blast_out_dict)
+    for db_name, blast_out_table in blast_out_dict.items():
+        seq_numbers += blast_out_table['seq_number'].tolist()
+        groupby_dict[db_name] = blast_out_table.groupby('seq_number')
+    seq_number_set = set(seq_numbers)
+    
+    # Loop through each seq to consider alignments against the different db's
+    # First, screen by a "non-random alignment" e-value cutoff
+    # If a seq has one or more alignments below this cutoff,
+    # take the results from the database with the lowest e-value
+    # Second, if no seq has an alignment below this cutoff,
+    # take the results from the first (most general) database
+    refined_blast_results = []
+    for seq_number in seq_number_set:
+        lowest_evalue = max_float
+        optimum_db_name = None
+        for db_name, groupby_table in groupby_dict.items():
+            # The table may not have an alignment for the seq
+            try:
+                evalue = groupby_table.get_group(seq_number)['evalue'].min()
+                if evalue < lowest_evalue:
+                    lowest_evalue = evalue
+                    optimum_db = db_name
+            except KeyError:
+                pass
+            # Store the db results in a list to be concatenated into a full table
+            if lowest_evalue < confident_evalue:
+                refined_blast_results.append(
+                    groupby_dict[optimum_db].get_group(seq_number)
+                    )
+            else:
+                # Find the most general db (db's should be in order of generality)
+                # containing an alignment for any seq that does not meet the e-value cutoff
+                for _, groupby_table1 in groupby_dict.items():
+                    try:
+                        refined_blast_results.append(
+                            groupby_table1.get_group(seq_number)
+                            )
+                        break
+                    except KeyError:
+                        pass
+    refined_blast_table = pd.concat(refined_blast_results, ignore_index=True)
+
+    return refined_blast_table
+
+def filter_align_out_table(align_out_table):
+
+    seq_numbers = sorted(list(set(align_out_table['seq_number'].tolist())))
+    high_prob_subtables = []
+    lower_prob_subtables = []
+    all_filtered_subtables = []
+    groupby_table = align_out_table.groupby('seq_number')
+    for seq_number in seq_numbers:
+        subtable = groupby_table.get_group(seq_number)
+        # For query seqs with an alignment meeting the e-value cutoff,
+        # retain all alignments sharing the best bit score
+        if subtable['evalue'].min() <= confident_evalue:
+            high_prob_subtable = subtable[subtable['bitscore'] == subtable['bitscore'].max()]
+            high_prob_subtables.append(high_prob_subtable)
+            all_filtered_subtables.append(high_prob_subtable)
+        # Otherwise retain all reported alignments (up to 500 in the case of BLAST+)
+        else:
+            lower_prob_subtables.append(subtable)
+            all_filtered_subtables.append(subtable)
+
+    high_prob_out_table = pd.concat(high_prob_subtables, ignore_index=True)
+    lower_prob_out_table = pd.concat(lower_prob_subtables, ignore_index=True)
+    filtered_out_table = pd.concat(all_filtered_subtables, ignore_index=True)
+
+    return high_prob_out_table, lower_prob_out_table, filtered_out_table
 
 def analyze_eggnog_output(args, sampled_df, low_prob_profile_df, high_prob_taxa_assign_df, eggnog_fasta_path_list):
 
@@ -833,100 +929,6 @@ def run_blast(db_fp_list, fasta_fp_list, blastp_fp):
     #    temp_blast_batch_file.write(temp_blast_batch_script)
     #os.chmod(temp_blast_batch_fp, 0o777)
     #subprocess.call([temp_blast_batch_fp])
-
-def refine_blast_table(blast_out_dict):
-
-    # Make a list of all the seq numbers in the BLAST output
-    # (This ignores seqs that are not reported at all
-    # when the alignment has an e-value greater than the threshold.)
-    # Create a groupby (seq number) object for each blast table
-    seq_numbers = []
-    groupby_dict = OrderedDict().fromkeys(blast_out_dict)
-    for db_name, blast_out_table in blast_out_dict.items():
-        seq_numbers += blast_out_table['seq_number'].tolist()
-        groupby_dict[db_name] = blast_out_table.groupby('seq_number')
-    seq_number_set = set(seq_numbers)
-    
-    # Loop through each seq to consider alignments against the different db's
-    # First, screen by a "non-random alignment" e-value cutoff
-    # If a seq has one or more alignments below this cutoff,
-    # take the results from the database with the lowest e-value
-    # Second, if no seq has an alignment below this cutoff,
-    # take the results from the first (most general) database
-    refined_blast_results = []
-    for seq_number in seq_number_set:
-        lowest_evalue = max_float
-        optimum_db_name = None
-        for db_name, groupby_table in groupby_dict.items():
-            # The table may not have an alignment for the seq
-            try:
-                evalue = groupby_table.get_group(seq_number)['evalue'].min()
-                if evalue < lowest_evalue:
-                    lowest_evalue = evalue
-                    optimum_db = db_name
-            except KeyError:
-                pass
-            # Store the db results in a list to be concatenated into a full table
-            if lowest_evalue < confident_evalue:
-                refined_blast_results.append(
-                    groupby_dict[optimum_db].get_group(seq_number)
-                    )
-            else:
-                # Find the most general db (db's should be in order of generality)
-                # containing an alignment for any seq that does not meet the e-value cutoff
-                for _, groupby_table1 in groupby_dict.items():
-                    try:
-                        refined_blast_results.append(
-                            groupby_table1.get_group(seq_number)
-                            )
-                        break
-                    except KeyError:
-                        pass
-    refined_blast_table = pd.concat(refined_blast_results, ignore_index=True)
-
-    return refined_blast_table
-
-def make_info_table(fasta_input_fp, info_fp):
-
-    # Retrieve the query sequences from the postnovo fasta file
-    with open(fasta_input_fp) as handle:
-        fasta_input_list = handle.readlines()
-    query_seqs = [seq.rstrip() for seq in fasta_input_list[1::2]]
-
-    # Retrieve scan list, score, and best prediction and subseq origin lists
-    # for each seq from postnovo_seqs_info.tsv
-    info_table = pd.read_csv(info_fp, sep='\t', header=0)
-    info_table['query_seq'] = query_seqs
-    return info_table
-
-def filter_blast_table(blast_table):
-    '''
-    Filter the blast table by evalue,
-    sorting into high- and low-probability sub-tables.
-    '''
-
-    blast_table['evalue'] = blast_table['evalue'].apply(float)
-    blast_table['bitscore'] = blast_table['bitscore'].apply(float)
-    id_set_list = sorted(list(set(blast_table[id_type].tolist())))
-    high_prob_df_list = []
-    low_prob_df_list = []
-    filtered_df_list = []
-    gb = blast_table.groupby(id_type)
-    for id in id_set_list:
-        id_df = gb.get_group(id)
-        if id_df['evalue'].min() <= confident_evalue:
-            high_prob_df = id_df[id_df['bitscore'] == id_df['bitscore'].max()]
-            high_prob_df_list.append(high_prob_df)
-            filtered_df_list.append(high_prob_df)
-        else:
-            low_prob_df_list.append(id_df)
-            filtered_df_list.append(id_df)
-
-    high_prob_df = pd.concat(high_prob_df_list, ignore_index=True)
-    low_prob_df = pd.concat(low_prob_df_list, ignore_index=True)
-    filtered_df = pd.concat(filtered_df_list, ignore_index=True)
-
-    return high_prob_df, low_prob_df, filtered_df
 
 def retrieve_taxonomic_hierarchy(high_prob_df, low_prob_df, filtered_df):
     '''
