@@ -33,6 +33,7 @@ min_seq_len_for_diamond = 31
 Entrez.email = 'samuelmiller@uchicago.edu'
 cores = 1
 
+# Output field names specified in BLAST+
 blast_out_hdr = [
     'qseqid',
     'accession',
@@ -40,12 +41,22 @@ blast_out_hdr = [
     'bitscore', 
     'stitle'
     ]
-align_out_hdr = [
-    'seq_number',
-    'accession',
+# Output field names specified in DIAMOND
+diamond_out_hdr = [
+    'qseqid',
+    'sseqid',
     'evalue',
     'bitscore',
-    'taxid', 
+    'staxids', 
+    'stitle'
+    ]
+# Column names of merged DIAMOND and BLAST output
+align_out_hdr = [
+    'seq_number',
+    'hit_number',
+    'evalue',
+    'bitscore',
+    'taxid',
     'stitle'
     ]
 
@@ -212,31 +223,19 @@ def make_query_files(args):
                 [blast_out_table, partial_blast_out_table], ignore_index=True
                 )
 
-        # For debugging purposes, write the current db BLAST table to file
-        if args.intermediate_files:
-            blast_out_table.to_csv(
-                os.path.join(out_dir, db_name + '_merged_df.csv'), index=False
-                )
-
         # Reorganize the qseqid column into the seq_number column
         blast_out_table['seq_number'] = blast_out_table['qseqid'].apply(
             lambda x: int(x.replace('(seq_number)', ''))
             )
         blast_out_table.drop('qseqid', inplace=True)
-
         # Add a hit_number column to keep track of the alignment rank
-        hit_number = 0
-        hit_number_list = [0]
-        last_seq_number = 0
-        for seq_number in blast_out_table['seq_number'].tolist()[1:]:
-            if seq_number != last_seq_number:
-                hit_number = 0
-                hit_number_list.append(hit_number)
-                last_seq_number = seq_number
-            else:
-                hit_number += 1
-                hit_number_list.append(hit_number)
-        blast_out_table['hit_number'] = hit_number_list
+        blast_out_table['hit_number'] = make_hit_number_list(blast_out_table['seq_number'].tolist())
+
+        # For debugging purposes, write the current db BLAST table to file
+        if args.intermediate_files:
+            blast_out_table.to_csv(
+                os.path.join(out_dir, db_name + '_blast_out.csv'), index=False
+                )
 
         # Add seq info to the blast output table
         blast_out_table = blast_out_table.merge(seq_info_table, on=['seq_number'])
@@ -285,11 +284,17 @@ def make_query_files(args):
         )
     # Remove seqs without an alignment
     diamond_out_table = diamond_out_table[diamond_out_table['accession'] != '*']
-    diamond_out_table['seq_number'] = diamond_out_table['seq_number'].apply(
+    diamond_out_table['seq_number'] = diamond_out_table['qseqid'].apply(
         lambda x: x.replace('(seq_number)', '')
         )
     # Remove the version number from the accession to make it consistent with BLAST
-    diamond_out_table['accession'] = diamond_out_table['accession'].apply(lambda x: x.split('.')[0])
+    diamond_out_table['accession'] = diamond_out_table['sseqid'].apply(lambda x: x.split('.')[0])
+    diamond_out_table.drop('sseqid', inplace=True)
+    # Add a hit number column
+    diamond_out_table['hit_number'] = make_hit_number_list(diamond_out_table['seq_number'].tolist())
+    # Rename 'staxids' to 'taxid' to be consistent with BLAST
+    diamond_out_table['taxid'] = diamond_out_table['staxids']
+    diamond_out_table.drop('staxids', inplace=True)
     # Remove the accession.version substring from stitle to make it consistent with BLAST
     diamond_out_table['stitle'] = diamond_out_table['stitle'].apply(lambda x: x[x.index(' ') + 1:])
 
@@ -297,6 +302,11 @@ def make_query_files(args):
     align_out_table = pd.concat([diamond_out_table, blast_out_table], ignore_index=True)
     align_out_table.sort_values(['seq_number', 'hit'], inplace=True)
 
+    # For debugging purposes, write the alignment output table to file
+    if args.intermediate_files:
+        align_out_table.to_csv(
+            os.path.join(out_dir, 'align_out.csv'), index=False
+            )
 
     #high_prob_df, low_prob_df, filtered_df = filter_blast_table(parsed_blast_table)
     #if args.intermediate_files:
@@ -366,6 +376,23 @@ def make_query_files(args):
     #    pkl.dump(eggnog_fasta_path_list, f, 2)
 
     #return sampled_df, low_prob_profile_df, high_prob_taxa_assign_df, eggnog_fasta_path_list
+
+def make_hit_number_list(id_list):
+
+    hit_number = 0
+    hit_number_list = [0]
+    last_id = 0
+    for id in id_list[1:]:
+        if id != last_id:
+            hit_number = 0
+            hit_number_list.append(hit_number)
+            last_id = id
+        else:
+            hit_number += 1
+            hit_number_list.append(hit_number)
+    blast_out_table['hit_number'] = hit_number_list
+
+    return hit_number_list
 
 def analyze_eggnog_output(args, sampled_df, low_prob_profile_df, high_prob_taxa_assign_df, eggnog_fasta_path_list):
 
