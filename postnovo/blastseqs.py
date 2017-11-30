@@ -398,15 +398,15 @@ def make_query_files(args):
         os.path.join(out_dir, 'lower_prob_out_filtered_by_taxa_profile.csv'), index=False
         )
 
-    ## Test the functional uniformity of each set of hits to determine hit accuracy
-    ## Draw up to 10 hits from the high-scoring hits of each query group
-    ## Evenly sample groups larger than 10, starting with hit 0
-    #scan_list_groups = profile_df.groupby(id_type)
-    #sampled_df = scan_list_groups.apply(sample_hits)
-    #sampled_df.drop('is_in_profile', axis=1, inplace=True)
-    #sampled_df.to_csv(
-    #    os.path.join(out_dir, 'sampled_df.csv'), index=False
-    #    )
+    # Multiple hits per query seq can be retained at this stage
+    # Each set of hits must have uniform functional annotations
+    # When more than 10 hits are considered, evenly sample 10 hits
+    sampled_out_table = filtered_out_table.groupby('seq_number').apply(sample_hits)
+    sampled_out_table.to_csv(
+        os.path.join(out_dir, 'sampled_out_table.csv'), index=False
+        )
+
+
 
     ## Make fasta files for eggnog-mapper
     ## Header: >(scan_list)scan lists(hit)hit number
@@ -1175,24 +1175,22 @@ def filter_lower_prob_taxa(high_prob_taxa_table, high_prob_taxa_count_table, hig
 
     return filtered_out_table, lower_prob_out_table
 
-def sample_hits(parent_scan_group, sample_size = 10):
-
-    # Consider hits within 2 bits of the top hit in the profile group
-    scan_group = parent_scan_group[
-        parent_scan_group['bitscore'] >= (parent_scan_group['bitscore'].max() - 2)
+def sample_hits(seq_retained_hits, sample_size=10):
+    ''' Sample hits retained within the taxonomic profile for a query sequence '''
+    
+    # Only consider hits within 2 bits of the top hit
+    top_hits = seq_retained_hits[
+        seq_retained_hits['bitscore'] >= (seq_retained_hits['bitscore'].max() - 2)
         ]
-    # If the taxonomic profile lacks confidence, consider the full table
-    if 1 not in scan_group['is_in_profile'].values:
-        scan_group = parent_scan_group
 
-    group_size = len(scan_group)
-    if group_size <= 10:
-        return scan_group
+    number_top_hits = len(top_hits)
+    if number_top_hits <= 10:
+        return top_hits
     else:
-        group_rows = list(range(group_size))
-        div, mod = divmod(len(group_rows), sample_size)
-        sample_rows = [group_rows[i * div + min(i, mod)] for i in range(sample_size)]
-        return scan_group.iloc[sample_rows]
+        hit_indices = list(range(number_top_hits))
+        rounded_quotient, remainder = divmod(len(hit_indices), sample_size)
+        sample_indices = [hit_indices[i * rounded_quotient + min(i, remainder)] for i in range(number_top_hits)]
+        return top_hits.iloc[sample_indices]
 
 def make_full_hit_seq_fasta(sampled_df, generic_emapper_fasta_fp):
     
