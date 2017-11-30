@@ -53,13 +53,17 @@ diamond_out_hdr = [
 # Column names of merged DIAMOND and BLAST output
 align_out_hdr = [
     'seq_number',
+    'scan_list',
+    'score',
+    'best_predicts_from',
+    'also_contains_predicts_from',
     'hit_number',
     'evalue',
     'bitscore',
     'taxid',
     'stitle'
     ]
-
+# scan list, score, and best prediction and subseq origin list
 max_float = np.finfo('f').max
 max_int = np.finfo('d').max
 
@@ -231,14 +235,14 @@ def make_query_files(args):
         # Add a hit_number column to keep track of the alignment rank
         blast_out_table['hit_number'] = make_hit_number_list(blast_out_table['seq_number'].tolist())
 
+        # Add seq info to the blast output table
+        blast_out_table = blast_out_table.merge(seq_info_table, on=['seq_number'])
+
         # For debugging purposes, write the current db BLAST table to file
         if args.intermediate_files:
             blast_out_table.to_csv(
                 os.path.join(out_dir, db_name + '_blast_out.csv'), index=False
                 )
-
-        # Add seq info to the blast output table
-        blast_out_table = blast_out_table.merge(seq_info_table, on=['seq_number'])
 
         blast_out_dict[db_name] = blast_out_table
 
@@ -297,6 +301,9 @@ def make_query_files(args):
     diamond_out_table.drop('staxids', inplace=True)
     # Remove the accession.version substring from stitle to make it consistent with BLAST
     diamond_out_table['stitle'] = diamond_out_table['stitle'].apply(lambda x: x[x.index(' ') + 1:])
+    
+    # Add seq info to the DIAMOND output table
+    diamond_out_table = diamond_out_table.merge(seq_info_table, on=['seq_number'])
     # Rearrange the cols in a predictable order
     diamond_out_table = diamond_out_table[align_out_hdr]
 
@@ -426,10 +433,10 @@ def make_info_table(fasta_input_fp, info_fp):
 
     # Retrieve scan list, score, and best prediction and subseq origin lists
     # for each seq from postnovo_seqs_info.tsv
-    info_table = pd.read_csv(info_fp, sep='\t', header=0)
-    info_table['query_seq'] = query_seqs
+    seq_info_table = pd.read_csv(info_fp, sep='\t', header=0)
+    seq_info_table['query_seq'] = query_seqs
 
-    return info_table
+    return seq_info_table
 
 def refine_blast_table(blast_out_dict):
 
