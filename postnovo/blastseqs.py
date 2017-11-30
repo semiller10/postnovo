@@ -86,6 +86,11 @@ search_ranks = [
     'phylum', 
     'superkingdom'
     ]
+profile_ranks = [
+    'species',
+    'genus', 
+    'family'
+    ]
 taxon_assignment_threshold = 0.9
 
 emapper_abbr_dict = {
@@ -380,16 +385,18 @@ def make_query_files(args):
             os.path.join(out_dir, 'high_prob_taxa_count_table.csv'), index=False
             )
 
-    #profile_df, low_prob_profile_df = screen_taxonomic_profile(
-    #    high_prob_taxa_assign_df, high_prob_taxa_count_df, low_prob_df, high_prob_df
-    #    )
-    #if args.intermediate_files:
-    #    profile_df.to_csv(
-    #        os.path.join(out_dir, 'profile_df.csv'), index=False
-    #        )
-    #low_prob_profile_df.to_csv(
-    #    os.path.join(out_dir, 'low_prob_profile_df.csv'), index=False
-    #    )
+    # Filter the lower prob hits by the taxonomic profile of the high prob results
+    filtered_out_table, low_prob_out_table = filter_lower_prob_taxa(
+        high_prob_taxa_table, high_prob_taxa_count_table, high_prob_out_table, lower_prob_out_table
+        )
+
+    if args.intermediate_files:
+        filtered_out_table.to_csv(
+            os.path.join(out_dir, 'filtered_out_by_taxa_profile.csv'), index=False
+            )
+    lower_prob_out_table.to_csv(
+        os.path.join(out_dir, 'lower_prob_out_filtered_by_taxa_profile.csv'), index=False
+        )
 
     ## Test the functional uniformity of each set of hits to determine hit accuracy
     ## Draw up to 10 hits from the high-scoring hits of each query group
@@ -1120,44 +1127,53 @@ def assign_taxonomy(align_table):
 
     return taxa_table, taxa_count_table
 
-def screen_taxonomic_profile(high_prob_taxa_assign_df, high_prob_taxa_count_df, low_prob_df, high_prob_df):
+def filter_lower_prob_taxa(high_prob_taxa_table, high_prob_taxa_count_table, high_prob_out_table, lower_prob_out_table):
     '''
-    Screen the low-prob results for those in the high-prob taxonomic profile
+    Select lower-probability results that conform with the high-probability taxonomic profile
     '''
 
-    gold_taxa_profile_dict = OrderedDict()
-    silver_taxa_profile_dict = OrderedDict()
-    for level in ['family', 'genus', 'species']:
-        name_list_raw = high_prob_taxa_count_df[level + ' name'].tolist()
-        count_list_raw = high_prob_taxa_count_df[level + ' count'].tolist()
-        name_list = []
-        count_list = []
-        for i in range(len(name_list_raw)):
-            if pd.notnull(name_list_raw[i]):
-                name_list.append(name_list_raw[i])
-                count_list.append(count_list_raw[i])
-        count_dict = {name_list[i]: count_list[i] for i in range(len(name_list))}
-        # Taxa in profile must not be singletons
-        gold_taxa_profile_dict[level] = [i for i in count_dict if count_dict[i] > 5]
-        silver_taxa_profile_dict[level] = [i for i in count_dict if 5 >= count_dict[i] > 1]
+    # The "taxonomic profile" of the high-prob taxa
+    # is the set of taxonomic assignments at the family, genus or species level
+    # represented by a minimum proportion of the high-prob taxa
+    profile_proportion_cutoff = 0.01
 
-    is_in_profile_list = [0 for i in range(len(low_prob_df))]
-    for level in ['family', 'genus', 'species']:
-        gold_taxa_profile_list = gold_taxa_profile_dict[level]
-        silver_taxa_profile_list = silver_taxa_profile_dict[level]
-        low_prob_taxa_list = low_prob_df[level].tolist()
-        for i, low_prob_taxon in enumerate(low_prob_taxa_list):
-            if not is_in_profile_list[i]:
-                if low_prob_taxon in gold_taxa_profile_list:
-                    is_in_profile_list[i] = 1
-                elif low_prob_taxon in silver_taxa_profile_list:
-                    is_in_profile_list[i] = 2
-    low_prob_df['is_in_profile'] = is_in_profile_list
+    taxa_profile_dict = OrderedDict()
+    for rank in profile_ranks:
+        high_prob_seq_count = high_prob_taxa_count_table[rank + ' count'].sum()
+        # The cols of high-prob taxonomic info are uneven for each rank,
+        # so check for null values at the tail of the cols
+        high_prob_name_list = [
+            name for name in high_prob_taxa_count_table[rank + ' name'].tolist()
+            if pd.notnull(name)
+            ]
+        high_prob_count_list = [
+            count for count in high_prob_taxa_count_table[rank + ' count'].tolist()
+            if pd.notnull(count)
+            ]
+        count_dict = OrderedDict([
+            (name_list[i], count_list[i]) for i in range(len(name_list))
+            ])
+        taxa_profile_dict[rank] = [
+            name for name in count_dict
+            if count_dict[name] >= profile_proportion_cutoff * high_prob_seq_count
+            ]
 
-    low_prob_profile_df = low_prob_df[low_prob_df['is_in_profile'] > 0]
-    profile_df = pd.concat([high_prob_df, low_prob_profile_df], ignore_index=True)
+    # Record if each lower-prob seq falls in the high-prob taxonomic profile
+    hit_in_profile_list = [False for _ in range(len(lower_prob_out_table))]
+    for rank in profile_ranks:
+        profile = taxa_profile_dict[rank]
+        lower_prob_names = lower_prob_out_table[rank].tolist()
+        for i, lower_prob_name in enumerate(lower_prob_names):
+            if not hit_in_profile_list[i]:
+                if lower_prob_name in profile:
+                    hit_in_profile_list[i] = True
+    lower_prob_out_table['in_taxa_profile']
 
-    return profile_df, low_prob_profile_df
+    lower_prob_out_table = lower_prob_out_table[lower_prob_out_table['in_taxa_profile'] is True]
+    lower_prob_out_table.drop('in_taxa_profile', inplace=True)
+    filtered_out_table = pd.concat([high_prob_out_table, lower_prob_out_table], ignore_index=True)
+
+    return filtered_out_table, lower_prob_out_table
 
 def sample_hits(parent_scan_group, sample_size = 10):
 
