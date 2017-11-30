@@ -142,7 +142,7 @@ def main(test_argv=None):
     if args.command == 'make_emapper_input':
         if args.local_eggnog:
             local_eggnog = True
-        make_query_files(args)
+        make_emapper_input(args)
     elif args.command == 'analyze_eggnog_output':
         out_dir = args.iodir
 
@@ -163,7 +163,7 @@ def main(test_argv=None):
             args, sampled_df, low_prob_profile_df, high_prob_taxa_assign_df, eggnog_fasta_path_list
             )
 
-def make_query_files(args):
+def make_emapper_input(args):
     
     global fasta_input_fp, out_dir
     fasta_list = open(args.postnovo_seqs, 'r').readlines()
@@ -406,22 +406,18 @@ def make_query_files(args):
         os.path.join(out_dir, 'sampled_out_table.csv'), index=False
         )
 
+    # Make fasta files to be used as the input for eggNOG-mapper functional annotation
+    # eggNOG-mapper needs long sequences for functional annotation,
+    # so retrieve the full subject sequence for each hit
+    sampled_out_table['full subject seq'] = get_full_subject_seqs(sampled_out_table['accession'].tolist())
+    # There are "superkingdom"-level eggNOG databases,
+    # so make multiple files containing seqs of each superkingdom affiliation
+    fasta_filename_prefix = os.path.splitext(os.path.basename(fasta_input_fp))[0]
+    eggnog_fasta_paths = write_eggnog_fasta_files(sampled_out_table, out_dir, fasta_filename_prefix)
+    with open(os.path.join(out_dir, 'eggnog_fasta_path_list.pkl'), 'wb') as handle:
+        pkl.dump(eggnog_fasta_paths, handle, 2)
 
-
-    ## Make fasta files for eggnog-mapper
-    ## Header: >(scan_list)scan lists(hit)hit number
-    ## Seq: full subject seq for each hit
-    ## Sort into fasta files based on superkingdom (4 types of files total)
-    #generic_emapper_fasta_fp = os.path.join(
-    #    out_dir, os.path.splitext(os.path.basename(fasta_input_fp))[0] + '_eggnog_mapper.faa'
-    #    )
-    #eggnog_fasta_path_list = make_full_hit_seq_fasta(sampled_df, generic_emapper_fasta_fp)
-    #with open(
-    #    os.path.join(out_dir, 'eggnog_fasta_path_list.pkl'), 'wb'
-    #    ) as f:
-    #    pkl.dump(eggnog_fasta_path_list, f, 2)
-
-    #return sampled_df, low_prob_profile_df, high_prob_taxa_assign_df, eggnog_fasta_path_list
+    return sampled_out_table, lower_prob_out_table, high_prob_taxa_table, eggnog_fasta_paths
 
 def make_hit_number_list(id_list):
 
@@ -973,14 +969,14 @@ def get_linnean_hierarchy(high_prob_out_table, lower_prob_out_table, filtered_ou
     #    procedure_str='Taxonomic hierarchy recovery progress: ',
     #    one_percent_total_count=one_percent_number_taxid * cores
     #    )
-    #single_var_query_entrez_taxonomy_db = partial(
-    #    query_entrez_taxonomy_db,
+    #single_var_get_lineage = partial(
+    #    get_lineage,
     #    rank_dict=rank_dict, 
     #    search_ranks_set=search_ranks_set, 
     #    print_percent_progress_fn=print_percent_progress_fn
     #    )
     #for taxid in taxids:
-    #    lineage_lists.append(single_var_query_entrez_taxonomy_db(taxid))
+    #    lineage_lists.append(single_var_get_lineage(taxid))
 
     # Multiprocess
     print_percent_progress_fn = partial(
@@ -989,15 +985,15 @@ def get_linnean_hierarchy(high_prob_out_table, lower_prob_out_table, filtered_ou
         one_percent_total_count=one_percent_number_taxid,
         cores=cores
         )
-    single_var_query_entrez_taxonomy_db = partial(
-        query_entrez_taxonomy_db,
+    single_var_get_lineage = partial(
+        get_lineage,
         rank_dict=rank_dict, 
         search_ranks_set=search_ranks_set, 
         print_percent_progress_fn=print_percent_progress_fn
         )
     multiprocessing_pool = Pool(cores)
     lineage_lists = multiprocessing_pool.map(
-        single_var_query_entrez_taxonomy_db, taxids
+        single_var_get_lineage, taxids
         )
     multiprocessing_pool.close()
     multiprocessing_pool.join()
@@ -1020,7 +1016,7 @@ def get_linnean_hierarchy(high_prob_out_table, lower_prob_out_table, filtered_ou
 
     return high_prob_out_table, lower_prob_out_table, filtered_out_table
 
-def query_entrez_taxonomy_db(taxid, rank_dict, search_ranks_set, print_percent_progress_fn):
+def get_lineage(taxid, rank_dict, search_ranks_set, print_percent_progress_fn):
     '''
     Given a taxid, retrieve the taxon and lineage from NCBI Taxonomy db
     '''
@@ -1192,73 +1188,29 @@ def sample_hits(seq_retained_hits, sample_size=10):
         sample_indices = [hit_indices[i * rounded_quotient + min(i, remainder)] for i in range(number_top_hits)]
         return top_hits.iloc[sample_indices]
 
-def make_full_hit_seq_fasta(sampled_df, generic_emapper_fasta_fp):
-    
-    accession_list = sampled_df['accession'].tolist()
-    one_percent_number_subject_seqs = len(accession_list) / 100 / cores
+def get_full_subject_seqs(accessions):
+
+    one_percent_number_seqs = len(accession_list) / 100 / cores
 
     # Multiprocess
     multiprocessing_pool = Pool(cores)
     print_percent_progress_fn = partial(
         utils.print_percent_progress_multithreaded,
         procedure_str = 'Full subject sequence recovery progress: ',
-        one_percent_total_count = one_percent_number_subject_seqs,
+        one_percent_total_count = one_percent_number_seqs,
         cores = cores
         )
-    single_var_query_ncbi_protein = partial(
-        query_ncbi_protein,
+    single_var_get_full_subject_seq = partial(
+        get_full_subject_seq,
         print_percent_progress_fn = print_percent_progress_fn
         )
-    full_hit_seq_list = multiprocessing_pool.map(single_var_query_ncbi_protein, accession_list)
+    full_subject_seqs = multiprocessing_pool.map(single_var_get_full_subject_seq, accessions)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
-    sampled_df[id_type] = sampled_df[id_type].apply(str)
-    sampled_df['hit'] = sampled_df['hit'].apply(str)
-    sampled_df['full seq'] = full_hit_seq_list
+    return full_subject_seqs
 
-    eggnog_fasta_path_list = []
-    for superkingdom in superkingdoms:
-        superkingdom_df = sampled_df[sampled_df['superkingdom'] == superkingdom]
-        # Only write to file if there is information for the superkingdom
-        if len(superkingdom_df) > 0:
-            superkingdom_id_list = superkingdom_df[id_type].tolist()
-            superkingdom_hit_list = superkingdom_df['hit'].tolist()
-            superkingdom_seq_list = superkingdom_df['full seq'].tolist()
-            superkingdom_header_list = [
-                '>' + '(' + id_type + ')' + superkingdom_id_list[i] + '(hit)' + superkingdom_hit_list[i]
-                for i in range(len(superkingdom_id_list))
-                ]
-            superkingdom_header_seq_dict = {
-                superkingdom_header_list[i]: superkingdom_seq_list[i]
-                for i in range(len(superkingdom_header_list))
-                }
-
-            # online emapper with hmmr requires <=5000 seqs/file
-            if local_eggnog:
-                hmmr_seq_count_limit = 1000000000
-            else:
-                hmmr_seq_count_limit = 5000
-            dirname = os.path.dirname(generic_emapper_fasta_fp)
-            basename = os.path.splitext(os.path.basename(generic_emapper_fasta_fp))[0]
-
-            previous_last_row = 0
-            for i in range(len(superkingdom_header_list) // hmmr_seq_count_limit + 1):
-                superkingdom_write_path = os.path.join(
-                    dirname, basename + '.' + superkingdom.lower() + '_' + str(i) + '.faa'
-                    )
-                eggnog_fasta_path_list.append(basename + '.' + superkingdom.lower() + '_' + str(i) + '.faa')
-                with open(superkingdom_write_path, 'w') as f:
-                    for j, header in enumerate(superkingdom_header_list[previous_last_row:]):
-                        f.write(header + '\n')
-                        f.write(superkingdom_header_seq_dict[header] + '\n')
-                        if j+1 == hmmr_seq_count_limit:
-                            previous_last_row = (j+1) * (i+1)
-                            break
-
-    return eggnog_fasta_path_list
-    
-def query_ncbi_protein(accession, print_percent_progress_fn):
+def get_full_subject_seq(accession, print_percent_progress_fn):
 
     print_percent_progress_fn()
 
@@ -1273,6 +1225,54 @@ def query_ncbi_protein(accession, print_percent_progress_fn):
             time.sleep(2)
 
     return full_seq
+
+def write_eggnog_fasta_files(sampled_out_table, out_dir, fasta_filename_prefix):
+    
+    sampled_out_table['seq_number'] = sampled_out_table['seq_number'].apply(str)
+    sampled_out_table['hit_number'] = sampled_out_table['hit_number'].apply(str)
+    eggnog_fasta_paths = []
+    # Make the fasta files for each superkingdom
+    for superkingdom in superkingdoms:
+        # Consider the retained hits to the superkingdom
+        superkingdom_out_table = sampled_out_table[sampled_out_table['superkingdom'] == superkingdom]
+        # Only write to file if there is data for the superkingdom
+        if len(superkingdom_out_table) > 0:
+            seq_numbers = superkingdom_out_table['seq_number'].tolist()
+            hit_numbers = superkingdom_out_table['hit_number'].tolist()
+            full_subject_seqs = superkingdom_out_table['full_subject_seq'].tolist()
+            # The seq_number and hit_number identify the specific alignment
+            fasta_headers = [
+                '>' + '(seq_number)' + seq_numbers[i] + '(hit_number)' + full_subject_seqs[i]
+                for i in range(len(seq_numbers))
+                ]
+            fasta_seq_dict = OrderedDict([
+                (fasta_headers[i], full_subject_seqs[i]) for i in range(len(fasta_headers))
+                ])
+
+            # Online emapper with hmmr allows up to 5,000 seqs per file
+            fasta_seq_count_limit = 5000
+            generic_fasta_filename = fasta_filename_prefix + '_emapper.faa'
+            # Keep track of the index of the next seq to go into a fasta file
+            hit_index = 0
+            # Loop through each batch of hits to go into a file
+            for i in range(len(fasta_headers) // fasta_seq_count_limit + 1):
+                path = os.path.join(
+                    out_dir, os.path.splitext(generic_fasta_filename)[0] + '.' + superkingdom.lower() + '_' + str(i) + '.faa'
+                    )
+                eggnog_fasta_paths.append(path)
+                # Open a new fasta file
+                with open(path, 'w') as handle:
+                    # Loop through each hit to be included in the fasta file
+                    for j, header in enumerate(fasta_headers[hit_index:]):
+                        handle.write(header + '\n')
+                        handle.write(fasta_seq_dict[header] + '\n')
+                        # Stop writing to the file when the 5,000 seq limit is reached
+                        if j + 1 == fasta_seq_count_limit:
+                            # Calculate the index of the first seq in the next file
+                            hit_index = (j + 1) * (i + 1)
+                            break
+
+    return eggnog_fasta_paths
 
 def parse_eggnog_mapper_output(eggnog_out_fp_list):
 
