@@ -341,19 +341,20 @@ def make_query_files(args):
             os.path.join(out_dir, 'filtered_out.csv'), index=False
             )
 
-    #augmented_blast_table, high_prob_df, low_prob_df = retrieve_taxonomic_hierarchy(
-    #    high_prob_df, low_prob_df, filtered_df
-    #    )
-    #if args.intermediate_files:
-    #    augmented_blast_table.to_csv(
-    #        os.path.join(out_dir, 'augmented_blast_table.csv'), index=False
-    #        )
-    #    high_prob_df.to_csv(
-    #        os.path.join(out_dir, 'high_prob_df1.csv'), index=False
-    #        )
-    #    low_prob_df.to_csv(
-    #        os.path.join(out_dir, 'low_prob_df1.csv'), index=False
-    #        )
+    high_prob_out_table, lower_prob_out_table, filtered_out_table = get_linnean_hierarchy(
+        high_prob_out_table, lower_prob_out_table, filtered_out_table
+        )
+
+    if args.intermediate_files:
+        high_prob_out_table.to_csv(
+            os.path.join(out_dir, 'high_prob_out_with_lineages.csv'), index=False
+            )
+        lower_prob_out_table.to_csv(
+            os.path.join(out_dir, 'lower_prob_out_with_lineages.csv'), index=False
+            )
+        filtered_out_table.to_csv(
+            os.path.join(out_dir, 'filtered_out_table_with_lineages.csv'), index=False
+            )
 
     #high_prob_taxa_assign_df, high_prob_taxa_count_df = find_parsimonious_taxonomy(high_prob_df)
     #high_prob_taxa_assign_df.to_csv(
@@ -930,67 +931,71 @@ def run_blast(db_fp_list, fasta_fp_list, blastp_fp):
     #os.chmod(temp_blast_batch_fp, 0o777)
     #subprocess.call([temp_blast_batch_fp])
 
-def retrieve_taxonomic_hierarchy(high_prob_df, low_prob_df, filtered_df):
+def get_linnean_hierarchy(high_prob_out_table, lower_prob_out_table, filtered_out_table):
     '''
-    Retrieve taxonomic hierarchy from NCBI taxonomy db given taxid
+    Retrieve Linnean hierarchy from NCBI taxonomy db given taxid
     '''
 
-    unique_taxid_list = filtered_df['taxid'].unique().tolist()
-    unique_taxid_dict = OrderedDict().fromkeys(unique_taxid_list)
-    one_percent_number_taxid = len(unique_taxid_list) / 100 / cores
+    taxids = filtered_out_table['taxid'].unique().tolist()
+    lineage_dict = OrderedDict().fromkeys(taxids)
+    one_percent_number_taxid = len(taxids) / 100 / cores
     rank_dict = OrderedDict().fromkeys(search_ranks)
     search_ranks_set = set(search_ranks)
 
+    # Query the NCBI database to retrieve the Linnean lineage of each taxid
     ## Single process
     #lineage_lists = []
     #print_percent_progress_fn = partial(
     #    utils.print_percent_progress_singlethreaded,
-    #    procedure_str = 'Taxonomic hierarchy recovery progress: ',
-    #    one_percent_total_count = one_percent_number_taxid * cores
+    #    procedure_str='Taxonomic hierarchy recovery progress: ',
+    #    one_percent_total_count=one_percent_number_taxid * cores
     #    )
     #single_var_query_entrez_taxonomy_db = partial(
     #    query_entrez_taxonomy_db,
-    #    rank_dict = rank_dict, 
-    #    search_ranks_set = search_ranks_set, 
-    #    print_percent_progress_fn = print_percent_progress_fn
+    #    rank_dict=rank_dict, 
+    #    search_ranks_set=search_ranks_set, 
+    #    print_percent_progress_fn=print_percent_progress_fn
     #    )
-    #for taxid in unique_taxid_list:
+    #for taxid in taxids:
     #    lineage_lists.append(single_var_query_entrez_taxonomy_db(taxid))
 
     # Multiprocess
     print_percent_progress_fn = partial(
         utils.print_percent_progress_multithreaded,
-        procedure_str = 'Taxonomic hierarchy recovery progress: ',
-        one_percent_total_count = one_percent_number_taxid,
-        cores = cores
+        procedure_str='Taxonomic hierarchy recovery progress: ',
+        one_percent_total_count=one_percent_number_taxid,
+        cores=cores
         )
     single_var_query_entrez_taxonomy_db = partial(
         query_entrez_taxonomy_db,
-        rank_dict = rank_dict, 
-        search_ranks_set = search_ranks_set, 
-        print_percent_progress_fn = print_percent_progress_fn
+        rank_dict=rank_dict, 
+        search_ranks_set=search_ranks_set, 
+        print_percent_progress_fn=print_percent_progress_fn
         )
     multiprocessing_pool = Pool(cores)
     lineage_lists = multiprocessing_pool.map(
-        single_var_query_entrez_taxonomy_db, unique_taxid_list
+        single_var_query_entrez_taxonomy_db, taxids
         )
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
-    for i, taxid in enumerate(unique_taxid_list):
-        unique_taxid_dict[taxid] = lineage_lists[i]
+    for i, taxid in enumerate(taxids):
+        lineage_dict[taxid] = lineage_lists[i]
 
-    lineage_table_row_list = []
-    for taxid in filtered_df['taxid'].tolist():
-        lineage_table_row_list.append(unique_taxid_dict[taxid])
-    lineage_table = pd.DataFrame(lineage_table_row_list, columns = search_ranks)
-    augmented_blast_table = pd.concat([filtered_df, lineage_table], axis=1)
+    # Append the lineage info to each row (alignment) of the full filtered output table
+    lineage_appendix_list = []
+    for taxid in filtered_out_table['taxid'].tolist():
+        lineage_appendix_list.append(lineage_dict[taxid])
+    lineage_appendix_table = pd.DataFrame(lineage_appendix_list, columns=search_ranks)
+    augmented_blast_table = pd.concat([filtered_out_table, lineage_table], axis=1)
 
-    merge_df = augmented_blast_table[[id_type, 'hit'] + search_ranks]
-    high_prob_df = high_prob_df.merge(merge_df, on=[id_type, 'hit'])
-    low_prob_df = low_prob_df.merge(merge_df, on=[id_type, 'hit'])
+    # Use the row ID's from the full filtered output table
+    # to merge lineage info into the high and lower prob output tables
+    merge_table = augmented_blast_table[['seq_number', 'hit_number'] + search_ranks]
+    high_prob_out_table = high_prob_out_table.merge(merge_table, on=['seq_number', 'hit_number'])
+    lower_prob_out_table = lower_prob_out_table.merge(merge_table, on=['seq_number', 'hit_number'])
 
-    return augmented_blast_table, high_prob_df, low_prob_df
+    return high_prob_out_table, lower_prob_out_table, filtered_out_table
 
 def query_entrez_taxonomy_db(taxid, rank_dict, search_ranks_set, print_percent_progress_fn):
     '''
@@ -1002,8 +1007,12 @@ def query_entrez_taxonomy_db(taxid, rank_dict, search_ranks_set, print_percent_p
     # Occasionally, Entrez will return corrupted information
     bad_lineage = True
     q_count = 0
+    # I have found that the returned information is occasionally corrupted
+    # Therefore, check for a bogus lineage,
+    # and repeat the query up to 5 times because of this
     while bad_lineage and q_count < 5:
         q_count += 1
+        # Keep trying to connect to NCBI
         while True:
             try:
                 taxon_info = Entrez.read(Entrez.efetch(db='Taxonomy', id=taxid))
@@ -1011,23 +1020,28 @@ def query_entrez_taxonomy_db(taxid, rank_dict, search_ranks_set, print_percent_p
             except:
                 print('Waiting for taxid ' + str(taxid), flush=True)
                 time.sleep(2)
+        # Taxids can correspond to species, genera, orders, etc...
         taxon = taxon_info[0]['ScientificName']
         taxon_rank = taxon_info[0]['Rank']
         lineage_info = taxon_info[0]['LineageEx']
 
         taxon_ranks_set = set()
+        # Record the rank corresponding to the taxid
         if taxon_rank in search_ranks_set:
             rank_dict[taxon_rank] = taxon
             taxon_ranks_set.add(taxon_rank)
+        # Record the "coarser" ranks
         for entry in lineage_info:
             rank = entry['Rank']
             if rank in search_ranks_set:
                 rank_dict[rank] = entry['ScientificName']
                 taxon_ranks_set.add(rank)
+        # Record an empty string for each "finer" rank not within the taxid lineage
         for rank in search_ranks_set.difference(taxon_ranks_set):
             rank_dict[rank] = ''
 
         lineage_list = [level for level in rank_dict.values()]
+        # Check that the coarsest rank is a valid superkingdom (rather than a phylum, say)
         if lineage_list[-1] not in superkingdoms:
             print('Querying again due to bad lineage: ', taxid, taxon_info)
         else:
