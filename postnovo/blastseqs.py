@@ -50,13 +50,17 @@ diamond_out_hdr = [
     'staxids', 
     'stitle'
     ]
-# Column names of merged DIAMOND and BLAST output
-align_out_hdr = [
+# Query seq info, as reported in postnovo_seqs_info.tsv
+seq_info_hdr = [
     'seq_number',
+    'seq',
     'scan_list',
     'score',
     'best_predicts_from',
-    'also_contains_predicts_from',
+    'also_contains_predicts_from'
+    ]
+# Column names of merged DIAMOND and BLAST output
+align_out_hdr = seq_info_hdr + [
     'hit_number',
     'evalue',
     'bitscore',
@@ -363,14 +367,19 @@ def make_query_files(args):
             os.path.join(out_dir, 'filtered_out_table_with_lineages.csv'), index=False
             )
 
-    #high_prob_taxa_assign_df, high_prob_taxa_count_df = find_parsimonious_taxonomy(high_prob_df)
-    #high_prob_taxa_assign_df.to_csv(
-    #    os.path.join(out_dir, 'high_prob_taxa_assign_df.csv'), index=False
-    #    )
-    #if args.intermediate_files:
-    #    high_prob_taxa_count_df.to_csv(
-    #        os.path.join(out_dir, 'high_prob_taxa_count_df.csv'), index=False
-    #        )
+    # Determine the "parsimonious" taxonomic classification that encompasses a query seq's hits
+    high_prob_taxa_table, high_prob_taxa_count_table = assign_taxonomy(high_prob_out_table)
+    # The high probability taxonomic assignment table is written to file,
+    # as it is later used in blastseqs.analyze_emapper_output
+    high_prob_taxa_table.to_csv(
+        os.path.join(out_dir, 'high_prob_taxa_table.csv'), index=False
+        )
+
+    if args.intermediate_files:
+        high_prob_taxa_count_table.to_csv(
+            os.path.join(out_dir, 'high_prob_taxa_count_table.csv'), index=False
+            )
+
     #profile_df, low_prob_profile_df = screen_taxonomic_profile(
     #    high_prob_taxa_assign_df, high_prob_taxa_count_df, low_prob_df, high_prob_df
     #    )
@@ -434,7 +443,7 @@ def make_info_table(fasta_input_fp, info_fp):
     # Retrieve scan list, score, and best prediction and subseq origin lists
     # for each seq from postnovo_seqs_info.tsv
     seq_info_table = pd.read_csv(info_fp, sep='\t', header=0)
-    seq_info_table['query_seq'] = query_seqs
+    seq_info_table['seq'] = query_seqs
 
     return seq_info_table
 
@@ -1056,68 +1065,60 @@ def query_entrez_taxonomy_db(taxid, rank_dict, search_ranks_set, print_percent_p
 
     return lineage_list
 
-def find_parsimonious_taxonomy(df):
+def assign_taxonomy(align_table):
 
-    df.set_index(id_type, inplace=True)
-    list_of_taxa_assignment_rows = []
-    for id in df.index.get_level_values(id_type).unique():
-        id_table = df.loc[[id]]
-        id_table = id_table.drop_duplicates(subset = ['taxid'])
+    # Make a separate table for each query seq in the table of alignment results
+    seq_align_tables = [seq_align_table for _, seq_align_table in align_table.groupby('seq_number')]
+    # Rows of parsimonious taxonomic assignments, each corresponding to a query seq
+    taxa_assignments = []
+    for seq_align_table in seq_align_tables:
+        # Only consider a subset of hits representing a unique set of taxids
+        representative_hits = seq_align_table.drop_duplicates(subset=['taxid'])
+        # Loop through each taxonomic rank that is considered
         for rank_index, rank in enumerate(search_ranks):
-            most_common_taxon_count = Counter(id_table[rank]).most_common(1)[0]
-            if most_common_taxon_count[0] != '' and pd.notnull(most_common_taxon_count[0]):
-                if most_common_taxon_count[1] >= taxon_assignment_threshold * len(id_table):
-                    id_table.reset_index(inplace = True)
-                    try:
-                        representative_row = id_table.ix[
-                            id_table[
-                                id_table[rank] == most_common_taxon_count[0]
-                                ][rank].first_valid_index()
-                            ]
-                    except:
-                        print('id: ' + str(id), flush=True)
-                        print('rank: ' + str(rank), flush=True)
-                        print('is pd.null:')
-                        print(pd.isnull(most_common_taxon_count[0]))
-                        sys.exit()
-                    list_of_taxa_assignment_rows.append(
-                        [id] + \
-                            [representative_row['seq']] + \
-                            [representative_row['precursor_mass']] + \
-                            [representative_row['seq_score']] + \
-                            [representative_row['seq_origin']] + \
-                            rank_index * ['N/A'] + \
-                            representative_row[rank:].tolist()
+            # At the given rank, find the most common Linnean name
+            most_common_name = Counter(representative_hits[rank]).most_common(1)[0]
+            # Proceed if the lineage was assigned at the rank
+            if most_common_name[0] != '' and pd.notnull(most_common_name[0]):
+                # Proceed if the Linnean name applies to at least a minimum proportion of taxids
+                if most_common_name[1] >= taxon_assignment_threshold * len(representative_hits):
+                    # Take as the best hit one with the Linnean name and the lowest e-value (first in the table)
+                    representative_hit = representative_hits.ix[
+                        representative_hits[
+                            representative_hits[rank] == most_common_name[0]
+                            ][rank].first_valid_index()
+                        ]
+                    taxa_assignments.append(
+                        representative_hit[seq_info_hdr].tolist() + 
+                        rank_index * ['N/A'] + 
+                        representative_hit[rank:].tolist()
                         )
                     break
+        # Without a break in the loop due to discovery of a "finest-grained" taxonomic name in common among hits,
+        # record that no common taxonomy could be found for the seq (no name at any rank)
         else:
-            representative_row = id_table.iloc[0]
-            list_of_taxa_assignment_rows.append(
-                [id] + \
-                    [representative_row['seq']] + \
-                    [representative_row['precursor_mass']] + \
-                    [representative_row['seq_score']] + \
-                    [representative_row['seq_origin']] + \
-                    len(search_ranks) * ['N/A']
+            representative_hit = representative_hits.iloc[0]
+            taxa_assignments.append(
+                representative_hit[seq_info_hdr].tolist() + 
+                len(search_ranks) * ['N/A']
                 )
 
-    taxa_assignment_table = pd.DataFrame(
-        list_of_taxa_assignment_rows,
-        columns=['scan_list', 'seq', 'precursor_mass', 'seq_score', 'seq_origin'] + search_ranks)
-
+    # Make a DataFrame from the lists of taxonomic information for each seq
+    taxa_table = pd.DataFrame(taxa_assignments, columns=seq_info_hdr + search_ranks)
+    # Determine the number of assignments to each taxonomic name at each rank
+    # This is less a table than a set of ordered cols
+    # with the names 'species name', 'species count', 'genus name', 'genus count', etc.
     taxa_count_table = pd.DataFrame()
     for rank in search_ranks:
-        taxa_counts = Counter(taxa_assignment_table[rank])
+        taxa_counts = Counter(taxa_table[rank])
         taxa_count_table = pd.concat(
             [taxa_count_table,
              pd.Series([taxon for taxon in taxa_counts.keys()], name = rank + ' taxa'),
-             pd.Series([count for count in taxa_counts.values()], name = rank + ' counts')],
+             pd.Series([count for count in taxa_counts.values()], name = rank + ' count')],
              axis = 1
              )
 
-    df.reset_index(inplace=True)
-
-    return taxa_assignment_table, taxa_count_table
+    return taxa_table, taxa_count_table
 
 def screen_taxonomic_profile(high_prob_taxa_assign_df, high_prob_taxa_count_df, low_prob_df, high_prob_df):
     '''
@@ -1127,8 +1128,8 @@ def screen_taxonomic_profile(high_prob_taxa_assign_df, high_prob_taxa_count_df, 
     gold_taxa_profile_dict = OrderedDict()
     silver_taxa_profile_dict = OrderedDict()
     for level in ['family', 'genus', 'species']:
-        name_list_raw = high_prob_taxa_count_df[level + ' taxa'].tolist()
-        count_list_raw = high_prob_taxa_count_df[level + ' counts'].tolist()
+        name_list_raw = high_prob_taxa_count_df[level + ' name'].tolist()
+        count_list_raw = high_prob_taxa_count_df[level + ' count'].tolist()
         name_list = []
         count_list = []
         for i in range(len(name_list_raw)):
