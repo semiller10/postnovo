@@ -215,83 +215,80 @@ def make_emapper_input(args):
         split_blast_fasta_fp_list = split_blast_fasta(blast_fasta_list, args.max_seqs_per_blast_instance)
 
         #run_diamond(diamond_fasta_fp, args.diamond, args.diamond_db, args.taxonmap, args.cores)
-        split_blast_out_fp_list = run_blast(args.blast_dbs, split_blast_fasta_fp_list, args.blastp)        
-
-        sys.exit()
+        #split_blast_out_fp_list = run_blast(args.blast_dbs, split_blast_fasta_fp_list, args.blastp)
+        # REMOVE
+        split_blast_out_fp_list = [
+            os.path.splitext(split_blast_fasta_fp_list[i])[0] + '_refseq_complete_111117_release.nonredundant.protein.no_ile.faa.out'
+            for i in range(len(split_blast_fasta_fp_list))
+            ]
+        split_blast_out_fp_list += [
+            os.path.splitext(split_blast_fasta_fp_list[i])[0] + '_refseq_bacteria_111117_release.nonredundant.protein.no_ile.faa.out'
+            for i in range(len(split_blast_fasta_fp_list))
+            ]
 
     # Make a table of sequence information to add to the alignment output
     seq_info_table = make_info_table(fasta_input_fp, args.postnovo_seqs_info)
 
-    # Load the BLAST output from alignments against each db
-    db_names = [os.path.basename(blast_db_fp) for blast_db_fp in args.blast_dbs]
-    blast_out_dict = OrderedDict().fromkeys(db_names)
-    for db_name in db_names:
-        blast_out_table = pd.DataFrame(columns=blast_out_hdr)
-        # Piece the BLAST table together from its parts
-        for partial_blast_out_fp in split_blast_out_fp_list:
-            partial_blast_out_table = pd.read_csv(
-                partial_blast_out_fp, sep='\t', header=None, names=blast_out_hdr
-                )
-            blast_out_table = pd.concat(
-                [blast_out_table, partial_blast_out_table], ignore_index=True
-                )
+    # UNCOMMENT
+    ## Load the BLAST output from alignments against each db
+    #db_names = [os.path.basename(blast_db_fp) for blast_db_fp in args.blast_dbs]
+    #blast_out_dict = OrderedDict().fromkeys(db_names)
+    #for db_name in db_names:
+    #    blast_out_table = pd.DataFrame(columns=blast_out_hdr)
+    #    # Piece the BLAST table together from its parts
+    #    for partial_blast_out_fp in split_blast_out_fp_list:
+    #        partial_blast_out_table = pd.read_csv(
+    #            partial_blast_out_fp, sep='\t', header=None, names=blast_out_hdr
+    #            )
+    #        blast_out_table = pd.concat(
+    #            [blast_out_table, partial_blast_out_table], ignore_index=True
+    #            )
 
-        # Reorganize the qseqid column into the seq_number column
-        blast_out_table['seq_number'] = blast_out_table['qseqid'].apply(
-            lambda x: int(x.replace('(seq_number)', ''))
-            )
-        blast_out_table.drop('qseqid', inplace=True)
-        # Add a hit_number column to keep track of the alignment rank
-        blast_out_table['hit_number'] = make_hit_number_list(blast_out_table['seq_number'].tolist())
+    #    # Reorganize the qseqid column into the seq_number column
+    #    blast_out_table['seq_number'] = blast_out_table['qseqid'].apply(
+    #        lambda x: int(x.replace('(seq_number)', ''))
+    #        )
+    #    blast_out_table.drop('qseqid', axis=1, inplace=True)
+    #    # Add a hit_number column to keep track of the alignment rank
+    #    blast_out_table['hit_number'] = make_hit_number_list(blast_out_table['seq_number'].tolist())
 
-        # Add seq info to the blast output table
-        blast_out_table = blast_out_table.merge(seq_info_table, on=['seq_number'])
+    #    # Add seq info to the blast output table
+    #    blast_out_table = blast_out_table.merge(seq_info_table, on=['seq_number'])
 
-        # For debugging purposes, write the current db BLAST table to file
-        if args.intermediate_files:
-            blast_out_table.to_csv(
-                os.path.join(out_dir, db_name + '_blast_out.csv'), index=False
-                )
+    #    # For debugging purposes, write the current db BLAST table to file
+    #    if args.intermediate_files:
+    #        blast_out_table.to_csv(
+    #            os.path.join(out_dir, db_name + '_blast_out.csv'), index=False
+    #            )
 
-        blast_out_dict[db_name] = blast_out_table
+    #    blast_out_dict[db_name] = blast_out_table
 
-    # Compare results from multiple databases
-    if len(blast_out_dict) == 1:
-        blast_out_table = list(blast_out_dict.values())[0]
-    else:
-        blast_out_table = refine_blast_table(blast_out_dict)
+    ## Compare results from multiple databases
+    #if len(blast_out_dict) == 1:
+    #    blast_out_table = list(blast_out_dict.values())[0]
+    #else:
+    #    blast_out_table = refine_blast_table(blast_out_dict)
 
-    # Unzipped taxonmap file should be provided in the same dir as zipped file
-    taxonmap_fp = os.path.splitext(args.taxonmap)[0]
-    # List the accessions in the (refined) BLAST results
-    out_accessions = list(set(blast_out_table['accession'].tolist()))
-    taxid_dict = OrderedDict().fromkeys(out_accessions)
-    with open(args.taxonmap) as handle:
-        # Search the file for accessions until all have been found
-        for line in handle:
-            # The first field of accession2taxid is the accession
-            accession = line.split('\t')[0]
-            if accession in out_accessions:
-                # The third field is the taxid
-                taxid_dict[accession] = line.split('\t')[2]
-                out_accessions.remove(accession)
-                if not out_accessions:
-                    break
-    # Throw an exception if accessions remain unassigned
-    if out_accessions:
-        raise Exception(
-            'The following accessions were not found in ' + 
-            os.path.basename(taxonmap_fp) + ': ' +
-            ', '.join(out_accessions)
-            )
-    taxid_list = []
-    for accession in blast_out_table['accession'].tolist():
-        taxid_list.append(taxid_dict[accession])
-    blast_out_table['taxid'] = taxid_list
+    # REMOVE
+    #with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_refined.pkl', 'wb') as handle:
+    #    pkl.dump(blast_out_table, handle, 2)
+    with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_refined.pkl', 'rb') as handle:
+        blast_out_table = pkl.load(handle)
+
+    blast_out_table['taxid'] = get_taxids(blast_out_table)
     # Rearrange the cols in a predictable order
     blast_out_table = blast_out_table[align_out_hdr]
 
+    # REMOVE
+    with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_with_taxids.pkl', 'wb') as handle:
+        pkl.dump(blast_out_table, handle, 2)
+    #with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_with_taxids.pkl', 'rb') as handle:
+    #    blast_out_table = pkl.load(handle)
+
+    sys.exit()
+
     # Load the DIAMOND output
+    print('Load the DIAMOND output', flush=True)
     diamond_out_table = pd.read_csv(
         os.path.splitext(fasta_input_fp)[0] + '.diamond.out', sep='\t', header=None, names=align_out_hdr
         )
@@ -302,12 +299,12 @@ def make_emapper_input(args):
         )
     # Remove the version number from the accession to make it consistent with BLAST
     diamond_out_table['accession'] = diamond_out_table['sseqid'].apply(lambda x: x.split('.')[0])
-    diamond_out_table.drop('sseqid', inplace=True)
+    diamond_out_table.drop('sseqid', axis=1, inplace=True)
     # Add a hit number column
     diamond_out_table['hit_number'] = make_hit_number_list(diamond_out_table['seq_number'].tolist())
     # Rename 'staxids' to 'taxid' to be consistent with BLAST
     diamond_out_table['taxid'] = diamond_out_table['staxids']
-    diamond_out_table.drop('staxids', inplace=True)
+    diamond_out_table.drop('staxids', axis=1, inplace=True)
     # Remove the accession.version substring from stitle to make it consistent with BLAST
     diamond_out_table['stitle'] = diamond_out_table['stitle'].apply(lambda x: x[x.index(' ') + 1:])
     
@@ -432,7 +429,6 @@ def make_hit_number_list(id_list):
         else:
             hit_number += 1
             hit_number_list.append(hit_number)
-    blast_out_table['hit_number'] = hit_number_list
 
     return hit_number_list
 
@@ -501,6 +497,117 @@ def refine_blast_table(blast_out_dict):
     refined_blast_table = pd.concat(refined_blast_results, ignore_index=True)
 
     return refined_blast_table
+
+def get_taxids(blast_out_table):
+
+    # To avoid redundant queries, do not query the set of all accessions (sequence level),
+    # but rather a smaller set of accessions representative of all taxa (taxid level)
+    # Each hit has a taxon reported in square brackets in the stitle field
+    blast_out_table['taxon'] = blast_out_table['stitle'].apply(get_taxon)
+    taxa = blast_out_table['taxon'].unique().tolist()
+    one_percent_number_taxa = len(taxa) / 100 / cores
+
+    ## Single process
+    #representative_accessions = []
+    ## Make blast_out_table a global variable instead of forking it, since it is large
+    #child_initialize(blast_out_table)
+    #for taxon in taxa:
+    #    representative_accessions.append(get_representative_accession(taxon))
+
+    # Multiprocess
+    ## Make blast_out_table a global variable instead of forking it, since it is large
+    child_initialize(blast_out_table)
+    multiprocessing_pool = Pool(
+        cores, initializer=child_initialize, initargs=(blast_out_table,)
+        )
+    representative_accessions = multiprocessing_pool.map(get_representative_accession, taxa)
+    multiprocessing_pool.close()
+    multiprocessing_pool.join()
+
+    # Query NCBI for taxids
+    ## Single process
+    #taxids = []
+    #print_percent_progress_fn = partial(
+    #    utils.print_percent_progress_singlethreaded,
+    #    procedure_str='Taxid retrieval progress: ',
+    #    one_percent_total_count=one_percent_number_taxa * cores
+    #    )
+    #single_var_get_taxid = partial(
+    #    get_taxid, print_percent_progress_fn=print_percent_progress_fn
+    #    )
+    #for accession in representative_accessions:
+    #    taxids.append(single_var_get_taxid(accession))
+
+    # Multiprocess
+    print_percent_progress_fn = partial(
+        utils.print_percent_progress_multithreaded,
+        procedure_str='Taxid retrieval progress: ',
+        one_percent_total_count=one_percent_number_taxa,
+        cores=cores)
+    single_var_get_taxid = partial(
+        get_taxid, print_percent_progress_fn=print_percent_progress_fn
+        )
+    multiprocessing_pool = Pool(cores)
+    taxids = multiprocessing_pool.map(single_var_get_taxid, representative_accessions)
+    multiprocessing_pool.close()
+    multiprocessing_pool.join()
+
+    # Map each taxon to a taxid
+    taxid_dict = OrderedDict().fromkeys(taxa)
+    for i, taxon in enumerate(taxid_dict):
+        taxid_dict[taxon] = taxids[i]
+
+    # Prepare the col of taxids for blast_out_table
+    hit_taxids = []
+    for taxon in blast_out_table['taxon'].tolist():
+        hit_taxids.append(taxid_dict[taxon])
+    blast_out_table.drop('taxon', axis=1, inplace=True)
+
+    return hit_taxids
+
+def get_taxon(stitle):
+
+    closed_bracket_count = 0
+    open_bracket_count = 0
+    for i, char in enumerate(stitle[::-1]):
+        if char == ']':
+            closed_bracket_count += 1
+        elif char == '[':
+            open_bracket_count += 1
+        if open_bracket_count == closed_bracket_count:
+            return stitle[-i: -1]
+    raise Exception('get_taxon method did not work on ' + stitle)
+
+def child_initialize(_blast_out_table):
+
+    global blast_out_table
+
+    blast_out_table = _blast_out_table
+
+def get_representative_accession(taxon):
+
+    accession = blast_out_table[blast_out_table['taxon'] == taxon].iloc[0]['accession']
+
+    return accession
+
+def get_taxid(accession, print_percent_progress_fn):
+
+    print_percent_progress_fn()
+
+    while True:
+        try:
+            esummary = Entrez.read(Entrez.esummary(db='protein', id=accession))
+            taxid = esummary[0]['TaxId']
+            try:
+                int(taxid)
+                break
+            except ValueError:
+                print('Null taxid returned: ', esummary)
+        except:
+            print('Waiting for accession: ' + accession, flush=True)
+            time.sleep(2)
+
+    return taxid
 
 def filter_align_out_table(align_out_table):
 
@@ -609,14 +716,6 @@ def parse_args(test_argv = None):
         type=int,
         default=1000,
         help='maximum number of query seqs per BLAST+ instance'
-        )
-    parser_make_emapper_input.add_argument(
-        '--taxonmap',
-        help=(
-            'Filepath to prot.accession2taxid.gz (from NCBI) '
-            'for retrieving taxonomy from accession IDs: '
-            'both zipped and unzipped files should be present in the directory '
-            )
         )
     parser_make_emapper_input.add_argument(
         '--local_eggnog',
@@ -896,59 +995,6 @@ def run_blast(db_fp_list, fasta_fp_list, blastp_fp):
         subprocess.call(['rm', '-r', os.path.dirname(db_in_mem)])
 
     return out_fp_list
-
-#def run_blast(fasta_fp_list, blastp_fp, db_fp):
-    
-#    processes = []
-#    instances_started = 0
-#    while len(processes) > 0 or instances_started == 0:
-#        while len(processes) < cores and instances_started < len(fasta_fp_list):
-#            fasta_fp = fasta_fp_list[instances_started]
-#            out_fp = os.path.join(
-#                os.path.dirname(fasta_fp),
-#                os.path.splitext(os.path.basename(fasta_fp))[0] + '.out'
-#                )
-#            process = subprocess.Popen([
-#                blastp_fp,
-#                '-task', 'blastp-short',
-#                '-db', db_fp,
-#                '-query', fasta_fp,
-#                '-out', out_fp,
-#                '-evalue', '1000000',
-#                '-max_target_seqs', '500',
-#                '-max_hsps', '1',
-#                '-comp_based_stats', '0',
-#                '-outfmt', '6 qseqid sgi sacc evalue bitscore staxids salltitles',
-#                ])
-#            processes.append(process)
-#            instances_started += 1
-#            #print('number of instances started: ' + str(instances_started), flush=True)
-#        for i, process in enumerate(processes):
-#            #print('process poll for ' + str(i) + ': ' + str(process.poll()), flush=True)
-#            if process.poll() is not None:
-#                processes.remove(process)
-#        # REMOVE
-#        #pl = subprocess.Popen(['ps'], stdout=subprocess.PIPE).communicate()[0]
-#        #print(pl, flush=True)
-#        time.sleep(30)
-
-    ## Script name modified
-    ##blast_batch_fp = resource_filename('postnovo', 'bashscripts/blast_batch.sh')
-    #blast_batch_fp = resource_filename('postnovo', 'bashscripts/blast_batch_simple.sh')
-    #with open(blast_batch_fp) as blast_batch_template_file:
-    #    blast_batch_template = blast_batch_template_file.read()
-    #temp_blast_batch_script = blast_batch_template
-    #temp_blast_batch_script = temp_blast_batch_script.replace('FASTA_FILES=', 'FASTA_FILES=({})'.format(' '.join(fasta_fp_list)))
-    #temp_blast_batch_script = temp_blast_batch_script.replace('MAX_PROCESSES=', 'MAX_PROCESSES={}'.format(cores - 1))
-    #temp_blast_batch_script = temp_blast_batch_script.replace('BLASTP_PATH=', 'BLASTP_PATH={}'.format(blastp_fp))
-    #temp_blast_batch_script = temp_blast_batch_script.replace('DB_DIR=', 'DB_DIR={}'.format(db_fp))
-    ## Script name modified
-    ##temp_blast_batch_fp = os.path.join(os.path.dirname(blast_batch_fp), 'blast_batch~.sh')
-    #temp_blast_batch_fp = os.path.join(os.path.dirname(blast_batch_fp), 'blast_batch_simple~.sh')
-    #with open(temp_blast_batch_fp, 'w') as temp_blast_batch_file:
-    #    temp_blast_batch_file.write(temp_blast_batch_script)
-    #os.chmod(temp_blast_batch_fp, 0o777)
-    #subprocess.call([temp_blast_batch_fp])
 
 def get_linnean_hierarchy(high_prob_out_table, lower_prob_out_table, filtered_out_table):
     '''
