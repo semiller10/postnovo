@@ -507,20 +507,18 @@ def get_taxids(blast_out_table):
     taxa = blast_out_table['taxon'].unique().tolist()
     one_percent_number_taxa = len(taxa) / 100 / cores
 
-    ## Single process
-    #representative_accessions = []
-    ## Make blast_out_table a global variable instead of forking it, since it is large
-    #child_initialize(blast_out_table)
-    #for taxon in taxa:
-    #    representative_accessions.append(get_representative_accession(taxon))
+    taxon_out_tables = [taxon_out_table for _, taxon_out_table in blast_out_table.groupby('taxon')]
+
+    # Single process
+    representative_accessions = []
+    for taxon_out_table in taxon_out_tables:
+        representative_accessions.append(get_representative_accession(taxon_out_table))
 
     # Multiprocess
-    ## Make blast_out_table a global variable instead of forking it, since it is large
-    child_initialize(blast_out_table)
-    multiprocessing_pool = Pool(
-        cores, initializer=child_initialize, initargs=(blast_out_table,)
+    multiprocessing_pool = Pool(cores)
+    representative_accessions = multiprocessing_pool.map(
+        get_representative_accession, taxon_out_tables
         )
-    representative_accessions = multiprocessing_pool.map(get_representative_accession, taxa)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
@@ -578,15 +576,9 @@ def get_taxon(stitle):
             return stitle[-i: -1]
     raise Exception('get_taxon method did not work on ' + stitle)
 
-def child_initialize(_blast_out_table):
+def get_representative_accession(taxon_out_table):
 
-    global blast_out_table
-
-    blast_out_table = _blast_out_table
-
-def get_representative_accession(taxon):
-
-    accession = blast_out_table[blast_out_table['taxon'] == taxon].iloc[0]['accession']
+    accession = taxon_out_table.iloc[0]['accession']
 
     return accession
 
@@ -791,10 +783,6 @@ def check_args(parser, args):
                 parser.error('DIAMOND database filepath must be provided')
             if not os.path.exists(args.diamond_db):
                 parser.error(args.diamond_db + ' does not exist')
-            if args.taxonmap == None:
-                parser.error('taxonmap filepath must be provided')
-            if not os.path.exists(args.taxonmap):
-                parser.error(args.taxonmap + ' does not exist')
 
             if args.blastp == None:
                 parser.error('blastp filepath needed')
