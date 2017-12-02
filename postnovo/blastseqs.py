@@ -55,7 +55,7 @@ seq_info_hdr = [
     'seq_number',
     'seq',
     'scan_list',
-    'score',
+    'seq_score',
     'best_predicts_from',
     'also_contains_predicts_from'
     ]
@@ -64,6 +64,7 @@ align_out_hdr = seq_info_hdr + [
     'hit_number',
     'evalue',
     'bitscore',
+    'accession',
     'taxid',
     'stitle'
     ]
@@ -272,30 +273,28 @@ def make_emapper_input(args):
     # REMOVE
     #with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_refined.pkl', 'wb') as handle:
     #    pkl.dump(blast_out_table, handle, 2)
-    with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_refined.pkl', 'rb') as handle:
-        blast_out_table = pkl.load(handle)
-
-    blast_out_table['taxid'] = get_taxids(blast_out_table)
-    # Rearrange the cols in a predictable order
-    blast_out_table = blast_out_table[align_out_hdr]
-
-    # REMOVE
-    with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_with_taxids.pkl', 'wb') as handle:
-        pkl.dump(blast_out_table, handle, 2)
-    #with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_with_taxids.pkl', 'rb') as handle:
+    #with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_refined.pkl', 'rb') as handle:
     #    blast_out_table = pkl.load(handle)
 
-    sys.exit()
+    #blast_out_table['taxid'] = get_taxids(blast_out_table)
+    ## Rearrange the cols in a predictable order
+    #blast_out_table = blast_out_table[align_out_hdr]
+
+    # REMOVE
+    #with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_with_taxids.pkl', 'wb') as handle:
+    #    pkl.dump(blast_out_table, handle, 2)
+    with open('/scratch/samuelmiller/11-30-17/postnovo/blast_out_table_with_taxids.pkl', 'rb') as handle:
+        blast_out_table = pkl.load(handle)
 
     # Load the DIAMOND output
     print('Load the DIAMOND output', flush=True)
     diamond_out_table = pd.read_csv(
-        os.path.splitext(fasta_input_fp)[0] + '.diamond.out', sep='\t', header=None, names=align_out_hdr
+        os.path.splitext(fasta_input_fp)[0] + '.diamond.out', sep='\t', header=None, names=diamond_out_hdr
         )
     # Remove seqs without an alignment
-    diamond_out_table = diamond_out_table[diamond_out_table['accession'] != '*']
+    diamond_out_table = diamond_out_table[diamond_out_table['sseqid'] != '*']
     diamond_out_table['seq_number'] = diamond_out_table['qseqid'].apply(
-        lambda x: x.replace('(seq_number)', '')
+        lambda x: int(x.replace('(seq_number)', ''))
         )
     # Remove the version number from the accession to make it consistent with BLAST
     diamond_out_table['accession'] = diamond_out_table['sseqid'].apply(lambda x: x.split('.')[0])
@@ -314,8 +313,9 @@ def make_emapper_input(args):
     diamond_out_table = diamond_out_table[align_out_hdr]
 
     # Combine DIAMOND and BLAST output
+    print('Combine DIAMOND and BLAST output', flush=True)
     align_out_table = pd.concat([diamond_out_table, blast_out_table], ignore_index=True)
-    align_out_table.sort_values(['seq_number', 'hit'], inplace=True)
+    align_out_table.sort_values(['seq_number', 'hit_number'], inplace=True)
 
     # REMOVE
     # For debugging, report any seqs that return multiple taxids:
@@ -324,23 +324,26 @@ def make_emapper_input(args):
     if not pd.api.types.is_numeric_dtype(align_out_table['taxid']):
         print(align_out_table[align_out_table['taxid'].apply(lambda x: ';' in x)], flush=True)
 
+    # Test the data types of the columns to avoid unexpected surprises
+    assert pd.api.types.is_numeric_dtype(align_out_table['seq_number'])
+    assert pd.api.types.is_numeric_dtype(align_out_table['hit_number'])
+    assert pd.api.types.is_numeric_dtype(align_out_table['evalue'])
+    assert pd.api.types.is_numeric_dtype(align_out_table['bitscore'])
+    assert pd.api.types.is_object_dtype(align_out_table['accession'])
+    assert pd.api.types.is_numeric_dtype(align_out_table['taxid'])
+    assert pd.api.types.is_object_dtype(align_out_table['stitle'])
+
+    align_out_table['taxid'] = align_out_table['taxid'].apply(str)
+
     # For debugging purposes, write the alignment output table to file
     if args.intermediate_files:
         align_out_table.to_csv(
             os.path.join(out_dir, 'align_out.csv'), index=False
             )
 
-    # Test the data types of the columns to avoid unexpected surprises
-    assert pd.api.types.is_numeric_dtype(align_out_table['seq_number'])
-    assert pd.api.types.is_numeric_dtype(align_out_table['hit_number'])
-    assert pd.api.types.is_object_dtype(align_out_table['accession'])
-    assert pd.api.types.is_numeric_dtype(align_out_table['evalue'])
-    assert pd.api.types.is_numeric_dtype(align_out_table['bitscore'])
-    assert pd.api.types.is_numeric_dtype(align_out_table['taxid'])
-    assert pd.api.types.is_object_dtype(align_out_table['stitle'])
-
     # Filter the alignment output table by evalue,
     # sorting into high- and low-probability sub-tables
+    print('Filter the alignment output table by evalue')
     high_prob_out_table, lower_prob_out_table, filtered_out_table = filter_align_out_table(align_out_table)
 
     if args.intermediate_files:
@@ -369,7 +372,13 @@ def make_emapper_input(args):
             os.path.join(out_dir, 'filtered_out_table_with_lineages.csv'), index=False
             )
 
+    # REMOVE
+    #high_prob_out_table = pd.read_csv(os.path.join(out_dir, 'high_prob_out_with_lineages.csv'), header=0)
+    #lower_prob_out_table = pd.read_csv(os.path.join(out_dir, 'lower_prob_out_with_lineages.csv'), header=0)
+    #filtered_out_table = pd.read_csv(os.path.join(out_dir, 'filtered_out_table_with_lineages.csv'), header=0)
+
     # Determine the "parsimonious" taxonomic classification that encompasses a query seq's hits
+    print('Determine the "parsimonious" taxonomic classification')
     high_prob_taxa_table, high_prob_taxa_count_table = assign_taxonomy(high_prob_out_table)
     # The high probability taxonomic assignment table is written to file,
     # as it is later used in blastseqs.analyze_emapper_output
@@ -383,6 +392,7 @@ def make_emapper_input(args):
             )
 
     # Filter the lower prob hits by the taxonomic profile of the high prob results
+    print('Filter the lower prob hits by the taxonomic profile of the high prob results')
     filtered_out_table, low_prob_out_table = filter_lower_prob_taxa(
         high_prob_taxa_table, high_prob_taxa_count_table, high_prob_out_table, lower_prob_out_table
         )
@@ -398,6 +408,7 @@ def make_emapper_input(args):
     # Multiple hits per query seq can be retained at this stage
     # Each set of hits must have uniform functional annotations
     # When more than 10 hits are considered, evenly sample 10 hits
+    print('evenly sample 10 hits')
     sampled_out_table = filtered_out_table.groupby('seq_number').apply(sample_hits)
     sampled_out_table.to_csv(
         os.path.join(out_dir, 'sampled_out_table.csv'), index=False
@@ -406,9 +417,16 @@ def make_emapper_input(args):
     # Make fasta files to be used as the input for eggNOG-mapper functional annotation
     # eggNOG-mapper needs long sequences for functional annotation,
     # so retrieve the full subject sequence for each hit
-    sampled_out_table['full subject seq'] = get_full_subject_seqs(sampled_out_table['accession'].tolist())
+    print('retrieve the full subject sequence for each hit')
+    sampled_out_table['full_subject_seq'] = get_full_subject_seqs(sampled_out_table['accession'].tolist())
+    # REMOVE
+    with open('/scratch/samuelmiller/11-30-17/postnovo/sampled_out_table_with_full_subject_seqs.pkl', 'wb') as handle:
+        pkl.dump(sampled_out_table, handle, 2)
+    #with open('/scratch/samuelmiller/11-30-17/postnovo/sampled_out_table_with_full_subject_seqs.pkl', 'rb') as handle:
+    #    sampled_out_table = pkl.load(handle)
     # There are "superkingdom"-level eggNOG databases,
     # so make multiple files containing seqs of each superkingdom affiliation
+    print('write fasta files')
     fasta_filename_prefix = os.path.splitext(os.path.basename(fasta_input_fp))[0]
     eggnog_fasta_paths = write_eggnog_fasta_files(sampled_out_table, out_dir, fasta_filename_prefix)
     with open(os.path.join(out_dir, 'eggnog_fasta_path_list.pkl'), 'wb') as handle:
@@ -1040,11 +1058,11 @@ def get_linnean_hierarchy(high_prob_out_table, lower_prob_out_table, filtered_ou
     for taxid in filtered_out_table['taxid'].tolist():
         lineage_appendix_list.append(lineage_dict[taxid])
     lineage_appendix_table = pd.DataFrame(lineage_appendix_list, columns=search_ranks)
-    augmented_blast_table = pd.concat([filtered_out_table, lineage_table], axis=1)
+    filtered_out_table = pd.concat([filtered_out_table, lineage_appendix_table], axis=1)
 
     # Use the row ID's from the full filtered output table
     # to merge lineage info into the high and lower prob output tables
-    merge_table = augmented_blast_table[['seq_number', 'hit_number'] + search_ranks]
+    merge_table = filtered_out_table[['seq_number', 'hit_number'] + search_ranks]
     high_prob_out_table = high_prob_out_table.merge(merge_table, on=['seq_number', 'hit_number'])
     lower_prob_out_table = lower_prob_out_table.merge(merge_table, on=['seq_number', 'hit_number'])
 
@@ -1150,7 +1168,7 @@ def assign_taxonomy(align_table):
         taxa_counts = Counter(taxa_table[rank])
         taxa_count_table = pd.concat(
             [taxa_count_table,
-             pd.Series([taxon for taxon in taxa_counts.keys()], name = rank + ' taxa'),
+             pd.Series([taxon for taxon in taxa_counts.keys()], name = rank + ' name'),
              pd.Series([count for count in taxa_counts.values()], name = rank + ' count')],
              axis = 1
              )
@@ -1181,7 +1199,7 @@ def filter_lower_prob_taxa(high_prob_taxa_table, high_prob_taxa_count_table, hig
             if pd.notnull(count)
             ]
         count_dict = OrderedDict([
-            (name_list[i], count_list[i]) for i in range(len(name_list))
+            (high_prob_name_list[i], high_prob_count_list[i]) for i in range(len(high_prob_name_list))
             ])
         taxa_profile_dict[rank] = [
             name for name in count_dict
@@ -1197,10 +1215,10 @@ def filter_lower_prob_taxa(high_prob_taxa_table, high_prob_taxa_count_table, hig
             if not hit_in_profile_list[i]:
                 if lower_prob_name in profile:
                     hit_in_profile_list[i] = True
-    lower_prob_out_table['in_taxa_profile']
+    lower_prob_out_table['in_taxa_profile'] = hit_in_profile_list
 
-    lower_prob_out_table = lower_prob_out_table[lower_prob_out_table['in_taxa_profile'] is True]
-    lower_prob_out_table.drop('in_taxa_profile', inplace=True)
+    lower_prob_out_table = lower_prob_out_table[lower_prob_out_table['in_taxa_profile'] == True]
+    lower_prob_out_table.drop('in_taxa_profile', axis=1, inplace=True)
     filtered_out_table = pd.concat([high_prob_out_table, lower_prob_out_table], ignore_index=True)
 
     return filtered_out_table, lower_prob_out_table
@@ -1219,12 +1237,12 @@ def sample_hits(seq_retained_hits, sample_size=10):
     else:
         hit_indices = list(range(number_top_hits))
         rounded_quotient, remainder = divmod(len(hit_indices), sample_size)
-        sample_indices = [hit_indices[i * rounded_quotient + min(i, remainder)] for i in range(number_top_hits)]
+        sample_indices = [hit_indices[i * rounded_quotient + min(i, remainder)] for i in range(sample_size)]
         return top_hits.iloc[sample_indices]
 
 def get_full_subject_seqs(accessions):
 
-    one_percent_number_seqs = len(accession_list) / 100 / cores
+    one_percent_number_seqs = len(accessions) / 100 / cores
 
     # Multiprocess
     multiprocessing_pool = Pool(cores)
@@ -1241,6 +1259,8 @@ def get_full_subject_seqs(accessions):
     full_subject_seqs = multiprocessing_pool.map(single_var_get_full_subject_seq, accessions)
     multiprocessing_pool.close()
     multiprocessing_pool.join()
+
+    full_subject_seqs = [seq.upper() for seq in full_subject_seqs]
 
     return full_subject_seqs
 
@@ -1271,12 +1291,13 @@ def write_eggnog_fasta_files(sampled_out_table, out_dir, fasta_filename_prefix):
         superkingdom_out_table = sampled_out_table[sampled_out_table['superkingdom'] == superkingdom]
         # Only write to file if there is data for the superkingdom
         if len(superkingdom_out_table) > 0:
-            seq_numbers = superkingdom_out_table['seq_number'].tolist()
-            hit_numbers = superkingdom_out_table['hit_number'].tolist()
+            # REMOVE THE int(float()) calls in the following line
+            seq_numbers = [str(int(float(seq_number))) for seq_number in superkingdom_out_table['seq_number'].tolist()]
+            hit_numbers = [str(hit_number) for hit_number in superkingdom_out_table['hit_number'].tolist()]
             full_subject_seqs = superkingdom_out_table['full_subject_seq'].tolist()
             # The seq_number and hit_number identify the specific alignment
             fasta_headers = [
-                '>' + '(seq_number)' + seq_numbers[i] + '(hit_number)' + full_subject_seqs[i]
+                '>' + '(seq_number)' + seq_numbers[i] + '(hit_number)' + hit_numbers[i]
                 for i in range(len(seq_numbers))
                 ]
             fasta_seq_dict = OrderedDict([
