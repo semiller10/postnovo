@@ -172,51 +172,45 @@ def make_emapper_input(args):
 
     out_dir = os.path.dirname(fasta_input_fp)
 
-    # If BLAST+ and DIAMOND have already been run,
+    # Check that the input fasta file looks like a fasta file
+    parent_fasta_size = len(fasta_list) / 2
+    if parent_fasta_size % int(parent_fasta_size) > 0:
+        raise ValueError('The fasta input must have an even number of lines.')
+
+    # Separate fasta entries into longer seqs for DIAMOND and shorter seqs for BLAST
+    diamond_fasta_list = []
+    blast_fasta_list = []
+    entry = []
+    for line in fasta_list:
+        entry.append(line)
+        if line[0] != '>':
+            if len(line.rstrip()) >= min_seq_len_for_diamond:
+                diamond_fasta_list += entry
+            else:
+                blast_fasta_list += entry
+            entry = []
+
+    # Write fasta file for DIAMOND
+    diamond_fasta_fp = os.path.splitext(fasta_input_fp)[0] + '.diamond.faa'
+    with open(diamond_fasta_fp, 'w') as handle:
+        for line in diamond_fasta_list:
+            handle.write(line)
+
+    # To run BLAST+ on multiple CPUs, split the fasta input into multiple files
+    split_blast_fasta_fp_list = split_blast_fasta(blast_fasta_list, args.max_seqs_per_blast_instance)
+
     if args.redo_without_search:
-
-        out_dir_files = [f for f in os.listdir(out_dir) if os.path.isfile(os.path.join(out_dir, f))]
-        diamond_out_fp = ''
-        split_blast_out_fp_list = []
-        fasta_basename = os.path.splitext(os.path.basename(fasta_input_fp))[0]
-        for f in out_dir_files:
-            if fasta_basename + '.diamond.out' in f:
-                if diamond_out_fp != '':
-                    raise Exception('DIAMOND output of the name ' + os.path.splitext(fasta_input_fp)[0] + '.diamond.out already exists')
-            elif fasta_basename in f and 'blastp-short.out' in f and os.path.splitext(f)[1] == '.out':
-                split_blast_out_fp_list.append(os.path.join(out_dir, f))
-
+        # REMOVE
+        for db_path in args.blast_dbs:
+            db_name = os.path.basename(db_path)
+            split_blast_out_fp_list = [
+                os.path.splitext(split_blast_fasta_fp_list[i])[0] + '_' + db_name
+                for i in range(len(split_blast_fasta_fp_list))
+                ]
     else:
+        run_diamond(diamond_fasta_fp, args.diamond, args.diamond_db, args.taxonmap, args.cores)
+        split_blast_out_fp_list = run_blast(args.blast_dbs, split_blast_fasta_fp_list, args.blastp)
 
-        # Check that the input fasta file looks like a fasta file
-        parent_fasta_size = len(fasta_list) / 2
-        if parent_fasta_size % int(parent_fasta_size) > 0:
-            raise ValueError('The fasta input must have an even number of lines.')
-
-        # Separate fasta entries into longer seqs for DIAMOND and shorter seqs for BLAST
-        diamond_fasta_list = []
-        blast_fasta_list = []
-        entry = []
-        for line in fasta_list:
-            entry.append(line)
-            if line[0] != '>':
-                if len(line.rstrip()) >= min_seq_len_for_diamond:
-                    diamond_fasta_list += entry
-                else:
-                    blast_fasta_list += entry
-                entry = []
-
-        # Write fasta file for DIAMOND
-        diamond_fasta_fp = os.path.splitext(fasta_input_fp)[0] + '.diamond.faa'
-        with open(diamond_fasta_fp, 'w') as handle:
-            for line in diamond_fasta_list:
-                handle.write(line)
-
-        # To run BLAST+ on multiple CPUs, split the fasta input into multiple files
-        split_blast_fasta_fp_list = split_blast_fasta(blast_fasta_list, args.max_seqs_per_blast_instance)
-
-        #run_diamond(diamond_fasta_fp, args.diamond, args.diamond_db, args.taxonmap, args.cores)
-        #split_blast_out_fp_list = run_blast(args.blast_dbs, split_blast_fasta_fp_list, args.blastp)
         # REMOVE
         split_blast_out_fp_list = [
             os.path.splitext(split_blast_fasta_fp_list[i])[0] + '_refseq_complete_111117_release.nonredundant.protein.no_ile.faa.out'
