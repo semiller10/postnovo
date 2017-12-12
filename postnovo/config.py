@@ -47,11 +47,11 @@ di_near_isobaric_subs = {
     }
 
 # program constraints
-accepted_algs = ['novor', 'peaks', 'pn']
+accepted_algs = ['novor', 'pn', 'deepnovo']
 possible_alg_combos = []
 for numerical_alg_combo in list(product((0, 1), repeat = len(accepted_algs)))[1:]:
     possible_alg_combos.append(tuple([alg for i, alg in enumerate(accepted_algs) if numerical_alg_combo[i]]))
-seqs_reported_per_alg_dict = {'novor': 1, 'peaks': 20, 'pn': 20}
+seqs_reported_per_alg_dict = {'novor': 1, 'pn': 20, 'deepnovo': 20}
 frag_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
 fixed_mods = ['Oxidation of M']
 variable_mods = ['Carbamidomethylation of C']
@@ -76,7 +76,7 @@ data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
 # global info from user input
 filename = []
-alg_list = []
+alg_list = ['novor', 'pn']
 alg_combo_list = []
 novor_files = []
 peaks_files = []

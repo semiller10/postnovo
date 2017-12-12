@@ -44,12 +44,11 @@ def parse_args(test_argv=None):
               'e.g., <filename>.0.2.novor.csv, <filename>.0.2.mgf.out'
               .format(config.frag_mass_tols[0], config.frag_mass_tols[1]))
         )
-    # Add 'novor, pn, peaks' choice when ready
     parser.add_argument(
-        '--algs',
-        choices=['novor, pn'],
-        default='novor, pn',
-        help=('list the de novo sequencing algorithms that should be considered')
+        '--deepnovo',
+        default=False,
+        action='store_true',
+        help='flag for use of deepnovo output'
         )
     parser.add_argument(
         '--iodir',
@@ -549,8 +548,9 @@ def set_global_vars(args):
 
     config.filename.append(args.filename)
 
-    for alg in args.algs.split(', '):
-        config.alg_list.append(alg)
+    if args.deepnovo:
+        config.alg_list.append('deepnovo')
+
     for combo_level in range(2, len(config.alg_list) + 1):
         combo_level_combo_list = [combo for combo in combinations(config.alg_list, combo_level)]
         for alg_combo in combo_level_combo_list:
@@ -559,7 +559,7 @@ def set_global_vars(args):
     for alg in config.alg_list:
         is_alg_col_name = 'is ' + alg + ' seq'
         config.is_alg_col_names.append(is_alg_col_name)
-    is_alg_col_multiindex_list = list(product((0, 1), repeat = len(config.alg_list)))
+    is_alg_col_multiindex_list = list(product((0, 1), repeat=len(config.alg_list)))
     for multiindex_key in is_alg_col_multiindex_list[1:]:
         config.is_alg_col_multiindex_keys.append(multiindex_key)
     
