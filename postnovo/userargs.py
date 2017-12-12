@@ -95,44 +95,6 @@ def parse_args(test_argv=None):
             '"proteome1.db1.tsv, proteome1.db1.fasta, proteome1.db2.tsv, proteome1.db2.fasta"'
             )
         )
-    # REMOVE!
-    #parser.add_argument(
-    #    '--db_search_name_list',
-    #    nargs='+',
-    #    help=(
-    #        'provide the names of MSGF+ searches, in the format "proteome_name.db_name", '
-    #        'e.g., "proteome1.db1, proteome1.db2" '
-    #        'and place the corresponding .tsv and .fasta PSM and database files '
-    #        'beginning with this string in iodir'
-    #        )
-    #    )
-    #parser.add_argument(
-    #    '--psm_fp_list',
-    #    nargs='+',
-    #    help=(
-    #        'provide any MSGF+ PSM tsv files to compare with postnovo output, ',
-    #        'e.g., "proteome1.db1.DBGraphPep2Pro.fixedKR.0.01.tsv, ',
-    #        'proteome1.db2.DBGraphPep2Pro.fixedKR.0.01.tsv"'
-    #        )
-    #    )
-    #parser.add_argument(
-    #    '--db_fp_list',
-    #    nargs='+',
-    #    help=(
-    #        'provide corresponding names of MSGF+ fasta database files that were searched, ',
-    #        'e.g., "proteome1.db1.DBGraphPep2Pro.fixedKR.fasta, ',
-    #        'proteome1.db2.DBGraphPep2Pro.fixedKR.fasta"'
-    #        )
-    #    )
-    #parser.add_argument(
-    #    '--db_name_list',
-    #    nargs='+',
-    #    help=(
-    #        'provide corresponding names of MSGF+ database to identify the origin of PSMs, ',
-    #        'e.g., "db1, ',
-    #        'db2"'
-    #        )
-    #    )
     parser.add_argument(
         '--cores',
         type=int,
@@ -234,6 +196,17 @@ def check_args(parser, args):
                         )
                 except TypeError:
                     pass
+                if args.deepnovo:
+                    try:
+                        missing_files.append(
+                            check_path(
+                                args.filename + '.' + mass_tol + '.deepnovo.tab',
+                                config.iodir[0],
+                                return_str=True
+                                )
+                            )
+                    except TypeError:
+                        pass
             if missing_files:
                 for missing_file in missing_files:
                     if missing_file != None:
