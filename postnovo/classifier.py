@@ -37,20 +37,18 @@ else:
 
 def classify(prediction_df = None):
     utils.verbose_print()
-    #UNCOMMENT!
-    #if config.mode[0] in ['train', 'test', 'optimize']:
-    #    prediction_df, ref_correspondence_df, db_search_ref = find_target_accuracy(prediction_df)
+    if config.mode[0] in ['train', 'test', 'optimize']:
+        prediction_df, ref_correspondence_df, db_search_ref = find_target_accuracy(prediction_df)
 
-    #utils.verbose_print('formatting data for compatability with model')
-    #prediction_df = standardize_prediction_df_cols(prediction_df)
-    #utils.save_pkl_objects(config.iodir[0], **{'prediction_df': prediction_df})
-    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'prediction_df')
+    utils.verbose_print('formatting data for compatability with model')
+    prediction_df = standardize_prediction_df_cols(prediction_df)
+    utils.save_pkl_objects(config.iodir[0], **{'prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'prediction_df')
 
     if config.mode[0] == 'predict':
-        # UNCOMMENT!
-        #reported_prediction_df = make_predictions(prediction_df)
-        #reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
-        reported_prediction_df = pd.read_csv(os.path.join(config.iodir[0], 'best_predictions.csv'), header=0)
+        reported_prediction_df = make_predictions(prediction_df)
+        reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
+        #reported_prediction_df = pd.read_csv(os.path.join(config.iodir[0], 'best_predictions.csv'), header=0)
 
         df = reported_prediction_df.reset_index()
         if config.psm_fp_list:

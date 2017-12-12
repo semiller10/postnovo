@@ -26,57 +26,61 @@ def main():
 
     #test_argv = ['--iodir',
     #             'C:\\Users\\Samuel\\Downloads',
-    #             '--denovogui_fp',
-    #             'C:\\Program Files (x86)\\DeNovoGUI-1.4.12-windows\\DeNovoGUI-1.15.11\\DeNovoGUI-1.15.11.jar',
-    #             '--mgf_fp',
-    #             '082917_toolik_core_5_2_1_1_sem.mgf',
+    #             '--filename',
+    #             'toolik_8_2_1_1',
+    #             #'--denovogui_fp',
+    #             #'C:\\Program Files (x86)\\DeNovoGUI-1.4.12-windows\\DeNovoGUI-1.15.11\\DeNovoGUI-1.15.11.jar',
+    #             #'--mgf_fp',
+    #             #'toolik_8_2_1_1.mgf',
     #             '--cores',
     #             '3']
 
-    #test_argv = ['--iodir',
-    #             '/scratch/samuelmiller/11-11-17/toolik_core_13_3_1_1_sem_results',
-    #             '--denovogui_fp',
-    #             '/home/samuelmiller/DeNovoGUI/DeNovoGUI-1.15.10/DeNovoGUI-1.15.10.jar',
-    #             '--mgf_fp',
-    #             '/scratch/samuelmiller/11-11-17/toolik_core_13_3_1_1_sem_results/toolik_13_3_1_1.mgf',
-    #             '--cores',
-    #             '30']
-
     test_argv = ['--iodir',
-                 '/scratch/samuelmiller/11-11-17/082917_toolik_core_9_2_1_1_sem_results',
+                 '/scratch/samuelmiller/12-7-17',
                  '--filename',
-                 '082917_toolik_core_9_2_1_1_sem',
-                 '--db_name_list',
-                 'ERR1017187',
-                 'ERR1019366',
-                 'ERR1022687',
-                 'ERR1022692',
-                 'ERR1034454',
-                 'ERR1035437',
-                 'ERR1035438',
-                 'ERR1035441',
-                 'ERR1039457',
-                 'ERR1039458',
-                 'SRR5208451.transcript',
-                 'SRR5208454.transcript',
-                 'SRR5208455.transcript',
-                 'SRR5208541.transcript',
-                 'SRR5208544.transcript',
-                 'SRR5208545.transcript',
-                 'SRR5450431',
-                 'SRR5450432',
-                 'SRR5450434',
-                 'SRR5450438',
-                 'SRR5450631',
-                 'SRR5450755',
-                 'SRR5471030',
-                 'SRR5471031',
-                 'SRR5471032',
-                 'SRR5471221',
-                 'SRR5476649',
-                 'SRR5476651',
+                 'toolik_8_2_2_1',
+                 #'--denovogui_fp',
+                 #'/home/samuelmiller/DeNovoGUI/DeNovoGUI-1.15.10/DeNovoGUI-1.15.10.jar',
+                 #'--mgf_fp',
+                 #'/scratch/samuelmiller/12-7-17/toolik_8_2_2_1.mgf',
                  '--cores',
                  '32']
+
+    #test_argv = ['--iodir',
+    #             '/scratch/samuelmiller/11-11-17/082917_toolik_core_9_2_1_1_sem_results',
+    #             '--filename',
+    #             '082917_toolik_core_9_2_1_1_sem',
+    #             '--db_name_list',
+    #             'ERR1017187',
+    #             'ERR1019366',
+    #             'ERR1022687',
+    #             'ERR1022692',
+    #             'ERR1034454',
+    #             'ERR1035437',
+    #             'ERR1035438',
+    #             'ERR1035441',
+    #             'ERR1039457',
+    #             'ERR1039458',
+    #             'SRR5208451.transcript',
+    #             'SRR5208454.transcript',
+    #             'SRR5208455.transcript',
+    #             'SRR5208541.transcript',
+    #             'SRR5208544.transcript',
+    #             'SRR5208545.transcript',
+    #             'SRR5450431',
+    #             'SRR5450432',
+    #             'SRR5450434',
+    #             'SRR5450438',
+    #             'SRR5450631',
+    #             'SRR5450755',
+    #             'SRR5471030',
+    #             'SRR5471031',
+    #             'SRR5471032',
+    #             'SRR5471221',
+    #             'SRR5476649',
+    #             'SRR5476651',
+    #             '--cores',
+    #             '32']
 
     #test_argv = ['--iodir',
     #             '/scratch/samuelmiller/11-11-17/082917_toolik_core_10_2_1_1_sem_results',
@@ -160,28 +164,29 @@ def main():
         args = userargs.setup(test_argv)
     else:
         args = userargs.setup()
-    #UNCOMMENT!
-    #input_df_dict = input.load_files()
-    #utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
-    #utils.save_dfs(config.iodir[0], 
-    #               **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
-    #                  for alg in config.alg_list for tol in config.frag_mass_tols})
-    ##input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
 
-    #prediction_df = consensus.make_prediction_df(input_df_dict)
-    #utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})
-    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'consensus_prediction_df')
+    input_df_dict = input.load_files()
+    utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
+    utils.save_dfs(config.iodir[0], 
+                   **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
+                      for alg in config.alg_list for tol in config.frag_mass_tols})
+    #input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
 
-    #prediction_df = masstol.update_prediction_df(prediction_df)
-    #utils.save_pkl_objects(config.iodir[0], **{'mass_tol_prediction_df': prediction_df})
-    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'mass_tol_prediction_df')
+    prediction_df = consensus.make_prediction_df(input_df_dict)
+    utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'consensus_prediction_df')
 
-    #prediction_df = interspec.update_prediction_df(prediction_df)
-    #utils.save_pkl_objects(config.iodir[0], **{'interspec_prediction_df': prediction_df})
+    prediction_df = masstol.update_prediction_df(prediction_df)
+    utils.save_pkl_objects(config.iodir[0], **{'mass_tol_prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'mass_tol_prediction_df')
+
+    prediction_df = interspec.update_prediction_df(prediction_df)
+    utils.save_pkl_objects(config.iodir[0], **{'interspec_prediction_df': prediction_df})
     #prediction_df = utils.load_pkl_objects(config.iodir[0], 'interspec_prediction_df')
 
-    #classifier.classify(prediction_df = prediction_df)
-    classifier.classify()
+    classifier.classify(prediction_df = prediction_df)
+    # COMMENT
+    #classifier.classify()
 
     utils.verbose_print('total time elapsed:', time() - start_time)
 
