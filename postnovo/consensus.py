@@ -231,14 +231,24 @@ def make_scan_prediction_dicts(consensus_scan):
     no_consensus = False
     for alg in alg_consensus_source_df_dict:
         scan_alg_consensus_source_df = alg_consensus_source_df_dict[alg].loc[consensus_scan]
-        if len(scan_alg_consensus_source_df) < config.seqs_reported_per_alg_dict[alg]:
-            return []
+        # deepnovo can have a variable number of seqs per scan due to the consolidation of Ile/Leu
+        # otherwise, expect a set number of seqs per scan
+        if alg != 'deepnovo':
+            if len(scan_alg_consensus_source_df) < config.seqs_reported_per_alg_dict[alg]:
+                return []
         scan_max_seq_len_list.append(scan_alg_consensus_source_df['encoded seq'].map(len).max())
+        # stop consensus routine if an alg does not have any seqs for the scan
         if scan_max_seq_len_list[-1] == 0:
             no_consensus = True
         else:
             if scan_alg_consensus_source_df.at[0, 'encoded seq'] != []:
-                scan_prediction_dict_list.append(make_seq_prediction_dict(consensus_scan, scan_alg_consensus_source_df = scan_alg_consensus_source_df, alg = alg))
+                scan_prediction_dict_list.append(
+                    make_seq_prediction_dict(
+                        consensus_scan,
+                        scan_alg_consensus_source_df=scan_alg_consensus_source_df,
+                        alg=alg
+                        )
+                    )
             scan_alg_consensus_source_df_dict[alg] = scan_alg_consensus_source_df
 
     if no_consensus:
@@ -416,8 +426,18 @@ def do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensu
                 else:
                     yield None, None, None, None, None
 
-def make_seq_prediction_dict(consensus_scan, scan_alg_consensus_source_df_dict = None, scan_alg_consensus_source_df = None, alg = None, cs_info_dict = None, cs_type_list = None, alg_combo = None, first_seq_second_seq_alg_positions_subdict = None):
+def make_seq_prediction_dict(
+    consensus_scan,
+    scan_alg_consensus_source_df_dict=None,
+    scan_alg_consensus_source_df=None, 
+    alg=None, 
+    cs_info_dict=None,
+    cs_type_list=None,
+    alg_combo=None,
+    first_seq_second_seq_alg_positions_subdict=None
+    ):
 
+    # If no common substring searches have yet been performed
     if cs_info_dict is None:
         prediction_dict = {}.fromkeys(config.single_alg_prediction_dict_cols['general'])
         for k in prediction_dict:
@@ -470,8 +490,6 @@ def make_seq_prediction_dict(consensus_scan, scan_alg_consensus_source_df_dict =
                             for match_group in finditer(peptide, seq):
                                 di_near_isobaric_sub_score += 100 - sum(aa_score[match_group.start(): match_group.end()]) / 2
                     alg_prediction_dict['di near-isobaric sub score'] = di_near_isobaric_sub_score
-        elif alg == 'peaks':
-            pass
         elif alg == 'pn':
             for k in alg_prediction_dict:
                 if k == 'is pn seq':
@@ -482,6 +500,42 @@ def make_seq_prediction_dict(consensus_scan, scan_alg_consensus_source_df_dict =
                     alg_prediction_dict['pn score'] = scan_alg_consensus_source_df.at[0, 'pn score']
                 elif k == 'sqs':
                     alg_prediction_dict['sqs'] = scan_alg_consensus_source_df.at[0, 'sqs']
+        elif alg == 'deepnovo':
+            aa_score = scan_alg_consensus_source_df.at[0, 'aa score']
+            for k in alg_prediction_dict:
+                if k == 'is deepnovo seq':
+                    alg_prediction_dict['is deepnovo seq'] = 1
+                elif k == 'avg deepnovo aa score':
+                    alg_prediction_dict['avg deepnovo aa score'] = scan_alg_consensus_source_df.at[0, 'avg aa score']
+                elif k == 'mono-di isobaric sub score':
+                    mono_di_isobaric_sub_score = 0
+                    for peptide in config.mono_di_isobaric_subs:
+                        if peptide in seq:
+                            for match_group in finditer(peptide, seq):
+                                mono_di_isobaric_sub_score += 100 - sum(aa_score[match_group.start(): match_group.end()]) / len(peptide)
+                    alg_prediction_dict['mono-di isobaric sub score'] = mono_di_isobaric_sub_score
+                elif k == 'di isobaric sub score':
+                    di_isobaric_sub_score = 0
+                    for peptide in config.di_isobaric_subs:
+                        if peptide in seq:
+                            for match_group in finditer(peptide, seq):
+                                di_isobaric_sub_score += 100 - sum(aa_score[match_group.start(): match_group.end()]) / 2
+                    alg_prediction_dict['di isobaric sub score'] = di_isobaric_sub_score
+                elif k == 'mono-di near-isobaric sub score':
+                    mono_di_near_isobaric_sub_score = 0
+                    for peptide in config.mono_di_near_isobaric_subs:
+                        if peptide in seq:
+                            for match_group in finditer(peptide, seq):
+                                mono_di_near_isobaric_sub_score += 100 - sum(aa_score[match_group.start(): match_group.end()]) / len(peptide)
+                    alg_prediction_dict['mono-di near-isobaric sub score'] = mono_di_near_isobaric_sub_score
+                elif k == 'di near-isobaric sub score':
+                    di_near_isobaric_sub_score = 0
+                    for peptide in config.di_near_isobaric_subs:
+                        if peptide in seq:
+                            for match_group in finditer(peptide, seq):
+                                di_near_isobaric_sub_score += 100 - sum(aa_score[match_group.start(): match_group.end()]) / 2
+                    alg_prediction_dict['di near-isobaric sub score'] = di_near_isobaric_sub_score
+
         prediction_dict.update(alg_prediction_dict)
 
         return prediction_dict

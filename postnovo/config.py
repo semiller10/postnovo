@@ -119,6 +119,12 @@ single_alg_prediction_dict_cols = {
               'mono-di near-isobaric sub score', 'di near-isobaric sub score'],
     'pn': ['is pn seq', 'rank score', 'pn score', 'sqs'],
     'deepnovo': [
+        'is deepnovo seq',
+        'avg deepnovo aa score',
+        'mono-di isobaric sub score',
+        'di isobaric sub score',
+        'mono-di near-isobaric sub score',
+        'di near-isobaric sub score'
         ]
     }
 consensus_prediction_dict_cols = {
