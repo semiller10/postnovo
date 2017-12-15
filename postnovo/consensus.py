@@ -67,61 +67,98 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     one_percent_number_consensus_scans = len(consensus_scan_list) / 100 / config.cores[0]
 
     scan_consensus_info_dict, scan_generator_fns_dict, scan_common_substrings_info_dict = setup_scan_info_dicts(combo_level_alg_dict)
-    ## examples
-    ## scan_consensus_info_dict = odict(2: odict(
-    ##    ('novor', 'pn'):
-    ##    {'longest_cs': {'seq_starts': None, 'rank_sum': None, 'consensus_len': None, 'alg_ranks': None},
-    ##     'top_rank_cs': {'seq_starts': None, 'rank_sum': None, 'consensus_len': None, 'alg_ranks': None}
-    ##    }, ...), 3: odict(...))
-    ## scan_generator_fns_dict = odict(2: odict(
-    ##    ('novor', 'peaks'): generator fn,
-    ##    ('novor', 'pn'): generator fn,
-    ##    ('peaks', 'pn'): generator fn))
-    ## scan_common_substrings_info_dict = odict(2: odict(
-    ##    ('novor', 'peaks'): list of common substrings,
-    ##    ('novor', 'pn'): list of common substrings,
-    ##    ('peaks', 'pn'): list of common substrings)
+    ##examples
+    ##scan_consensus_info_dict = OrderedDict(
+    ##    2: OrderedDict(
+    ##        ('novor', 'pn'): 
+    ##            {
+    ##                'longest_cs': {'seq_starts': None, 'rank_sum': None, 'consensus_len': None, 'alg_ranks': None}, 
+    ##                'top_rank_cs': {'seq_starts': None, 'rank_sum': None, 'consensus_len': None, 'alg_ranks': None}
+    ##                },
+    ##        ('novor', 'deepnovo'):
+    ##            ...
+    ##        ...,
+    ##    3: OrderedDict(
+    ##        ('novor', 'pn', 'deepnovo'):
+    ##            ...
+    ##    )
+    ##scan_generator_fns_dict = OrderedDict(
+    ##    2: OrderedDict(
+    ##        ('novor', 'pn'): generator_fn,
+    ##        ('novor', 'deepnovo'): generator_fn, 
+    ##        ('pn', 'deepnovo'): generator_fn
+    ##        ),
+    ##    3: OrderedDict(
+    ##        ('novor', 'pn', 'deepnovo'): generator_fn
+    ##        )
+    ##    )
+    ##scan_common_substrings_info_dict = OrderedDict(
+    ##    2: OrderedDict(
+    ##        ('novor', 'pn'): [common substrings],
+    ##        ('novor', 'deepnovo'): [common substrings],
+    ##        ('pn', 'deepnovo'): [common substrings]
+    ##        ),
+    ##    3: OrderedDict(
+    ##        ('novor', 'pn', 'deepnovo'): [common substrings]
+    ##        )
+    ##    )
 
     first_seq_second_seq_rank_comparisons_dict, first_seq_second_seq_max_ranks_dict, first_seq_second_seq_alg_positions_dict =\
         make_first_seq_second_seq_comparisons_dicts(scan_consensus_info_dict)
-    ## examples
-    ## first_seq_second_seq_rank_comparisons_dict = odict(2: odict(
-    ##    ('novor', 'peaks'): [((0,), (0,)), ((0,), (1,)), ..., ((0,), (18,)), ((0,), (19,))],
-    ##    ...,
-    ##    ('peaks', 'pn'): [((0,), (0,)), ((0,), (1,)), ..., ((19,), (18,)), ((19,), (19,))]),
-    ##    3: odict(
-    ##    ('novor', 'peaks', 'pn'): [((0, 0), (0,)), ((0, 0), (1,)), ..., ((0, 19), (18,)), ((0, 19), (19,))]))
-    ## first_seq_second_seq_max_ranks_dict = odict(2: odict(
-    ##    ('novor', 'peaks'): [1, 20],
-    ##    ('novor', 'pn'): [1, 20],
-    ##    ('peaks', 'pn'): [20, 20]),
-    ##    3: odict(
-    ##    ('novor', 'peaks', 'pn'): [1, 20, 20]))
-    ## first_seq_second_seq_alg_positions_dict = odict(2: odict(
-    ##    ('novor', 'peaks'): odict('novor': (0, 0), 'peaks': (1, 0)),
-    ##    ('novor', 'pn'): odict('novor': (0, 0), 'pn': (1, 0))
-    ##    ('peaks', 'pn'): odict('peaks': (0, 0), 'pn': (1, 0))),
-    ##    3: odict(
-    ##    ('novor', 'peaks', 'pn'): odict('novor': (0, 0), 'peaks': (0, 1), 'pn': (1, 0))))
+    ##first_seq_second_seq_rank_comparisons_dict = OrderedDict(
+    ##    2: OrderedDict(
+    ##        ('novor', 'pn'): [((0,), (0,)), ((0,), (1,)), ..., ((0,), (18,)), ((0,), (19,))],
+    ##        ('novor', 'deepnovo'): [((0,), (0,)), ((0,), (1,)), ..., ((0,), (18,)), ((0,), (19,))],
+    ##        ('pn', 'deepnovo'): [((0,), (0,)), ((0,), (1,)), ..., ((0,), (18,)), ((0,), (19,))]
+    ##        ),
+    ##    3: OrderedDict(
+    ##        ('novor', 'pn', 'deepnovo'): [((0, 0), (0,)), ((0, 0), (1,)), ..., ((0, 19), (18,)), ((0, 19), (19,))]
+    ##        )
+    ##    )
+    ##first_seq_second_seq_max_ranks_dict = OrderedDict(
+    ##    2: OrderedDict(
+    ##        ('novor', 'pn'): [1, 20],
+    ##        ('novor', 'deepnovo'): [1, 20],
+    ##        ('pn', 'deepnovo'): [20, 20]
+    ##        ),
+    ##    3: OrderedDict(
+    ##        ('novor', 'pn', 'deepnovo'): [1, 20, 20]
+    ##        )
+    ##    )
+    ##first_seq_second_seq_alg_positions_dict = OrderedDict(
+    ##    2: OrderedDict(
+    ##        ('novor', 'pn'): OrderedDict('novor': (0, 0), 'pn': (1, 0)),
+    ##        ('novor', 'deepnovo'): OrderedDict('novor': (0, 0), 'deepnovo': (1, 0)),
+    ##        ('pn', 'deepnovo'): OrderedDict('pn': (0, 0), 'deepnovo': (1, 0))
+    ##        ),
+    ##    3: OrderedDict(
+    ##        ('novor', 'pn', 'deepnovo'): OrderedDict('novor': (0, 0), 'peaks': (0, 1), 'pn': (1, 0))
+    ##        )
+    ##    )
 
     ## single processor method
-    #print_percent_progress_fn = partial(utils.print_percent_progress_singlethreaded,
-    #                                    procedure_str = tol + ' Da progress: ',
-    #                                    one_percent_total_count = one_percent_number_consensus_scans)
-    #child_initialize(alg_consensus_source_df_dict,
-    #                 scan_consensus_info_dict,
-    #                 scan_generator_fns_dict,
-    #                 scan_common_substrings_info_dict,
-    #                 consensus_min_len,
-    #                 first_seq_second_seq_rank_comparisons_dict,
-    #                 first_seq_second_seq_max_ranks_dict,
-    #                 first_seq_second_seq_alg_positions_dict,
-    #                 print_percent_progress_fn)
-    #grand_scan_prediction_dict_list = []
-    #utils.verbose_print('finding', tol, 'Da consensus sequences')
-    #for consensus_scan in consensus_scan_list:
-    #    grand_scan_prediction_dict_list.append(
-    #        make_scan_prediction_dicts(consensus_scan))
+    print_percent_progress_fn = partial(
+        utils.print_percent_progress_singlethreaded,
+        procedure_str = tol + ' Da progress: ',
+        one_percent_total_count = one_percent_number_consensus_scans
+        )
+    child_initialize(
+        alg_consensus_source_df_dict,
+        scan_consensus_info_dict,
+        scan_generator_fns_dict,
+        scan_common_substrings_info_dict,
+        consensus_min_len,
+        first_seq_second_seq_rank_comparisons_dict,
+        first_seq_second_seq_max_ranks_dict,
+        first_seq_second_seq_alg_positions_dict,
+        print_percent_progress_fn
+        )
+    grand_scan_prediction_dict_list = []
+    utils.verbose_print('finding', tol, 'Da consensus sequences')
+    for consensus_scan in consensus_scan_list:
+        grand_scan_prediction_dict_list.append(
+            make_scan_prediction_dicts(consensus_scan)
+            )
 
     # multiprocessing method
     print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
@@ -583,6 +620,8 @@ def make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict):
     return alg_consensus_source_df_dict
 
 def make_consensus_scan_list(alg_consensus_source_df_dict, highest_level_alg_combo):
+    # I think this is redundant with filter_shared_scans method from input.py,
+    # and all of the alg tables already share the same scans
     consensus_scan_list = alg_consensus_source_df_dict[highest_level_alg_combo[0]].index.get_level_values('scan')
     for alg in highest_level_alg_combo[1:]:
         consensus_scan_list = consensus_scan_list.intersection(alg_consensus_source_df_dict[alg].index.get_level_values('scan'))
@@ -603,6 +642,8 @@ def setup_scan_info_dicts(combo_level_alg_dict):
             scan_consensus_info_dict[combo_level][alg_combo]['longest_cs'] = {}.fromkeys(consensus_info_keys)
             scan_consensus_info_dict[combo_level][alg_combo]['top_rank_cs'] = {}.fromkeys(consensus_info_keys)
 
+        # I don't understand the purpose of this if statement:
+        # won't i always be less than len?
         if i < len(combo_level_alg_dict):
             scan_generator_fns_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict[combo_level])
             scan_common_substrings_info_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict[combo_level])
@@ -676,7 +717,7 @@ def make_first_seq_second_seq_comparisons_dicts(scan_consensus_info_dict):
 # Ex. 2-alg LCS and T-R CS were found in Alg 1 rank 1 x Alg 2 rank 1
 #     These two seqs are compared against Alg 3 ranks
 # If N-alg LCS creates a CS with Alg N+1, the CS MUST be the N+1-alg LCS
-# Likewise, if N-alg T-R CS creates a CS with Alg N+1, the CS MUST be the N+1-alg LCS
+# Likewise, if N-alg T-R CS creates a CS with Alg N+1, the CS MUST be the N+1-alg T-R CS
 # But say that the N+1-alg LCS or T-R CS is not found from the N-alg LCS and T-R CS
 # Then the unconsidered N-alg rank comparisons may be considered:
 # If N+1-alg LCS was not found,
