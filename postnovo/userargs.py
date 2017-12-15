@@ -51,7 +51,7 @@ def parse_args(test_argv=None):
         help=(
             'flag for use of deepnovo: '
             'deepnovo output files, e.g., <filename>.0.2.deepnovo.tab, '
-            'and the mgf file named <filename>.deepnovo.mgf should be in iodir'
+            'should be in iodir'
             )
         )
     parser.add_argument(

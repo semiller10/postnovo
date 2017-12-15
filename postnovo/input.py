@@ -21,7 +21,7 @@ else:
 def load_files():
 
     ## input_df_dict format =
-    ## OrderedDict('novor': OrderedDict('0.2': df, ..., '0.7': df), 'pn': ...)
+    ## OrderedDict('novor': OrderedDict('0.2': df, ..., '0.7': df), 'pn': ..., 'deepnovo': ...)
     input_df_dict = OrderedDict()
 
     if config.novor_files:
@@ -37,6 +37,14 @@ def load_files():
         for i, pn_file in enumerate(config.pn_files):
             utils.verbose_print('loading', basename(pn_file))
             input_df_dict['pn'][config.frag_mass_tols[i]] = load_pn_file(pn_file)
+
+    if config.deepnovo_files:
+        input_df_dict['deepnovo'] = OrderedDict.fromkeys(
+            [basename(path) for path in config.deepnovo_files]
+            )
+        for i, path in enumerate(config.deepnovo_files):
+            utils.verbose_print('loading', basename(path))
+            input_df_dict['deepnovo'][config.frag_mass_tols[i]] = load_deepnovo_file(path)
 
     utils.verbose_print('cleaning up input data')
     input_df_dict = filter_shared_scans(input_df_dict)
@@ -82,8 +90,6 @@ def load_novor_file(novor_file):
             lambda score_string_list: list(map(int, score_string_list)))
     novor_df['avg aa score'] = novor_df['aa score'].apply(
         lambda score_list: sum(score_list) / len(score_list))
-    #novor_df['aa score'] = novor_df['aa score'].apply(
-    #    lambda score_list: ' '.join(score_list))
 
     novor_df.set_index(['scan', 'rank'], inplace = True)
 
@@ -163,6 +169,37 @@ def load_pn_file(pn_file):
     pn_df.set_index(['scan', 'rank'], inplace = True)
 
     return pn_df
+
+def load_deepnovo_file(path):
+    
+    deepnovo_table = pd.read_csv(path, sep='\t', header=0)
+    deepnovo_table = deepnovo_table[['scan', 'output_seq', 'AA_probability']]
+    deepnovo_table.columns = ['scan', 'seq', 'aa score']
+
+    # Add column of seq rank
+    deepnovo_table_with_ranks = pd.DataFrame()
+    for _, scan_table in deepnovo_table.groupby('scan'):
+        pd.concat([deepnovo_table_with_ranks, scan_table], ignore_index=True)
+    deepnovo_table_with_ranks.rename(columns={'index': 'rank'}, inplace=True)
+
+    # Example:
+    # 'Mmod,V,D,V,A,Q,H,P,N,I,R' -> 'MmodVDVAQHPNIR' -> 'MVDVAQHPNIR'
+    deepnovo_table['seq'] = deepnovo_table['seq'].apply(
+        lambda s: ''.join(s.split(',')).replace('mod', '')
+        )
+    # Example:
+    # '0.67 1.0 1.0 1.0 1.0 0.28 1.0 0.1 0.0 0.85' -> [0.67, 1.0, ...]
+    deepnovo_table['aa score'] = deepnovo_table['aa score'].apply(
+        lambda s: list(map(float, s.split(' ')))
+        )
+    deepnovo_table['avg aa score'] = deepnovo_table['aa score'].apply(
+        lambda s: sum(s) / len(s)
+        )
+
+    deepnovo_table = deepnovo_table_with_ranks[['scan', 'rank', 'seq', 'aa score', 'avg aa score']]
+    deepnovo_table.set_index(['scan', 'rank'], inplace=True)
+
+    return deepnovo_table
 
 def filter_shared_scans(input_df_dict):
     for tol in config.frag_mass_tols:

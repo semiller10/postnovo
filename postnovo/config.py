@@ -105,6 +105,10 @@ prediction_dict_source_cols = {
     'novor': ['retention time', 'measured mass', 'seq', 'aa score', 'avg aa score', 'encoded seq'],
     'pn': ['measured mass', 'seq', 'rank score', 'pn score', 'sqs', 'encoded seq'],
     'deepnovo': [
+        'seq',
+        'aa score',
+        'avg aa score',
+        'encoded seq'
         ]
     }
 single_alg_prediction_dict_cols = {
