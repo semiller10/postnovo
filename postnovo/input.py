@@ -176,12 +176,6 @@ def load_deepnovo_file(path):
     deepnovo_table = deepnovo_table[['scan', 'output_seq', 'AA_probability']]
     deepnovo_table.columns = ['scan', 'seq', 'aa score']
 
-    # Add column of seq rank
-    deepnovo_table_with_ranks = pd.DataFrame()
-    for _, scan_table in deepnovo_table.groupby('scan'):
-        pd.concat([deepnovo_table_with_ranks, scan_table], ignore_index=True)
-    deepnovo_table_with_ranks.rename(columns={'index': 'rank'}, inplace=True)
-
     # Example:
     # 'Mmod,V,D,V,A,Q,H,P,N,I,R' -> 'MmodVDVAQHPNIR' -> 'MVDVAQHPNIR'
     deepnovo_table['seq'] = deepnovo_table['seq'].apply(
@@ -195,6 +189,33 @@ def load_deepnovo_file(path):
     deepnovo_table['avg aa score'] = deepnovo_table['aa score'].apply(
         lambda s: sum(s) / len(s)
         )
+
+    # deepnovo predicts both Leu and Ile:
+    # Consider these residues to be the same and remove redundant lower-ranking seqs
+    deepnovo_table_dereplicated = pd.DataFrame()
+    for _, scan_table in deepnovo_table.groupby('scan'):
+        scan_table['seq'] = scan_table['seq'].apply(
+            lambda s: s.replace('I', 'L')
+            )
+        seqs = scan_table['seq'].tolist()
+        retained_rows = [True for _ in range(20)]
+        for i, s in enumerate(seqs):
+            if retained_rows[i]:
+                for j, t in enumerate(seqs[i + 1:]):
+                    if s == t:
+                        retained_rows[j] = False
+        scan_table['retained'] = retained_rows
+        scan_table = scan_table[scan_table['retained']]
+        scan_table.drop('retained', axis=1, inplace=True)
+        deepnovo_table_dereplicated = pd.concat(
+            [deepnovo_table_dereplicated, scan_table], ignore_index=True
+            )
+
+    # Add column of seq rank
+    deepnovo_table_with_ranks = pd.DataFrame()
+    for _, scan_table in deepnovo_table_dereplicated.groupby('scan'):
+        pd.concat([deepnovo_table_with_ranks, scan_table], ignore_index=True)
+    deepnovo_table_with_ranks.rename(columns={'index': 'rank'}, inplace=True)
 
     deepnovo_table = deepnovo_table_with_ranks[['scan', 'rank', 'seq', 'aa score', 'avg aa score']]
     deepnovo_table.set_index(['scan', 'rank'], inplace=True)
