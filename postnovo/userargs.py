@@ -39,16 +39,20 @@ def parse_args(test_argv=None):
 
     parser.add_argument(
         '--filename',
-        help=('if Novor and PepNovo+ {0}-{1} Da files are provided rather than an mgf file, '
-              'provide the prefix as filename, '
-              'e.g., <filename>.0.2.novor.csv, <filename>.0.2.mgf.out'
+        help=('if de novo sequencing {0}-{1} Da output files are provided rather than an mgf file, '
+              'provide the filename prefix, '
+              'e.g., <filename>.0.2.novor.csv, <filename>.0.2.mgf.out', '<filename>.0.2.deepnovo.tab'
               .format(config.frag_mass_tols[0], config.frag_mass_tols[1]))
         )
     parser.add_argument(
         '--deepnovo',
         default=False,
         action='store_true',
-        help='flag for use of deepnovo output'
+        help=(
+            'flag for use of deepnovo: '
+            'deepnovo output files, e.g., <filename>.0.2.deepnovo.tab, '
+            'and the mgf file named <filename>.deepnovo.mgf should be in iodir'
+            )
         )
     parser.add_argument(
         '--iodir',
@@ -267,41 +271,6 @@ def check_args(parser, args):
                     'there must be two corresponding .tsv PSM and .fasta db files in iodir'
                     )
 
-    # REMOVE!
-    #if args.db_search_name_list:
-    #    # Check for the presence of files starting with this name
-    #    iodir_files = [f for f in os.listdir(args.iodir) if os.path.isfile(os.path.join(args.iodir, f))]
-    #    for name in args.db_search_name_list:
-    #        found_tsv_file = False
-    #        found_db_file = False
-    #        for f in iodir_files:
-    #            if os.path.splitext(f)[1] == '.tsv' and f.index(name) == 0:
-    #                found_tsv_file = True
-    #            elif os.path.splitext(f)[1] == '.fasta' and f.index(name) == 0:
-    #                found_db_file = True
-    #        if not found_tsv_file or not found_db_file:
-    #            parser.error(
-    #                'for each db_search_name in db_search_name_list '
-    #                'there must be two PSM and database files in iodir beginning with db_search_name '
-    #                'and ending with .tsv and .fasta extensions'
-    #                )
-
-    ## REMOVE!
-    ## If no db search results specified
-    #if (args.psm_fp_list == None) and (args.db_fp_list == None) and (args.db_name_list == None):
-    #    pass
-    ## Elif db search results are specified correctly by three arguments
-    #elif (args.psm_fp_list != None) and (args.db_fp_list != None) and (args.db_name_list != None):
-    #    # Check validity of the argument values
-    #    if len(args.psm_fp_list) == len(args.db_fp_list) == len(args.db_name_list):
-    #        pass
-    #    else:
-    #        parser.error('specify an equal number of inputs to psm_fp_list, db_fp_list, and db_name_list')
-    #    for psm_fp in args.psm_fp_list:
-    #        check_path(psm_fp, args.iodir)
-    #    for db_fp in args.db_fp_list:
-    #        check_path(db_fp, args.iodir)
-
     if args.cores > cpu_count() or args.cores < 1:
         parser.error(str(cpu_count()) + ' cores are available')
     if args.min_len < 6:
@@ -399,48 +368,45 @@ def reformat_msconvert_mgf(mgf_fp):
     # CHARGE=<charge state, e.g., 2+>
     # <peak list: m/z to the ten-millionth separated by one space from intensity to the ten-billionth>
 
-    path_to_original_mgf = os.path.splitext(mgf_fp)[0] + '_ORIGINAL.mgf'
-    subprocess.call(
-        'cp {0} {1}'.format(mgf_fp, path_to_original_mgf),
-        shell=True
-        )
-    with open(mgf_fp) as f:
-        old_mgf_list = f.readlines()
+    original_mgf_path = os.path.splitext(mgf_path)[0] + '.original.mgf'
+    subprocess.call(['cp', mgf_path, original_mgf_path])
+    with open(mgf_path) as handle:
+        original_mgf = handle.readlines()
 
-    raw_fp_for_title = '\"' + os.path.splitext(mgf_fp)[0] + '.raw' + '\"'
+    raw_fp_for_title = '\"' + os.path.splitext(mgf_path)[0] + '.raw' + '\"'
     spectrum_id_count = 0
-    title_line_list = []
-    scan_line_list = []
-    rt_line_list = []
-    pepmass_line_list = []
-    charge_line_list = []
-    for line in old_mgf_list:
+    title_lines = []
+    scan_lines = []
+    rt_lines = []
+    pepmass_lines = []
+    charge_lines = []
+    for line in original_mgf:
         if 'BEGIN IONS' in line:
             spectrum_id_count += 1
         elif 'TITLE' in line:
             scan = line[line.index('scan=') + 5: line.index('\"\n')]
-            scan_line_list.append('SCANS={0}\n'.format(scan))
-            title_line_list.append(
+            scan_lines.append('SCANS={0}\n'.format(scan))
+            title_lines.append(
                 'TITLE=File: ' + raw_fp_for_title + '; '
                 'SpectrumID: \"{0}\"; '
                 'scans: \"{1}\"\n'.format(str(spectrum_id_count), scan)
                 )
         elif 'RTINSECONDS' in line:
-            rt_line_list.append(line)
+            rt_lines.append(line)
         elif 'PEPMASS' in line:
-            pepmass_line_list.append(line)
+            pepmass_lines.append(line)
         elif 'CHARGE' in line:
-            charge_line_list.append(line)
+            charge_lines.append(line)
                 
-    new_mgf_list = ['MASS=Monoisotopic\n']
+    new_mgf = ['MASS=Monoisotopic\n']
     spectrum_index = 0
-    for line in old_mgf_list:
+    for line in original_mgf:
         if 'TITLE' in line:
-            new_mgf_list.append(title_line_list[spectrum_index])
-            new_mgf_list.append(pepmass_line_list[spectrum_index])
-            new_mgf_list.append(charge_line_list[spectrum_index])
-            new_mgf_list.append(rt_line_list[spectrum_index])
-            new_mgf_list.append(scan_line_list[spectrum_index])
+            new_mgf.append(title_lines[spectrum_index])
+            new_mgf.append(pepmass_lines[spectrum_index])
+            new_mgf.append(charge_lines[spectrum_index])
+            new_mgf.append(rt_lines[spectrum_index])
+            new_mgf.append(scan_lines[spectrum_index])
             spectrum_index += 1
         elif 'RTINSECONDS' in line:
             pass
@@ -449,11 +415,11 @@ def reformat_msconvert_mgf(mgf_fp):
         elif 'CHARGE' in line:
             pass
         else:
-            new_mgf_list.append(line)
+            new_mgf.append(line)
 
-    with open(mgf_fp, 'w') as f:
-        for line in new_mgf_list:
-            f.write(line)
+    with open(mgf_path, 'w') as handle:
+        for line in new_mgf:
+            handle.write(line)
 
 def run_denovogui(args):
 
@@ -552,9 +518,14 @@ def set_global_vars(args):
             os.path.join(config.iodir[0], args.filename + '.' + tol + '.novor.csv'))
         config.pn_files.append(
             os.path.join(config.iodir[0], args.filename + '.' + tol + '.mgf.out'))
+        if 'deepnovo' in config.alg_list:
+            config.deepnovo_files.append(
+                os.path.join(config.iodir[0], args.filename + '.' + tol + '.deepnovo.tab')
+                )
     alg_fp_lists = {'novor': config.novor_files,
-                    'peaks': config.peaks_files,
                     'pn': config.pn_files}
+    if 'deepnovo' in config.alg_list:
+        alg_fp_lists['deepnovo'] = config.deepnovo_files
 
     config.mode[0] = args.mode
 
@@ -572,25 +543,6 @@ def set_global_vars(args):
                     config.psm_fp_list.append(os.path.join(config.iodir[0], f))
                 if os.path.splitext(f)[1] == '.fasta' and name in f:
                     config.db_fp_list.append(os.path.join(config.iodir[0], f))
-
-    # REMOVE!
-    #if args.db_search_name_list:
-    #    iodir_files = [f for f in os.listdir(args.iodir) if os.path.isfile(os.path.join(args.iodir, f))]
-    #    for name in args.db_search_name_list:
-    #        # record the names of the databases in order to keep track of where sequences came from
-    #        config.db_name_list.append(name.split('.')[1])
-    #        for f in iodir_files:
-    #            if os.path.splitext(f)[1] == '.tsv' and f.index(name) == 0:
-    #                config.psm_fp_list.append(os.path.join(config.iodir[0], name))
-    #            if os.path.splitext(f)[1] == '.fasta' and f.index(name) == 0:
-    #                config.db_fp_list.append(os.path.join(config.iodir[0], name))
-
-    # REMOVE!
-    #if args.psm_fp_list:
-    #    for i, psm_fp in enumerate(args.psm_fp_list):
-    #        config.psm_fp_list.append(os.path.join(config.iodir[0], psm_fp))
-    #        config.db_fp_list.append(os.path.join(config.iodir[0], args.db_fp_list[i]))
-    #        config.db_name_list.append(args.db_name_list[i])
 
     config.cores[0] = args.cores
     config.min_len[0] = args.min_len
