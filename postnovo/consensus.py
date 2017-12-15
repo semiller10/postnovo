@@ -57,9 +57,9 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
 
     combo_level_alg_dict = make_combo_level_alg_dict(alg_df_dict)
     highest_level_alg_combo = config.alg_combo_list[-1]
-    ## examples
-    ## combo_level_alg_dict = odict(2: [('novor', 'peaks'), ('novor', 'pn'), ('peaks', 'pn')], 3: [('novor', 'peaks', 'pn')])
-    ## highest_level_alg_combo = ('novor', 'peaks', 'pn')
+    ## example
+    ## combo_level_alg_dict = odict(2: [('novor', 'pn'), ('novor', 'deepnovo'), ('pn', 'deepnovo')], 3: [('novor', 'pn', 'deepnovo')])
+    ## highest_level_alg_combo = ('novor', 'pn', 'deepnovo')
 
     alg_df_dict = add_measured_mass_col(alg_df_dict)
     alg_consensus_source_df_dict = make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict)
@@ -560,8 +560,19 @@ def make_combo_level_alg_dict(alg_df_dict):
     return combo_level_alg_dict
 
 def add_measured_mass_col(alg_df_dict):
-    for alg_df in alg_df_dict.values():
+
+    # mass is reported in novor, pn output
+    for alg in ['novor', 'pn']:
+        alg_df = alg_df_dict[alg]
         alg_df['measured mass'] = alg_df['m/z'] * alg_df['charge']
+    # mass is not reported in deepnovo output,
+    # and is therefore transferred into the deepnovo table from novor
+    novor_df = alg_df_dict['novor']
+    for alg in ['deepnovo']:
+        alg_df = alg_df_dict[alg]
+        scans = alg_df['scan'].index.get_level_values.tolist()
+        alg_df['measured mass'] = [novor_df.xs((scan, 0))[0] for scan in scans]
+        
     return alg_df_dict
 
 def make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict):
