@@ -203,7 +203,7 @@ def load_deepnovo_file(path):
             if retained_rows[i]:
                 for j, t in enumerate(seqs[i + 1:]):
                     if s == t:
-                        retained_rows[j] = False
+                        retained_rows[i + j + 1] = False
         scan_table['retained'] = retained_rows
         scan_table = scan_table[scan_table['retained']]
         scan_table.drop('retained', axis=1, inplace=True)
