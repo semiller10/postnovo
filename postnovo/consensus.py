@@ -572,6 +572,7 @@ def add_measured_mass_col(alg_df_dict):
         alg_df = alg_df_dict[alg]
         scans = alg_df['scan'].index.get_level_values.tolist()
         alg_df['measured mass'] = [novor_df.xs((scan, 0))[0] for scan in scans]
+        alg_df = alg_df[prediction_dict_source_cols[alg]]
         
     return alg_df_dict
 
