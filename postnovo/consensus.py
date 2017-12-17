@@ -109,7 +109,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     ##    2: OrderedDict(
     ##        ('novor', 'pn'): [((0,), (0,)), ((0,), (1,)), ..., ((0,), (18,)), ((0,), (19,))],
     ##        ('novor', 'deepnovo'): [((0,), (0,)), ((0,), (1,)), ..., ((0,), (18,)), ((0,), (19,))],
-    ##        ('pn', 'deepnovo'): [((0,), (0,)), ((0,), (1,)), ..., ((0,), (18,)), ((0,), (19,))]
+    ##        ('pn', 'deepnovo'): [((0,), (0,)), ((0,), (1,)), ..., ((19,), (18,)), ((19,), (19,))]
     ##        ),
     ##    3: OrderedDict(
     ##        ('novor', 'pn', 'deepnovo'): [((0, 0), (0,)), ((0, 0), (1,)), ..., ((0, 19), (18,)), ((0, 19), (19,))]
@@ -234,10 +234,22 @@ def make_scan_prediction_dicts(consensus_scan):
         # deepnovo can have a variable number of seqs per scan due to the consolidation of Ile/Leu
         num_seqs = len(scan_alg_consensus_source_df)
         if alg == 'deepnovo':
-            for combo_level, combo_level_dict in first_seq_second_seq_max_ranks_dict.items():
-                for alg_combo in combo_level_dict:
+            for combo_level, combo_level_max_ranks_dict in first_seq_second_seq_max_ranks_dict.items():
+                for alg_combo, alg_combo_max_ranks_dict in combo_level_max_ranks_dict.items():
                     try:
-                        combo_level_dict[alg_combo][alg_combo.index('deepnovo')] = num_seqs
+                        alg_combo_max_ranks_dict[alg_combo.index('deepnovo')] = num_seqs
+
+                        alg_ranks_ranges = []
+                        last_ranks_list = []
+                        for alg in alg_combo:
+                            last_ranks_list.append(alg_combo_max_ranks_dict[alg])
+                            alg_ranks_ranges.append(range(last_ranks_list[-1]))
+                        rank_comparisons = list(product(*alg_ranks_ranges))
+                        first_seq_second_seq_rank_comparisons_dict[combo_level][alg_combo] = [
+                            ((rank_comparison[:-1]), (rank_comparison[-1],))
+                            for rank_comparison in rank_comparisons
+                            ]
+
                     except ValueError:
                         pass
         # for other algs, expect a set number of seqs per scan
