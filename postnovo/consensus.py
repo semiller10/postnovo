@@ -232,9 +232,17 @@ def make_scan_prediction_dicts(consensus_scan):
     for alg in alg_consensus_source_df_dict:
         scan_alg_consensus_source_df = alg_consensus_source_df_dict[alg].loc[consensus_scan]
         # deepnovo can have a variable number of seqs per scan due to the consolidation of Ile/Leu
-        # otherwise, expect a set number of seqs per scan
-        if alg != 'deepnovo':
-            if len(scan_alg_consensus_source_df) < config.seqs_reported_per_alg_dict[alg]:
+        num_seqs = len(scan_alg_consensus_source_df)
+        if alg == 'deepnovo':
+            for combo_level, combo_level_dict in first_seq_second_seq_max_ranks_dict.items():
+                for alg_combo in combo_level_dict:
+                    try:
+                        combo_level_dict[alg_combo][alg_combo.index('deepnovo')] = num_seqs
+                    except ValueError:
+                        pass
+        # for other algs, expect a set number of seqs per scan
+        else:
+            if num_seqs < config.seqs_reported_per_alg_dict[alg]:
                 return []
         scan_max_seq_len_list.append(scan_alg_consensus_source_df['encoded seq'].map(len).max())
         # stop consensus routine if an alg does not have any seqs for the scan
@@ -254,6 +262,7 @@ def make_scan_prediction_dicts(consensus_scan):
     if no_consensus:
         return scan_prediction_dict_list
 
+    # Find consensus seqs between increasing numbers of algs (2, 3, etc.)
     for combo_level in scan_consensus_info_dict:
         first_seq_second_seq_alg_positions_for_combo_level_dict = first_seq_second_seq_alg_positions_dict[combo_level]
         first_seq_second_seq_max_ranks_for_combo_level_dict = first_seq_second_seq_max_ranks_dict[combo_level]
