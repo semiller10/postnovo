@@ -399,33 +399,48 @@ def do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensu
     for first_seq_rank_index, first_encoded_seq in first_encoded_seq_dict.items():
         for second_seq_rank_index, second_encoded_seq in second_encoded_seq_dict.items():
 
-            if second_encoded_seq == np.array([]):
-                bob = 1
-
             if len(first_encoded_seq) == 0 or len(second_encoded_seq) == 0:
                 yield None, None, None, None, None
             else:
+                # Make the seq vectors orthogonal
                 first_encoded_seq = first_encoded_seq.reshape(first_encoded_seq.size, 1)
+                # Fill in the 2D matrix formed by the dimensions of the seq vectors with the AA's of the second seq
                 tiled_second_encoded_seq = np.tile(second_encoded_seq, (first_encoded_seq.size, 1))
+                # Project the first seq over the 2D matrix to find any identical AA's
                 match_arr = np.equal(first_encoded_seq, tiled_second_encoded_seq).astype(int)
 
+                # Find any common substrings, which are diagonals of True values in match_arr
+                # Diagonal index 0 is the main diagonal
+                # Negatively indexed diagonals lie below the main diagonal
+                # Consideration of diagonals can be restricted to those
+                # that can contain common substrings longer than the minimum length
                 diags = [match_arr.diagonal(d)
                          for d in range(-len(first_encoded_seq) + consensus_min_len,
                                         len(second_encoded_seq) - consensus_min_len)]
 
+                # Identify common substrings in the diagonals
                 lcs_len = consensus_min_len
                 found_long_consensus = False
+                # Loop through bottom left min length diagonal to upper right min length diagonal
                 for diag_index, diag in enumerate(diags):
+                    # Create and loop through two groups of Trues (common substrings) and Falses
+                    # from the elements of the diagonal
                     for match_status, diag_group in groupby(diag):
+                        # If considering a common substring
                         if match_status:
                             consensus_len = sum(diag_group)
+                            # Retain the longest common substring, preferring the upper-rightmost LCS
+                            # if multiple LCS's of equal length are present
                             if consensus_len >= lcs_len:
                                 found_long_consensus = True
                                 lcs_len = consensus_len
+                                # Record the diagonal's index starting from the zero of the lower leftmost corner
                                 lcs_diag_index = diag_index
                                 lcs_diag = diag
 
                 if found_long_consensus:
+                    # Find where the LCS resides in the selected diagonal
+                    # Take the first LCS if multiple LCS's of equal length are present in the diagonal
                     for diag_aa_position in range(lcs_diag.size - lcs_len + 1):
                         for lcs_aa_position in range(lcs_len):
                             if not lcs_diag[diag_aa_position + lcs_aa_position]:
@@ -434,8 +449,11 @@ def do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensu
                             diag_lcs_start_position = diag_aa_position
                             break
 
+                    # Determine the position of the first LCS AA in the first and second seqs
+                    # Reindex the LCS-containing diagonal to the main diagonal
                     upper_left_diag_index = first_encoded_seq.size - consensus_min_len
                     relative_lcs_diag_index = lcs_diag_index - upper_left_diag_index
+                    # Negatively indexed diagonals lie below the main diagonal
                     if relative_lcs_diag_index < 0:
                         first_seq_lcs_start_position = diag_lcs_start_position - relative_lcs_diag_index
                         second_seq_lcs_start_position = diag_lcs_start_position
@@ -443,8 +461,13 @@ def do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensu
                         first_seq_lcs_start_position = diag_lcs_start_position
                         second_seq_lcs_start_position = relative_lcs_diag_index + diag_lcs_start_position
 
+                    # Pause the loop,
+                    # returning the position of the first AA in the first and second seqs,
+                    # the length of the LCS,
+                    # the ranks of the first and second seqs
                     yield first_seq_lcs_start_position, second_seq_lcs_start_position, lcs_len, first_seq_rank_index, second_seq_rank_index
                 else:
+                    # No LCS meeting the min len criterion was found
                     yield None, None, None, None, None
 
 def make_seq_prediction_dict(
