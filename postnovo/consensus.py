@@ -384,10 +384,40 @@ def make_scan_prediction_dicts(consensus_scan):
                         #    break
 
                         if longest_cs_dict['alg_ranks'] == top_rank_cs_dict['alg_ranks']:
-                            # If the rank of the second seq is 0 (minimum value)
-                            # or the sum rank of the first seq is at a maximum
-                            # then the CS sum rank cannot be reduced further
-                            if second_rank_sum == 0 or first_rank_sum == sum(first_seq_second_seq_max_ranks_for_alg_combo_list):
+                            # T-R CS is found when the potential rank reduction of the first seq's constituent seqs
+                            # exceeds the second seq's rank
+                            # Loop through all but last constituent rank until rank < max rank found
+                            # Then sum the potential rank reductions of the subsequent constituent seqs
+                            # Determine if this potential reduction exceeds that of the second seq
+                            # Example 1:
+                            # Seq 1 max ranks: (1, 1, 1, 1)
+                            # Seq 1 ranks: (1, 0, 1, 1)
+                            # Seq 2 max ranks: (1, )
+                            # Seq 2 ranks: (1, )
+                            # Loop 1:
+                            # Rank 1.1 == max rank 1.1
+                            # Loop 2:
+                            # Rank 1.2 < max rank 1.2
+                            # Rank 1.3 + rank 1.4 = 2
+                            # 2 > rank 2 = 1 => Break to continue searching for CS's
+                            # Example 2:
+                            # Seq 1 ranks: (1, 0, 1, 0)
+                            # Seq 2 ranks: (1, )
+                            # Loop 1:
+                            # Rank 1.1 == max rank 1.1
+                            # Loop 2:
+                            # Rank 1.2 < max rank 1.2
+                            # Rank 1.3 + rank 1.4 = 1
+                            # 1 == rank 2 = 1 => Break, as this potential rank reduction is the maximum => LCS == T-R CS
+                            top_rank_cs_found = False
+                            for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index[: -1]):
+                                if first_seq_parent_rank < first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index]:
+                                    if sum(first_seq_rank_index[first_seq_parent_index + 1:]) > second_rank_sum:
+                                        break
+                                    else:
+                                        top_rank_cs_found = True
+                                        break
+                            if top_rank_cs_found:
                                 break
 
             # If an LCS meeting the min length threshold was found
@@ -405,6 +435,7 @@ def make_scan_prediction_dicts(consensus_scan):
                         first_seq_second_seq_alg_positions_subdict=first_seq_second_seq_alg_positions_subdict
                         )
                     scan_prediction_dict_list.append(cs_prediction_dict)
+                    # Why is this line necessary? This dict appears to have been updated above
                     top_rank_cs_dict.update(longest_cs_dict)
                 # Else the LCS and T-R CS are different seqs
                 else:
