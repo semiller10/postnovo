@@ -406,16 +406,24 @@ def make_scan_prediction_dicts(consensus_scan):
                         )
                     scan_prediction_dict_list.append(cs_prediction_dict)
                     top_rank_cs_dict.update(longest_cs_dict)
-
+                # Else the LCS and T-R CS are different seqs
                 else:
                     longest_cs_prediction_dict, longest_cs_dict = make_seq_prediction_dict(
-                        consensus_scan, scan_alg_consensus_source_df_dict = scan_alg_consensus_source_df_dict, cs_info_dict = longest_cs_dict,
-                        cs_type_list = ['longest'], alg_combo = alg_combo,
-                        first_seq_second_seq_alg_positions_subdict = first_seq_second_seq_alg_positions_subdict)
+                        consensus_scan,
+                        scan_alg_consensus_source_df_dict=scan_alg_consensus_source_df_dict,
+                        cs_info_dict=longest_cs_dict,
+                        cs_type_list=['longest'],
+                        alg_combo=alg_combo,
+                        first_seq_second_seq_alg_positions_subdict=first_seq_second_seq_alg_positions_subdict
+                        )
                     top_rank_cs_prediction_dict, top_rank_cs_dict = make_seq_prediction_dict(
-                        consensus_scan, scan_alg_consensus_source_df_dict = scan_alg_consensus_source_df_dict, cs_info_dict = top_rank_cs_dict,
-                        cs_type_list = ['top rank'], alg_combo = alg_combo,
-                        first_seq_second_seq_alg_positions_subdict = first_seq_second_seq_alg_positions_subdict)
+                        consensus_scan,
+                        scan_alg_consensus_source_df_dict=scan_alg_consensus_source_df_dict,
+                        cs_info_dict=top_rank_cs_dict,
+                        cs_type_list=['top rank'],
+                        alg_combo=alg_combo,
+                        first_seq_second_seq_alg_positions_subdict=first_seq_second_seq_alg_positions_subdict
+                        )
                     scan_prediction_dict_list.append(longest_cs_prediction_dict)
                     scan_prediction_dict_list.append(top_rank_cs_prediction_dict)
 
