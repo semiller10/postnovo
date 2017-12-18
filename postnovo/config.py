@@ -134,6 +134,14 @@ consensus_prediction_dict_cols = {
               'mono-di near-isobaric sub score', 'di near-isobaric sub score'],
     'pn': ['is pn seq', 'fraction pn parent len', 'rank score', 'pn score', 'pn rank', 'sqs'],
     'deepnovo': [
+        'is deepnovo seq',
+        'fraction deepnovo parent len',
+        'deepnovo rank',
+        'avg deepnovo aa score',
+        'mono-di isobaric sub score',
+        'di isobaric sub score',
+        'mono-di near-isobaric sub score',
+        'di near-isobaric sub score'
         ]
     }
 
