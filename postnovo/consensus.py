@@ -132,9 +132,16 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     ##        ('pn', 'deepnovo'): OrderedDict('pn': (0, 0), 'deepnovo': (1, 0))
     ##        ),
     ##    3: OrderedDict(
-    ##        ('novor', 'pn', 'deepnovo'): OrderedDict('novor': (0, 0), 'peaks': (0, 1), 'pn': (1, 0))
+    ##        ('novor', 'pn', 'deepnovo'): OrderedDict('novor': (0, 0), 'pn': (0, 1), 'deepnovo': (1, 0))
     ##        )
     ##    )
+    ##Explanation of first_seq_second_seq_alg_positions_dict:
+    ##The first value of the duple is the seq which the alg is part of in the consensus comparison:
+    ##0 is for the first seq, 1 is for the second seq
+    ##The second value of the duple is the order of the alg in any previous consensus comparisons
+    ##This value only increments for the first seq
+    ##A value of 0 means the alg was the first one considered in the formation of the first seq
+    ##A value of 1 means the alg was the second one considered in the formation of the first seq
 
     ## single processor method
     print_percent_progress_fn = partial(
@@ -343,10 +350,12 @@ def make_scan_prediction_dicts(consensus_scan):
                     scan_common_substrings_info_dict[(first_seq_rank_index, second_seq_rank_index)] =\
                         first_encoded_seq_dict[first_seq_rank_index][first_seq_cs_start_position: first_seq_cs_start_position + cs_len]
 
+                    # Each rank index is a tuple
                     first_rank_sum = sum(first_seq_rank_index)
                     second_rank_sum = sum(second_seq_rank_index)
                     cs_rank_sum = first_rank_sum + second_rank_sum
 
+                    # LCS found
                     if cs_len > longest_cs_len:
                         longest_cs_len = cs_len
                         longest_cs_dict['alg_ranks'] = (first_seq_rank_index, second_seq_rank_index)
@@ -354,6 +363,7 @@ def make_scan_prediction_dicts(consensus_scan):
                         longest_cs_dict['seq_starts'] = (first_seq_cs_start_position, second_seq_cs_start_position)
                         longest_cs_dict['consensus_len'] = cs_len
 
+                    # Top-ranking (T-R) seq found
                     if cs_rank_sum < min_cs_rank_sum:
                         min_cs_rank_sum = cs_rank_sum
                         top_rank_cs_dict['alg_ranks'] = (first_seq_rank_index, second_seq_rank_index)
@@ -361,14 +371,26 @@ def make_scan_prediction_dicts(consensus_scan):
                         top_rank_cs_dict['seq_starts'] = (first_seq_cs_start_position, second_seq_cs_start_position)
                         top_rank_cs_dict['consensus_len'] = cs_len
 
+                    # Stop searching for CS's when the longest possible CS is found (equal to len of shortest parent seq)
+                    # and when it can be shown that the LCS must also be the T-R CS
                     if longest_cs_len == max_possible_cs_len:
-                        for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index):
-                            if first_seq_parent_rank + sum(first_seq_rank_index[: first_seq_parent_index]) < cs_rank_sum\
-                                and first_seq_parent_rank + 1 < first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index]:
-                                break
-                        else:
-                            break
 
+                        # Old version
+                        #for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index):
+                        #    if first_seq_parent_rank + sum(first_seq_rank_index[: first_seq_parent_index]) < cs_rank_sum\
+                        #        and first_seq_parent_rank + 1 < first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index]:
+                        #        break
+                        #else:
+                        #    break
+
+                        if longest_cs_dict['alg_ranks'] == top_rank_cs_dict['alg_ranks']:
+                            # If the rank of the second seq is 0 (minimum value)
+                            # or the sum rank of the first seq is at a maximum
+                            # then the CS sum rank cannot be reduced further
+                            if second_rank_sum == 0 or first_rank_sum == sum(first_seq_second_seq_max_ranks_for_alg_combo_list):
+                                break
+
+            # If an LCS meeting the min length threshold was found
             if longest_cs_dict['alg_ranks'] is not None:
                 first_seq_second_seq_alg_positions_subdict = first_seq_second_seq_alg_positions_dict[combo_level][alg_combo]
 
