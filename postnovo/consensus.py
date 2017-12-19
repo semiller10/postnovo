@@ -295,7 +295,7 @@ def make_scan_prediction_dicts(consensus_scan):
             first_seq_second_seq_rank_comparisons_list = first_seq_second_seq_rank_comparisons_for_combo_level_dict[alg_combo]
             scan_consensus_info_for_alg_combo_dict = scan_consensus_info_for_combo_level_dict[alg_combo]
 
-            scan_common_substrings_info_dict[combo_level][alg_combo] =\
+            scan_common_substrings_info_for_alg_combo_dict = scan_common_substrings_info_dict[combo_level][alg_combo] =\
                 OrderedDict().fromkeys(first_seq_second_seq_rank_comparisons_list)
 
             if combo_level == 2:
@@ -316,12 +316,69 @@ def make_scan_prediction_dicts(consensus_scan):
                 max_possible_cs_len = min(scan_max_seq_len_list[first_seq_alg_position_in_scan_info_tuples],
                                           scan_max_seq_len_list[second_seq_alg_position_in_scan_info_tuples])
 
+                seq_comparison_generator = do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensus_min_len)
+                scan_generator_fns_for_combo_level_dict[alg_combo] = seq_comparison_generator
+
             else:
-                # scan_common_substrings_info_dict[combo_level - 1][some_alg_combo]
-                # provides rank indices and 
-                # scan_consensus_info_dict[combo_level - 1][same_alg_combo]
-                # lcs and tr cs
-                # 
+
+                first_seq_algs = alg_combo[: -1]
+                second_seq_alg = alg_combo[-1]
+
+                # Get the LCS for the first seq algs
+                first_seq_lcs_dict = scan_consensus_info_for_combo_level_dict[first_alg_seqs]['longest_cs']
+                if 'encoded_consensus_seq' in first_seq_lcs_dict:
+                    first_seq_lcs_rank_index = first_seq_lcs_dict['alg_ranks']
+                    first_seq_encoded_lcs = first_seq_lcs_dict['encoded_consensus_seq']
+                else:
+                    first_seq_lcs_rank_index = None
+                    first_seq_encoded_lcs = None
+
+                # Get the T-R CS for the first seq algs
+                first_seq_trcs_dict = scan_consensus_info_for_combo_level_dict[alg_combo[: -1]]['top_rank_cs']
+                if 'encoded_consensus_seq' in first_seq_trcs_dict:
+                    first_seq_trcs_rank_index = first_seq_trcs_dict['alg_ranks']
+                    first_seq_encoded_trcs = first_seq_trcs_dict['encoded_consensus_seq']
+                else:
+                    first_seq_trcs_rank_index = None
+                    first_seq_encoded_trcs = None
+
+                # Get all of the CS's for the first seq algs
+                # Example:
+                # rank_index = ((1, 19), (11, ))
+                # encoded_cs = np.array([4, 7, 10, 14, 19, 3, 14, 5, 6, 2])
+                # combo_level = 4 - 1
+                # first_seq_algs = ('a', 'b', 'c')
+                # first_encoded_seq_dict[(1, 19, 11)] = encoded_cs
+                first_encoded_seq_dict = OrderedDict()
+                for rank_index, encoded_cs in scan_common_substrings_info_dict[combo_level - 1][first_seq_algs].items():
+                    first_encoded_seq_dict[rank_index[0][: -1] + rank_index[-1]] = encoded_cs
+
+                # Initialize the seq comparison generator
+                seq_comparison_generator = do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensus_min_len)
+                scan_generator_fns_for_combo_level_dict[alg_combo] = seq_comparison_generator
+                
+                # Get the generators from the first seq algs comparison and all constituent consensus seqs
+                first_seq_scan_generator_fns_dict = OrderedDict([(combo_level, scan_generator_fns_dict[combo_level - 1][first_seq_algs])])
+                if len(first_seq_algs) > 2:
+                    for first_seq_combo_level in range(combo_level - 2, 1, -1):
+                        first_seq_scan_generator_fns_dict[first_seq_combo_level] = \
+                            scan_generator_fns_dict[first_seq_combo_level][first_seq_algs[: first_seq_combo_level]]
+
+                # Paused generators may be restarted when higher-order alg combos are considered
+                # Lower-order LCS and T-R CS are first considered to find higher-order LCS and T-R CS
+                # Ex. 2-alg LCS and T-R CS were found in Alg 1 rank 1 x Alg 2 rank 1
+                #     These two seqs are compared against Alg 3 ranks
+                # If N-alg LCS creates a CS with Alg N+1, the CS MUST be the N+1-alg LCS
+                # Likewise, if N-alg T-R CS creates a CS with Alg N+1, the CS MUST be the N+1-alg T-R CS
+                # But say that the N+1-alg LCS or T-R CS is not found from the N-alg LCS and T-R CS
+                # Then the unconsidered N-alg rank comparisons may be considered:
+                # If N+1-alg LCS was not found,
+                # consider ALL unconsidered lower-order rank combos,
+                # even if the N+1-alg T-R CS was found
+                # If the N+1-alg T-R CS was not found despite the N+1-alg LCS being found,
+                # consider lower-order rank combos until the N+1 order top rank sum criterion is fulfilled
+
+                # Compare to alg N seqs
 
                 # If any combo_level - 1 alg_combo doesn't have a lcs (or top_rank_cs),
                 # Then there will be NO CS AT ALL for combo_level
@@ -334,8 +391,6 @@ def make_scan_prediction_dicts(consensus_scan):
                 #scan_consensus_source_df.xs(key = 'encoded seq', axis = 1, level = 1, drop_level = False)
                 pass
 
-            seq_comparison_generator = do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensus_min_len)
-            scan_generator_fns_for_combo_level_dict[alg_combo] = seq_comparison_generator
             longest_cs_len = 0
             min_cs_rank_sum = 1000
 
@@ -347,7 +402,11 @@ def make_scan_prediction_dicts(consensus_scan):
             for first_seq_cs_start_position, second_seq_cs_start_position, cs_len, first_seq_rank_index, second_seq_rank_index in seq_comparison_generator:
 
                 if cs_len is not None:
-                    scan_common_substrings_info_dict[(first_seq_rank_index, second_seq_rank_index)] =\
+                    # Record the common substrings found for each comparison
+                    # Example:
+                    # scan_common_substrings_info_for_alg_combo_dict[3][((1, 19), (11, ))] =\
+                    #   first_encoded_seq_dict[(1, 19)][3: 3 + 10] = np.array([4, 7, 10, 14, 19, 3, 14, 5, 6, 2])
+                    scan_common_substrings_info_for_alg_combo_dict[(first_seq_rank_index, second_seq_rank_index)] =\
                         first_encoded_seq_dict[first_seq_rank_index][first_seq_cs_start_position: first_seq_cs_start_position + cs_len]
 
                     # Each rank index is a tuple
@@ -460,81 +519,109 @@ def make_scan_prediction_dicts(consensus_scan):
 
     return scan_prediction_dict_list
 
-def do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensus_min_len):
+def do_seq_comparisons(
+    first_encoded_seq_dict,
+    second_encoded_seq_dict,
+    consensus_min_len,
+    first_seq_lcs_rank_index=None,
+    first_seq_encoded_lcs=None,
+    first_seq_trcs_rank_index=None,
+    first_seq_encoded_trcs=None
+    ):
+    # yield: first_seq_lcs_start_position, second_seq_lcs_start_position, lcs_len, first_seq_rank_index, second_seq_rank_index
+
+    def do_seq_comparison(
+        first_seq_rank_index, 
+        first_encoded_seq, 
+        second_seq_rank_index, 
+        second_encoded_seq
+        ):
+
+        if len(second_encoded_seq) == 0:
+            yield None, None, None, None, None
+
+        else:
+            # Make the seq vectors orthogonal
+            first_encoded_seq = first_encoded_seq.reshape(first_encoded_seq.size, 1)
+            # Fill in the 2D matrix formed by the dimensions of the seq vectors with the AA's of the second seq
+            tiled_second_encoded_seq = np.tile(second_encoded_seq, (first_encoded_seq.size, 1))
+            # Project the first seq over the 2D matrix to find any identical AA's
+            match_arr = np.equal(first_encoded_seq, tiled_second_encoded_seq).astype(int)
+
+            # Find any common substrings, which are diagonals of True values in match_arr
+            # Diagonal index 0 is the main diagonal
+            # Negatively indexed diagonals lie below the main diagonal
+            # Consideration of diagonals can be restricted to those
+            # that can contain common substrings longer than the minimum length
+            diags = [match_arr.diagonal(d)
+                        for d in range(-len(first_encoded_seq) + consensus_min_len,
+                                    len(second_encoded_seq) - consensus_min_len)]
+
+            # Identify common substrings in the diagonals
+            lcs_len = consensus_min_len
+            found_long_consensus = False
+            # Loop through bottom left min length diagonal to upper right min length diagonal
+            for diag_index, diag in enumerate(diags):
+                # Create and loop through two groups of Trues (common substrings) and Falses
+                # from the elements of the diagonal
+                for match_status, diag_group in groupby(diag):
+                    # If considering a common substring
+                    if match_status:
+                        consensus_len = sum(diag_group)
+                        # Retain the longest common substring, preferring the upper-rightmost LCS
+                        # if multiple LCS's of equal length are present
+                        if consensus_len >= lcs_len:
+                            found_long_consensus = True
+                            lcs_len = consensus_len
+                            # Record the diagonal's index starting from the zero of the lower leftmost corner
+                            lcs_diag_index = diag_index
+                            lcs_diag = diag
+
+            if found_long_consensus:
+                # Find where the LCS resides in the selected diagonal
+                # Take the first LCS if multiple LCS's of equal length are present in the diagonal
+                for diag_aa_position in range(lcs_diag.size - lcs_len + 1):
+                    for lcs_aa_position in range(lcs_len):
+                        if not lcs_diag[diag_aa_position + lcs_aa_position]:
+                            break
+                    else:
+                        diag_lcs_start_position = diag_aa_position
+                        break
+
+                # Determine the position of the first LCS AA in the first and second seqs
+                # Reindex the LCS-containing diagonal to the main diagonal
+                upper_left_diag_index = first_encoded_seq.size - consensus_min_len
+                relative_lcs_diag_index = lcs_diag_index - upper_left_diag_index
+                # Negatively indexed diagonals lie below the main diagonal
+                if relative_lcs_diag_index < 0:
+                    first_seq_lcs_start_position = diag_lcs_start_position - relative_lcs_diag_index
+                    second_seq_lcs_start_position = diag_lcs_start_position
+                else:
+                    first_seq_lcs_start_position = diag_lcs_start_position
+                    second_seq_lcs_start_position = relative_lcs_diag_index + diag_lcs_start_position
+
+                # Pause the loop,
+                # returning the position of the first AA in the first and second seqs,
+                # the length of the LCS,
+                # the ranks of the first and second seqs
+                return first_seq_lcs_start_position, second_seq_lcs_start_position, lcs_len, first_seq_rank_index, second_seq_rank_index
+            else:
+                return None, None, None, None, None
+
+    if first_seq_lcs_rank_index:
+        pass
+
+    if first_seq_trcs_rank_index:
+        pass
 
     for first_seq_rank_index, first_encoded_seq in first_encoded_seq_dict.items():
         for second_seq_rank_index, second_encoded_seq in second_encoded_seq_dict.items():
-
-            if len(first_encoded_seq) == 0 or len(second_encoded_seq) == 0:
-                yield None, None, None, None, None
-            else:
-                # Make the seq vectors orthogonal
-                first_encoded_seq = first_encoded_seq.reshape(first_encoded_seq.size, 1)
-                # Fill in the 2D matrix formed by the dimensions of the seq vectors with the AA's of the second seq
-                tiled_second_encoded_seq = np.tile(second_encoded_seq, (first_encoded_seq.size, 1))
-                # Project the first seq over the 2D matrix to find any identical AA's
-                match_arr = np.equal(first_encoded_seq, tiled_second_encoded_seq).astype(int)
-
-                # Find any common substrings, which are diagonals of True values in match_arr
-                # Diagonal index 0 is the main diagonal
-                # Negatively indexed diagonals lie below the main diagonal
-                # Consideration of diagonals can be restricted to those
-                # that can contain common substrings longer than the minimum length
-                diags = [match_arr.diagonal(d)
-                         for d in range(-len(first_encoded_seq) + consensus_min_len,
-                                        len(second_encoded_seq) - consensus_min_len)]
-
-                # Identify common substrings in the diagonals
-                lcs_len = consensus_min_len
-                found_long_consensus = False
-                # Loop through bottom left min length diagonal to upper right min length diagonal
-                for diag_index, diag in enumerate(diags):
-                    # Create and loop through two groups of Trues (common substrings) and Falses
-                    # from the elements of the diagonal
-                    for match_status, diag_group in groupby(diag):
-                        # If considering a common substring
-                        if match_status:
-                            consensus_len = sum(diag_group)
-                            # Retain the longest common substring, preferring the upper-rightmost LCS
-                            # if multiple LCS's of equal length are present
-                            if consensus_len >= lcs_len:
-                                found_long_consensus = True
-                                lcs_len = consensus_len
-                                # Record the diagonal's index starting from the zero of the lower leftmost corner
-                                lcs_diag_index = diag_index
-                                lcs_diag = diag
-
-                if found_long_consensus:
-                    # Find where the LCS resides in the selected diagonal
-                    # Take the first LCS if multiple LCS's of equal length are present in the diagonal
-                    for diag_aa_position in range(lcs_diag.size - lcs_len + 1):
-                        for lcs_aa_position in range(lcs_len):
-                            if not lcs_diag[diag_aa_position + lcs_aa_position]:
-                                break
-                        else:
-                            diag_lcs_start_position = diag_aa_position
-                            break
-
-                    # Determine the position of the first LCS AA in the first and second seqs
-                    # Reindex the LCS-containing diagonal to the main diagonal
-                    upper_left_diag_index = first_encoded_seq.size - consensus_min_len
-                    relative_lcs_diag_index = lcs_diag_index - upper_left_diag_index
-                    # Negatively indexed diagonals lie below the main diagonal
-                    if relative_lcs_diag_index < 0:
-                        first_seq_lcs_start_position = diag_lcs_start_position - relative_lcs_diag_index
-                        second_seq_lcs_start_position = diag_lcs_start_position
-                    else:
-                        first_seq_lcs_start_position = diag_lcs_start_position
-                        second_seq_lcs_start_position = relative_lcs_diag_index + diag_lcs_start_position
-
-                    # Pause the loop,
-                    # returning the position of the first AA in the first and second seqs,
-                    # the length of the LCS,
-                    # the ranks of the first and second seqs
-                    yield first_seq_lcs_start_position, second_seq_lcs_start_position, lcs_len, first_seq_rank_index, second_seq_rank_index
-                else:
-                    # No LCS meeting the min len criterion was found
-                    yield None, None, None, None, None
+            yield do_seq_comparison(
+                first_seq_rank_index, 
+                first_encoded_seq, 
+                second_seq_rank_index, 
+                second_encoded_seq
+                )
 
 def make_seq_prediction_dict(
     consensus_scan,
