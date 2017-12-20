@@ -39,8 +39,8 @@ def parse_args(test_argv=None):
 
     parser.add_argument(
         '--filename',
-        help=('if de novo sequencing {0}-{1} Da output files are provided rather than an mgf file, '
-              'provide the filename prefix, '
+        help=('If DeNovoGUI {0}-{1} Da output files are provided, '
+              'provide the filename prefix rather than an mgf file: '
               'e.g., <filename>.0.2.novor.csv, <filename>.0.2.mgf.out', '<filename>.0.2.deepnovo.tab'
               .format(config.frag_mass_tols[0], config.frag_mass_tols[1]))
         )
@@ -180,8 +180,10 @@ def parse_mods_strings(args):
 
 def check_args(parser, args):
 
+    # If DeNovoGUI is run by postnovo
     if args.filename == None:
         args.filename = os.path.splitext(os.path.basename(args.mgf_fp))[0]
+    # Else DeNovoGUI output is provided
     else:
         if args.denovogui_fp == None:
             missing_files = []
@@ -200,17 +202,7 @@ def check_args(parser, args):
                         )
                 except TypeError:
                     pass
-                if args.deepnovo:
-                    try:
-                        missing_files.append(
-                            check_path(
-                                args.filename + '.' + mass_tol + '.deepnovo.tab',
-                                config.iodir[0],
-                                return_str=True
-                                )
-                            )
-                    except TypeError:
-                        pass
+                
             if missing_files:
                 for missing_file in missing_files:
                     if missing_file != None:
@@ -224,6 +216,20 @@ def check_args(parser, args):
             if float(tol) != file_mass_tol:
                 raise AssertionError(
                     'Novor files do not have the asserted order')
+
+    if args.deepnovo:
+        missing_files = []
+        for mass_tol in config.frag_mass_tols:
+            try:
+                missing_files.append(
+                    check_path(
+                        args.filename + '.' + mass_tol + '.deepnovo.tab',
+                        config.iodir[0],
+                        return_str=True
+                        )
+                    )
+            except TypeError:
+                pass
 
     if args.mode == 'predict' and \
         (args.db_search_psm_file != None or args.db_search_ref_file != None):

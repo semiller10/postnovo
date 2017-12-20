@@ -1,11 +1,13 @@
 ''' Load de novo sequence data '''
 
+import multiprocessing
 import numpy as np
 import pandas as pd
 import re
 import sys
 
 from collections import OrderedDict
+from functools import partial
 from itertools import combinations
 from os.path import basename
 import warnings
@@ -192,35 +194,51 @@ def load_deepnovo_file(path):
 
     # deepnovo predicts both Leu and Ile:
     # Consider these residues to be the same and remove redundant lower-ranking seqs
-    deepnovo_table_dereplicated = pd.DataFrame()
-    for _, scan_table in deepnovo_table.groupby('scan'):
-        scan_table['seq'] = scan_table['seq'].apply(
-            lambda s: s.replace('I', 'L')
-            )
-        seqs = scan_table['seq'].tolist()
-        retained_rows = [True for _ in range(20)]
-        for i, s in enumerate(seqs):
-            if retained_rows[i]:
-                for j, t in enumerate(seqs[i + 1:]):
-                    if s == t:
-                        retained_rows[i + j + 1] = False
-        scan_table['retained'] = retained_rows
-        scan_table = scan_table[scan_table['retained']]
-        scan_table.drop('retained', axis=1, inplace=True)
-        deepnovo_table_dereplicated = pd.concat(
-            [deepnovo_table_dereplicated, scan_table], ignore_index=True
-            )
+    groupby_deepnovo_table = deepnovo_table.groupby('scan')
+    scan_tables = [scan_table for _, scan_table in groupby_deepnovo_table]
+
+    ## Single-threaded
+    #dereplicated_scan_tables = []
+    #for scan_table in scan_tables:
+    #    dereplicated_scan_tables.append(dereplicate_deepnovo_scan_tables(scan_table))
+
+    # Multiprocessing
+    mp_pool = multiprocessing.Pool(config.cores[0])
+    dereplicated_scan_tables = mp_pool.map(dereplicate_deepnovo_scan_tables, scan_tables)
+    mp_pool.close()
+    mp_pool.join()
+
+    deepnovo_table_dereplicated = pd.concat(
+        dereplicated_scan_tables, ignore_index=True
+        )
 
     # Add column of seq rank
-    deepnovo_table_with_ranks = pd.DataFrame()
-    for _, scan_table in deepnovo_table_dereplicated.groupby('scan'):
-        pd.concat([deepnovo_table_with_ranks, scan_table], ignore_index=True)
-    deepnovo_table_with_ranks.rename(columns={'index': 'rank'}, inplace=True)
+    scan_tables = [scan_table for _, scan_table in deepnovo_table_dereplicated.groupby('scan')]
+    deepnovo_table_with_ranks = pd.concat(scan_tables).reset_index().rename(columns={'index': 'rank'})
 
     deepnovo_table = deepnovo_table_with_ranks[['scan', 'rank', 'seq', 'aa score', 'avg aa score']]
+    deepnovo_table['scan'] = deepnovo_table['scan'].apply(int)
     deepnovo_table.set_index(['scan', 'rank'], inplace=True)
 
     return deepnovo_table
+
+def dereplicate_deepnovo_scan_tables(scan_table):
+
+    scan_table_seqs = scan_table['seq'].tolist()
+    scan_table_seqs_all_leu = [seq.replace('I', 'L') for seq in scan_table_seqs]
+
+    # There are occasionally fewer than 20 results per peptide
+    retained_rows = list(range(len(scan_table_seqs)))
+    for i, seq1 in enumerate(scan_table_seqs_all_leu):
+        if retained_rows[i] != -1:
+            for j, seq2 in enumerate(scan_table_seqs_all_leu[i + 1:]):
+                if retained_rows[j] != -1:
+                    if seq1 == seq2:
+                        retained_rows[i + j + 1] = -1
+    
+    scan_table['seq'] = scan_table_seqs_all_leu
+    dereplicated_scan_table = scan_table.reset_index(drop=True).ix[[i for i in retained_rows if i != -1]]
+    return dereplicated_scan_table
 
 def filter_shared_scans(input_df_dict):
     for tol in config.frag_mass_tols:

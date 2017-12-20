@@ -24,6 +24,25 @@ else:
 def main():
     start_time = time()
 
+    #test_argv = [
+    #    '--deepnovo',
+    #    '--iodir',
+    #    'C:\\Users\\Samuel\\Downloads\\postnovo_test_121917',
+    #    '--denovogui_fp',
+    #    'C:\\Program Files (x86)\\DeNovoGUI-1.4.12-windows\\DeNovoGUI-1.15.11\\DeNovoGUI-1.15.11.jar',
+    #    '--mgf_fp',
+    #    '042017_toolik_core_27_2_1_1_sem.test.mgf',
+    #    '--cores',
+    #    '3'
+    #    ]
+    test_argv = [
+        '--filename',
+        '042017_toolik_core_27_2_1_1_sem.test',
+        '--deepnovo',
+        '--iodir',
+        'C:\\Users\\Samuel\\Downloads\\postnovo_test_121917'
+        ]
+
     #test_argv = ['--iodir',
     #             'C:\\Users\\Samuel\\Downloads',
     #             '--filename',
@@ -35,16 +54,16 @@ def main():
     #             '--cores',
     #             '3']
 
-    test_argv = ['--iodir',
-                 '/scratch/samuelmiller/12-7-17',
-                 '--filename',
-                 'toolik_8_2_2_1',
-                 #'--denovogui_fp',
-                 #'/home/samuelmiller/DeNovoGUI/DeNovoGUI-1.15.10/DeNovoGUI-1.15.10.jar',
-                 #'--mgf_fp',
-                 #'/scratch/samuelmiller/12-7-17/toolik_8_2_2_1.mgf',
-                 '--cores',
-                 '32']
+    #test_argv = ['--iodir',
+    #             '/scratch/samuelmiller/12-7-17',
+    #             '--filename',
+    #             'toolik_8_2_2_1',
+    #             #'--denovogui_fp',
+    #             #'/home/samuelmiller/DeNovoGUI/DeNovoGUI-1.15.10/DeNovoGUI-1.15.10.jar',
+    #             #'--mgf_fp',
+    #             #'/scratch/samuelmiller/12-7-17/toolik_8_2_2_1.mgf',
+    #             '--cores',
+    #             '32']
 
     #test_argv = ['--iodir',
     #             '/scratch/samuelmiller/11-11-17/082917_toolik_core_9_2_1_1_sem_results',
@@ -165,12 +184,12 @@ def main():
     else:
         args = userargs.setup()
 
-    input_df_dict = input.load_files()
-    utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
-    utils.save_dfs(config.iodir[0], 
-                   **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
-                      for alg in config.alg_list for tol in config.frag_mass_tols})
-    #input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
+    #input_df_dict = input.load_files()
+    #utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
+    #utils.save_dfs(config.iodir[0], 
+    #               **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
+    #                  for alg in config.alg_list for tol in config.frag_mass_tols})
+    input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
 
     prediction_df = consensus.make_prediction_df(input_df_dict)
     utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})

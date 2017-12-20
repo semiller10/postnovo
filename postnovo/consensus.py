@@ -63,7 +63,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
 
     alg_df_dict = add_measured_mass_col(alg_df_dict)
     alg_consensus_source_df_dict = make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict)
-    consensus_scan_list = make_consensus_scan_list(alg_consensus_source_df_dict, highest_level_alg_combo)
+    consensus_scan_list = alg_consensus_source_df_dict[highest_level_alg_combo[0]].index.get_level_values('scan').tolist()
     one_percent_number_consensus_scans = len(consensus_scan_list) / 100 / config.cores[0]
 
     scan_consensus_info_dict, scan_generator_fns_dict, scan_common_substrings_info_dict = setup_scan_info_dicts(combo_level_alg_dict)
@@ -167,27 +167,27 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
             make_scan_prediction_dicts(consensus_scan)
             )
 
-    # multiprocessing method
-    print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
-                                        procedure_str = tol + ' Da progress: ',
-                                        one_percent_total_count = one_percent_number_consensus_scans,
-                                        cores = config.cores[0])
-    multiprocessing_pool = Pool(config.cores[0],
-                                initializer = child_initialize,
-                                initargs = (alg_consensus_source_df_dict,
-                                            scan_consensus_info_dict,
-                                            scan_generator_fns_dict,
-                                            scan_common_substrings_info_dict,
-                                            consensus_min_len,
-                                            first_seq_second_seq_rank_comparisons_dict,
-                                            first_seq_second_seq_max_ranks_dict,
-                                            first_seq_second_seq_alg_positions_dict,
-                                            print_percent_progress_fn)
-                                )
-    utils.verbose_print('finding', tol, 'Da consensus sequences')
-    grand_scan_prediction_dict_list = multiprocessing_pool.map(make_scan_prediction_dicts, consensus_scan_list)
-    multiprocessing_pool.close()
-    multiprocessing_pool.join()
+    ## multiprocessing method
+    #print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
+    #                                    procedure_str = tol + ' Da progress: ',
+    #                                    one_percent_total_count = one_percent_number_consensus_scans,
+    #                                    cores = config.cores[0])
+    #multiprocessing_pool = Pool(config.cores[0],
+    #                            initializer = child_initialize,
+    #                            initargs = (alg_consensus_source_df_dict,
+    #                                        scan_consensus_info_dict,
+    #                                        scan_generator_fns_dict,
+    #                                        scan_common_substrings_info_dict,
+    #                                        consensus_min_len,
+    #                                        first_seq_second_seq_rank_comparisons_dict,
+    #                                        first_seq_second_seq_max_ranks_dict,
+    #                                        first_seq_second_seq_alg_positions_dict,
+    #                                        print_percent_progress_fn)
+    #                            )
+    #utils.verbose_print('finding', tol, 'Da consensus sequences')
+    #grand_scan_prediction_dict_list = multiprocessing_pool.map(make_scan_prediction_dicts, consensus_scan_list)
+    #multiprocessing_pool.close()
+    #multiprocessing_pool.join()
 
     scan_prediction_dict_list = [seq_prediction_dict
                                  for scan_prediction_dict_list in grand_scan_prediction_dict_list
@@ -248,8 +248,8 @@ def make_scan_prediction_dicts(consensus_scan):
 
                         alg_ranks_ranges = []
                         last_ranks_list = []
-                        for alg in alg_combo:
-                            last_ranks_list.append(alg_combo_max_ranks_dict[alg])
+                        for i in range(len(alg_combo)):
+                            last_ranks_list.append(alg_combo_max_ranks_dict[i])
                             alg_ranks_ranges.append(range(last_ranks_list[-1]))
                         rank_comparisons = list(product(*alg_ranks_ranges))
                         first_seq_second_seq_rank_comparisons_dict[combo_level][alg_combo] = [
@@ -478,52 +478,43 @@ def make_scan_prediction_dicts(consensus_scan):
 
                     # Stop searching for CS's when the longest possible CS is found (equal to len of shortest parent seq)
                     # and when it can be shown that the LCS must also be the T-R CS
-                    if longest_cs_len == max_possible_cs_len:
+                    if longest_cs_len == max_possible_cs_len and longest_cs_dict['alg_ranks'] == top_rank_cs_dict['alg_ranks']:
 
-                        # Old version
-                        #for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index):
-                        #    if first_seq_parent_rank + sum(first_seq_rank_index[: first_seq_parent_index]) < cs_rank_sum\
-                        #        and first_seq_parent_rank + 1 < first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index]:
-                        #        break
-                        #else:
-                        #    break
-
-                        if longest_cs_dict['alg_ranks'] == top_rank_cs_dict['alg_ranks']:
-                            # T-R CS is found when the potential rank reduction of the first seq's constituent seqs
-                            # exceeds the second seq's rank
-                            # Loop through all but last constituent rank until rank < max rank found
-                            # Then sum the potential rank reductions of the subsequent constituent seqs
-                            # Determine if this potential reduction exceeds that of the second seq
-                            # Example 1:
-                            # Seq 1 max ranks: (1, 1, 1, 1)
-                            # Seq 1 ranks: (1, 0, 1, 1)
-                            # Seq 2 max ranks: (1, )
-                            # Seq 2 ranks: (1, )
-                            # Loop 1:
-                            # Rank 1.1 == max rank 1.1
-                            # Loop 2:
-                            # Rank 1.2 < max rank 1.2
-                            # Rank 1.3 + rank 1.4 = 2
-                            # 2 > rank 2 = 1 => Break to continue searching for CS's
-                            # Example 2:
-                            # Seq 1 ranks: (1, 0, 1, 0)
-                            # Seq 2 ranks: (1, )
-                            # Loop 1:
-                            # Rank 1.1 == max rank 1.1
-                            # Loop 2:
-                            # Rank 1.2 < max rank 1.2
-                            # Rank 1.3 + rank 1.4 = 1
-                            # 1 == rank 2 = 1 => Break, as this potential rank reduction is the maximum => LCS == T-R CS
-                            top_rank_cs_found = False
-                            for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index[: -1]):
-                                if first_seq_parent_rank < first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index]:
-                                    if sum(first_seq_rank_index[first_seq_parent_index + 1:]) > second_rank_sum:
-                                        break
-                                    else:
-                                        top_rank_cs_found = True
-                                        break
-                            if top_rank_cs_found:
-                                break
+                        # T-R CS is found when the potential rank reduction of the first seq's constituent seqs
+                        # exceeds the second seq's rank
+                        # Loop through all but last constituent rank until rank < max rank found
+                        # Then sum the potential rank reductions of the subsequent constituent seqs
+                        # Determine if this potential reduction exceeds that of the second seq
+                        # Example 1:
+                        # Seq 1 max ranks: (1, 1, 1, 1)
+                        # Seq 1 ranks: (1, 0, 1, 1)
+                        # Seq 2 max ranks: (1, )
+                        # Seq 2 ranks: (1, )
+                        # Loop 1:
+                        # Rank 1.1 == max rank 1.1
+                        # Loop 2:
+                        # Rank 1.2 < max rank 1.2
+                        # Rank 1.3 + rank 1.4 = 2
+                        # 2 > rank 2 = 1 => Break to continue searching for CS's
+                        # Example 2:
+                        # Seq 1 ranks: (1, 0, 1, 0)
+                        # Seq 2 ranks: (1, )
+                        # Loop 1:
+                        # Rank 1.1 == max rank 1.1
+                        # Loop 2:
+                        # Rank 1.2 < max rank 1.2
+                        # Rank 1.3 + rank 1.4 = 1
+                        # 1 == rank 2 = 1 => Break, as this potential rank reduction is the maximum => LCS == T-R CS
+                        top_rank_cs_found = False
+                        for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index[: -1]):
+                            if first_seq_parent_rank < first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index]:
+                                if sum(first_seq_rank_index[first_seq_parent_index + 1:]) > second_rank_sum:
+                                    break
+                                else:
+                                    top_rank_cs_found = True
+                                    break
+                        if top_rank_cs_found:
+                            break
 
             # If an LCS meeting the min length threshold was found
             if longest_cs_dict['alg_ranks'] is not None:
@@ -957,6 +948,7 @@ def encode_seqs(df, consensus_min_len):
     map_ord = partial(map, ord)
     df['encoded seq'] = df['encoded seq'].apply(map_ord).apply(list)
     df['encoded seq'] = df['encoded seq'].apply(np.array).apply(lambda x: x - config.unicode_decimal_A)
+    return
 
 def make_combo_level_alg_dict(alg_df_dict):
     combo_level_alg_dict = OrderedDict()
@@ -977,9 +969,8 @@ def add_measured_mass_col(alg_df_dict):
     novor_df = alg_df_dict['novor']
     for alg in ['deepnovo']:
         alg_df = alg_df_dict[alg]
-        scans = alg_df['scan'].index.get_level_values.tolist()
-        alg_df['measured mass'] = [novor_df.xs((scan, 0))[0] for scan in scans]
-        alg_df = alg_df[prediction_dict_source_cols[alg]]
+        indices = [(scan, 0) for scan in alg_df.index.get_level_values('scan').tolist()]
+        alg_df['measured mass'] = novor_df.ix[indices]['measured mass'].tolist()
         
     return alg_df_dict
 
@@ -988,15 +979,6 @@ def make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict):
     for alg in alg_consensus_source_df_dict:
         alg_consensus_source_df_dict[alg] = alg_df_dict[alg][config.prediction_dict_source_cols[alg]]
     return alg_consensus_source_df_dict
-
-def make_consensus_scan_list(alg_consensus_source_df_dict, highest_level_alg_combo):
-    # I think this is redundant with filter_shared_scans method from input.py,
-    # and all of the alg tables already share the same scans
-    consensus_scan_list = alg_consensus_source_df_dict[highest_level_alg_combo[0]].index.get_level_values('scan')
-    for alg in highest_level_alg_combo[1:]:
-        consensus_scan_list = consensus_scan_list.intersection(alg_consensus_source_df_dict[alg].index.get_level_values('scan'))
-    consensus_scan_list = list(set(consensus_scan_list))
-    return consensus_scan_list
 
 def setup_scan_info_dicts(combo_level_alg_dict):
 
@@ -1012,11 +994,8 @@ def setup_scan_info_dicts(combo_level_alg_dict):
             scan_consensus_info_dict[combo_level][alg_combo]['longest_cs'] = {}.fromkeys(consensus_info_keys)
             scan_consensus_info_dict[combo_level][alg_combo]['top_rank_cs'] = {}.fromkeys(consensus_info_keys)
 
-        # I don't understand the purpose of this if statement:
-        # won't i always be less than len?
-        if i < len(combo_level_alg_dict):
-            scan_generator_fns_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict[combo_level])
-            scan_common_substrings_info_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict[combo_level])
+        scan_generator_fns_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict[combo_level])
+        scan_common_substrings_info_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict[combo_level])
 
     return scan_consensus_info_dict, scan_generator_fns_dict, scan_common_substrings_info_dict
 
