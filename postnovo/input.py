@@ -195,26 +195,24 @@ def load_deepnovo_file(path):
     # deepnovo predicts both Leu and Ile:
     # Consider these residues to be the same and remove redundant lower-ranking seqs
     groupby_deepnovo_table = deepnovo_table.groupby('scan')
-    scan_tables = [scan_table for _, scan_table in groupby_deepnovo_table]
+    scan_tables = [scan_table.reset_index(drop=True) for _, scan_table in groupby_deepnovo_table]
 
-    ## Single-threaded
-    #dereplicated_scan_tables = []
-    #for scan_table in scan_tables:
-    #    dereplicated_scan_tables.append(dereplicate_deepnovo_scan_tables(scan_table))
+    # Single-threaded
+    dereplicated_scan_tables = []
+    for scan_table in scan_tables:
+        dereplicated_scan_tables.append(dereplicate_deepnovo_scan_tables(scan_table))
 
-    # Multiprocessing
-    mp_pool = multiprocessing.Pool(config.cores[0])
-    dereplicated_scan_tables = mp_pool.map(dereplicate_deepnovo_scan_tables, scan_tables)
-    mp_pool.close()
-    mp_pool.join()
+    ## Multiprocessing
+    #mp_pool = multiprocessing.Pool(config.cores[0])
+    #dereplicated_scan_tables = mp_pool.map(dereplicate_deepnovo_scan_tables, scan_tables)
+    #mp_pool.close()
+    #mp_pool.join()
 
-    deepnovo_table_dereplicated = pd.concat(
-        dereplicated_scan_tables, ignore_index=True
-        )
+    deepnovo_table_dereplicated = pd.concat(dereplicated_scan_tables)
 
     # Add column of seq rank
-    scan_tables = [scan_table for _, scan_table in deepnovo_table_dereplicated.groupby('scan')]
-    deepnovo_table_with_ranks = pd.concat(scan_tables).reset_index().rename(columns={'index': 'rank'})
+    scan_tables = [scan_table.reset_index() for _, scan_table in deepnovo_table_dereplicated.groupby('scan')]
+    deepnovo_table_with_ranks = pd.concat(scan_tables).rename(columns={'index': 'rank'})
 
     deepnovo_table = deepnovo_table_with_ranks[['scan', 'rank', 'seq', 'aa score', 'avg aa score']]
     deepnovo_table['scan'] = deepnovo_table['scan'].apply(int)
@@ -237,7 +235,8 @@ def dereplicate_deepnovo_scan_tables(scan_table):
                         retained_rows[i + j + 1] = -1
     
     scan_table['seq'] = scan_table_seqs_all_leu
-    dereplicated_scan_table = scan_table.reset_index(drop=True).ix[[i for i in retained_rows if i != -1]]
+    dereplicated_scan_table = scan_table.ix[[i for i in retained_rows if i != -1]]
+    dereplicated_scan_table.index = range(len(dereplicated_scan_table))
     return dereplicated_scan_table
 
 def filter_shared_scans(input_df_dict):
