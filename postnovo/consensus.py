@@ -65,7 +65,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     consensus_scan_list = alg_consensus_source_df_dict[highest_level_alg_combo[0]].index.get_level_values('scan').tolist()
     one_percent_number_consensus_scans = len(consensus_scan_list) / 100 / config.cores[0]
 
-    scan_consensus_info_dict, scan_generator_fns_dict, comparison_performed_dict, scan_common_substrings_info_dict = setup_scan_info_dicts(combo_level_alg_dict)
+    scan_consensus_info_dict, scan_generator_fns_dict, did_comparison_dict, scan_common_substrings_info_dict = setup_scan_info_dicts(combo_level_alg_dict)
     ##examples
     ##scan_consensus_info_dict = OrderedDict(
     ##    2: OrderedDict(
@@ -91,7 +91,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     ##        ('novor', 'pn', 'deepnovo'): generator_fn
     ##        )
     ##    )
-    ##comparison_performed_dict = OrderedDict(
+    ##did_comparison_dict = OrderedDict(
     ##    2: OrderedDict(
     ##        ('novor', 'pn'): OrderedDict(ranks: 0 or 1 for tracking comparison),
     ##        ('novor', 'deepnovo'): OrderedDict(ranks: 0 or 1), 
@@ -112,45 +112,21 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     ##        )
     ##    )
 
-    first_seq_second_seq_rank_comparisons_dict, first_seq_second_seq_max_ranks_dict, first_seq_second_seq_alg_positions_dict =\
-        make_first_seq_second_seq_comparisons_dicts(scan_consensus_info_dict)
-    ##first_seq_second_seq_rank_comparisons_dict = OrderedDict(
+    rank_comparison_dict = make_rank_comparison_dict(scan_consensus_info_dict)
+    ##rank_comparison_dict = OrderedDict(
     ##    2: OrderedDict(
-    ##        ('novor', 'pn'): [((0,), (0,)), ((0,), (1,)), ..., ((0,), (18,)), ((0,), (19,))],
-    ##        ('novor', 'deepnovo'): [((0,), (0,)), ((0,), (1,)), ..., ((0,), (18,)), ((0,), (19,))],
-    ##        ('pn', 'deepnovo'): [((0,), (0,)), ((0,), (1,)), ..., ((19,), (18,)), ((19,), (19,))]
+    ##        ('novor', 'pn'): [(0, 0), (0, 1), ..., (0, 18), (0, 19)],
+    ##        ('novor', 'deepnovo'): [(0, 0), (0, 1), ..., (0, 18), (0, 19)],
+    ##        ('pn', 'deepnovo'): [(0, 0), (0, 1), ..., (19, 18), (19, 19)]
     ##        ),
     ##    3: OrderedDict(
-    ##        ('novor', 'pn', 'deepnovo'): [((0, 0), (0,)), ((0, 0), (1,)), ..., ((0, 19), (18,)), ((0, 19), (19,))]
+    ##        ('novor', 'pn', 'deepnovo'): [(0, 0, 0), (0, 0, 1), ..., (0, 19, 18), (0, 19, 19)]
     ##        )
     ##    )
-    ##first_seq_second_seq_max_ranks_dict = OrderedDict(
-    ##    2: OrderedDict(
-    ##        ('novor', 'pn'): [1, 20],
-    ##        ('novor', 'deepnovo'): [1, 20],
-    ##        ('pn', 'deepnovo'): [20, 20]
-    ##        ),
-    ##    3: OrderedDict(
-    ##        ('novor', 'pn', 'deepnovo'): [1, 20, 20]
-    ##        )
-    ##    )
-    ##first_seq_second_seq_alg_positions_dict = OrderedDict(
-    ##    2: OrderedDict(
-    ##        ('novor', 'pn'): OrderedDict('novor': (0, 0), 'pn': (1, 0)),
-    ##        ('novor', 'deepnovo'): OrderedDict('novor': (0, 0), 'deepnovo': (1, 0)),
-    ##        ('pn', 'deepnovo'): OrderedDict('pn': (0, 0), 'deepnovo': (1, 0))
-    ##        ),
-    ##    3: OrderedDict(
-    ##        ('novor', 'pn', 'deepnovo'): OrderedDict('novor': (0, 0), 'pn': (0, 1), 'deepnovo': (1, 0))
-    ##        )
-    ##    )
-    ##Explanation of first_seq_second_seq_alg_positions_dict:
-    ##The first value of the duple is the seq which the alg is part of in the consensus comparison:
-    ##0 is for the first seq, 1 is for the second seq
-    ##The second value of the duple is the order of the alg in any previous consensus comparisons
-    ##This value only increments for the first seq
-    ##A value of 0 means the alg was the first one considered in the formation of the first seq
-    ##A value of 1 means the alg was the second one considered in the formation of the first seq
+
+    alg_max_rank_dict = OrderedDict()
+    for alg in config.alg_list:
+        alg_max_rank_dict[alg] = config.seqs_reported_per_alg_dict[alg]
 
     ## single processor method
     print_percent_progress_fn = partial(
@@ -162,12 +138,11 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
         alg_consensus_source_df_dict,
         scan_consensus_info_dict,
         scan_generator_fns_dict,
-        comparison_performed_dict,
+        did_comparison_dict,
         scan_common_substrings_info_dict,
         consensus_min_len,
-        first_seq_second_seq_rank_comparisons_dict,
-        first_seq_second_seq_max_ranks_dict,
-        first_seq_second_seq_alg_positions_dict,
+        rank_comparison_dict,
+        alg_max_rank_dict,
         print_percent_progress_fn
         )
     grand_scan_prediction_dict_list = []
@@ -187,12 +162,11 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     #                            initargs = (alg_consensus_source_df_dict,
     #                                        scan_consensus_info_dict,
     #                                        scan_generator_fns_dict,
-    #                                        comparison_performed_dict,
+    #                                        did_comparison_dict,
     #                                        scan_common_substrings_info_dict,
     #                                        consensus_min_len,
-    #                                        first_seq_second_seq_rank_comparisons_dict,
-    #                                        first_seq_second_seq_max_ranks_dict,
-    #                                        first_seq_second_seq_alg_positions_dict,
+    #                                        rank_comparison_dict,
+    #                                        alg_max_rank_dict,
     #                                        print_percent_progress_fn)
     #                            )
     #utils.verbose_print('finding', tol, 'Da consensus sequences')
@@ -211,34 +185,31 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
 def child_initialize(_alg_consensus_source_df_dict,
                      _scan_consensus_info_dict,
                      _scan_generator_fns_dict,
-                     _comparison_performed_dict,
+                     _did_comparison_dict,
                      _scan_common_substrings_info_dict,
                      _consensus_min_len,
-                     _first_seq_second_seq_rank_comparisons_dict,
-                     _first_seq_second_seq_max_ranks_dict,
-                     _first_seq_second_seq_alg_positions_dict,
+                     _rank_comparison_dict,
+                     _alg_max_rank_dict,
                      _print_percent_progress_fn):
 
      global alg_consensus_source_df_dict
      global scan_consensus_info_dict
      global scan_generator_fns_dict
-     global comparison_performed_dict
+     global did_comparison_dict
      global scan_common_substrings_info_dict
      global consensus_min_len
-     global first_seq_second_seq_rank_comparisons_dict
-     global first_seq_second_seq_max_ranks_dict
-     global first_seq_second_seq_alg_positions_dict
+     global rank_comparison_dict
+     global alg_max_rank_dict
      global print_percent_progress_fn
 
      alg_consensus_source_df_dict = _alg_consensus_source_df_dict
      scan_consensus_info_dict = _scan_consensus_info_dict
      scan_generator_fns_dict = _scan_generator_fns_dict
-     comparison_performed_dict = _comparison_performed_dict
+     did_comparison_dict = _did_comparison_dict
      scan_common_substrings_info_dict = _scan_common_substrings_info_dict
      consensus_min_len = _consensus_min_len
-     first_seq_second_seq_rank_comparisons_dict = _first_seq_second_seq_rank_comparisons_dict
-     first_seq_second_seq_max_ranks_dict = _first_seq_second_seq_max_ranks_dict
-     first_seq_second_seq_alg_positions_dict = _first_seq_second_seq_alg_positions_dict
+     rank_comparison_dict = _rank_comparison_dict
+     alg_max_rank_dict = _alg_max_rank_dict
      print_percent_progress_fn = _print_percent_progress_fn
 
 def make_scan_prediction_dicts(consensus_scan):
@@ -247,72 +218,76 @@ def make_scan_prediction_dicts(consensus_scan):
 
     scan_prediction_dict_list = []
 
-    scan_alg_consensus_source_df_dict = {}
-    scan_max_seq_len_list = []
-    no_consensus = False
+    alg_consensus_source_df_for_scan_dict = OrderedDict()
+    max_seq_len_dict = OrderedDict()
+    # See below for explanation of is_short_seq_alg
+    is_short_seq_alg = False
     for alg in alg_consensus_source_df_dict:
-        scan_alg_consensus_source_df = alg_consensus_source_df_dict[alg].loc[consensus_scan]
+        alg_consensus_source_df_for_scan = alg_consensus_source_df_dict[alg].loc[consensus_scan]
         # deepnovo can have a variable number of seqs per scan due to the consolidation of Ile/Leu
-        num_seqs = len(scan_alg_consensus_source_df)
+        num_seqs = len(alg_consensus_source_df_for_scan)
         if alg == 'deepnovo':
-            for combo_level, combo_level_max_ranks_dict in first_seq_second_seq_max_ranks_dict.items():
-                for alg_combo, alg_combo_max_ranks_dict in combo_level_max_ranks_dict.items():
-                    try:
-                        alg_combo_max_ranks_dict[alg_combo.index('deepnovo')] = num_seqs
+            if num_seqs < alg_max_rank_dict[alg]:
+                alg_max_rank_dict['deepnovo'] = len(alg_consensus_source_df_for_scan)
 
-                        alg_ranks_ranges = []
-                        last_ranks_list = []
-                        for i in range(len(alg_combo)):
-                            last_ranks_list.append(alg_combo_max_ranks_dict[i])
-                            alg_ranks_ranges.append(range(last_ranks_list[-1]))
-                        rank_comparisons = list(product(*alg_ranks_ranges))
-                        first_seq_second_seq_rank_comparisons_dict[combo_level][alg_combo] = [
-                            ((rank_comparison[:-1]), (rank_comparison[-1],))
-                            for rank_comparison in rank_comparisons
-                            ]
+                # Changing the number of deepnovo seqs also changes the number of seq comparisons
+                # Retabulate the rank comparisons that can be performed
+                for combo_level, rank_comparison_dict_for_combo_level in rank_comparison_dict.items():
+                    for alg_combo in rank_comparison_dict_for_combo_level:
+                        if 'deepnovo' in alg_combo:
+                            alg_ranks_ranges = []
+                            last_ranks_list = []
 
-                    except ValueError:
-                        pass
-        # for other algs, expect a set number of seqs per scan
+                            for alg in alg_combo:
+                                last_ranks_list.append(alg_max_rank_dict[alg])
+                                alg_ranks_ranges.append(range(last_ranks_list[-1]))
+                            rank_comparison_dict_for_combo_level[alg_combo] = list(product(*alg_ranks_ranges))
+
+        # Expect a set number of seqs per scan from novor and pn
+        # Occasionally fewer are reported for poor-quality spectra,
+        # in which case, ignore predictions from ALL algs, returning an empty list
         else:
-            if num_seqs < config.seqs_reported_per_alg_dict[alg]:
+            if num_seqs < alg_max_rank_dict[alg]:
                 return []
-        scan_max_seq_len_list.append(scan_alg_consensus_source_df['encoded seq'].map(len).max())
-        # stop consensus routine if an alg does not have any seqs for the scan
-        if scan_max_seq_len_list[-1] == 0:
-            no_consensus = True
+
+        # I am currently retaining seqs that do not meet the minimum length
+        # in the consensus source table
+        # This allows the rank index ranges to be contiguous,
+        # unlike if the short seqs were removed from the tables
+        max_seq_len_dict[alg] = alg_consensus_source_df_for_scan['encoded seq'].map(len).max()
+        # Do not proceed to the consensus routine
+        # if any one of the algs lacks seqs above the minimum length
+        if max_seq_len_dict[alg] == 0:
+            is_short_seq_alg = True
         else:
-            if scan_alg_consensus_source_df.at[0, 'encoded seq'] != []:
+            if alg_consensus_source_df_for_scan.at[0, 'encoded seq'] != []:
+                # The single-alg seqs are placed in the results
                 scan_prediction_dict_list.append(
                     make_seq_prediction_dict(
                         consensus_scan,
-                        scan_alg_consensus_source_df=scan_alg_consensus_source_df,
+                        alg_consensus_source_df_for_scan=alg_consensus_source_df_for_scan,
                         alg=alg
                         )
                     )
-            scan_alg_consensus_source_df_dict[alg] = scan_alg_consensus_source_df
+            alg_consensus_source_df_for_scan_dict[alg] = alg_consensus_source_df_for_scan
 
-    if no_consensus:
+    if is_short_seq_alg:
         return scan_prediction_dict_list
 
     # Find consensus seqs between increasing numbers of algs (2, 3, etc.)
     for combo_level in scan_consensus_info_dict:
-        first_seq_second_seq_alg_positions_for_combo_level_dict = first_seq_second_seq_alg_positions_dict[combo_level]
-        first_seq_second_seq_max_ranks_for_combo_level_dict = first_seq_second_seq_max_ranks_dict[combo_level]
-        first_seq_second_seq_rank_comparisons_for_combo_level_dict = first_seq_second_seq_rank_comparisons_dict[combo_level]
+        rank_comparison_for_combo_level_dict = rank_comparison_dict[combo_level]
         scan_generator_fns_for_combo_level_dict = scan_generator_fns_dict[combo_level]
         scan_consensus_info_for_combo_level_dict = scan_consensus_info_dict[combo_level]
 
         for alg_combo in scan_consensus_info_for_combo_level_dict:
-            first_seq_second_seq_alg_positions_for_alg_combo_dict = first_seq_second_seq_alg_positions_for_combo_level_dict[alg_combo]
-            first_seq_second_seq_max_ranks_for_alg_combo_list = first_seq_second_seq_max_ranks_for_combo_level_dict[alg_combo]
-            first_seq_second_seq_rank_comparisons_list = first_seq_second_seq_rank_comparisons_for_combo_level_dict[alg_combo]
+            rank_comparisons = rank_comparison_for_combo_level_dict[alg_combo]
             scan_consensus_info_for_alg_combo_dict = scan_consensus_info_for_combo_level_dict[alg_combo]
 
             scan_common_substrings_info_for_alg_combo_dict = scan_common_substrings_info_dict[combo_level][alg_combo] =\
-                OrderedDict().fromkeys(first_seq_second_seq_rank_comparisons_list)
-            comparison_performed_for_alg_combo_dict = comparison_performed_dict[combo_level][alg_combo] =\
-                OrderedDict([(rank_index, False) for rank_index in first_seq_second_seq_rank_comparisons_list])
+                OrderedDict().fromkeys(rank_comparisons)
+            did_comparison_for_alg_combo_dict = did_comparison_dict[combo_level][alg_combo] =\
+                OrderedDict([(rank_index, False) for rank_index in rank_comparisons])
 
             longest_cs_dict = scan_consensus_info_for_alg_combo_dict['longest_cs']
             top_rank_cs_dict = scan_consensus_info_for_alg_combo_dict['top_rank_cs']
@@ -324,20 +299,18 @@ def make_scan_prediction_dicts(consensus_scan):
             # if the >2-alg comparison LCS and TRCS fast-track procedures were unsuccessful
             if combo_level == 2:
                 first_seq_alg = alg_combo[0]
-                first_seq_alg_position_in_scan_info_tuples = first_seq_second_seq_alg_positions_for_alg_combo_dict[first_seq_alg][0]
                 second_seq_alg = alg_combo[1]
-                second_seq_alg_position_in_scan_info_tuples = first_seq_second_seq_alg_positions_for_alg_combo_dict[second_seq_alg][0]
 
-                alg_rank_encoded_seq_list = scan_alg_consensus_source_df_dict[first_seq_alg]['encoded seq']
-                first_encoded_seq_dict = OrderedDict(
-                    [((rank,), encoded_seq) for rank, encoded_seq in enumerate(alg_rank_encoded_seq_list)])
+                first_encoded_seq_dict = OrderedDict([
+                    ((rank,), encoded_seq) for rank, encoded_seq
+                    in enumerate(alg_consensus_source_df_for_scan_dict[first_seq_alg]['encoded seq'])
+                    ])
+                second_encoded_seq_dict = OrderedDict([
+                    ((rank,), encoded_seq) for rank, encoded_seq
+                    in enumerate(alg_consensus_source_df_for_scan_dict[second_seq_alg]['encoded seq'])
+                    ])
 
-                alg_rank_encoded_seq_list = scan_alg_consensus_source_df_dict[second_seq_alg]['encoded seq']
-                second_encoded_seq_dict = OrderedDict(
-                    [((rank,), encoded_seq) for rank, encoded_seq in enumerate(alg_rank_encoded_seq_list)])
-
-                max_possible_cs_len = min(scan_max_seq_len_list[first_seq_alg_position_in_scan_info_tuples],
-                                          scan_max_seq_len_list[second_seq_alg_position_in_scan_info_tuples])
+                max_possible_cs_len = min(max_seq_len_dict[first_seq_alg], max_seq_len_dict[second_seq_alg])
 
                 seq_comparison_generator = do_seq_comparisons(first_encoded_seq_dict, second_encoded_seq_dict, consensus_min_len)
                 scan_generator_fns_for_combo_level_dict[alg_combo] = seq_comparison_generator
@@ -345,12 +318,13 @@ def make_scan_prediction_dicts(consensus_scan):
                 min_cs_rank_sum = 1000
 
                 for first_seq_cs_start_position, second_seq_cs_start_position, cs_len, first_seq_rank_index, second_seq_rank_index in seq_comparison_generator:
-                    comparison_performed_for_alg_combo_dict[first_seq_rank_index + second_seq_rank_index] = True
+                    did_comparison_for_alg_combo_dict[first_seq_rank_index + second_seq_rank_index] = True
 
                     if cs_len is not None:
                         longest_cs_len, min_cs_rank_sum = parse_generator_output(
                             longest_cs_len,
                             min_cs_rank_sum,
+                            first_encoded_seq_dict,
                             scan_common_substrings_info_for_alg_combo_dict,
                             first_seq_cs_start_position,
                             second_seq_cs_start_position,
@@ -370,30 +344,21 @@ def make_scan_prediction_dicts(consensus_scan):
                             # or only 1 of the parent seqs is rank 1,
                             # then it will be impossible to find a CS with a lower sum rank,
                             # so stop searching for additional CS's
-                            if cs_rank_sum <= 1:
+                            if sum(first_seq_rank_index + second_seq_rank_index) <= 1:
                                 top_rank_cs_found = True
 
-                            # Rule:
-                            # (potential rank reduction of second seq > 1
+                            # In addition, the following rule can demonstrate that the seq is a T-R CS:
+                            # The potential rank reduction of the second seq <= 1
                             # AND 
-                            # potential rank increment of first seq's constituent seqs (> 0))
-                            # OR
-                            # potential rank reduction of subsequent parent seqs > 1
+                            # there is no total rank increment of the first seq's parent seqs > 1
                             else:
-                                if second_rank_sum > 1:
+                                if sum(second_seq_rank_index) <= 1:
+                                    potential_rank_reduction = 0
                                     for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index):
-                                        if first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index] - first_seq_parent_rank > 1:
-                                            top_rank_cs_found = True
-                                            break
-
-                                if not top_rank_cs_found:
-                                    if len(first_seq_rank_index) > 1:
-                                        potential_rank_reduction = 0
-                                        for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index[: -1]):
-                                            if first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index] > 0:
-                                                potential_rank_reduction += 1
-                                        if potential_rank_reduction > 1:
-                                            top_rank_cs_found = True
+                                        if alg_max_rank_dict[first_seq_algs[first_seq_parent_index]] > 0:
+                                            potential_rank_reduction += 1
+                                    if potential_rank_reduction > 1:
+                                        top_rank_cs_found = True
 
                             if top_rank_cs_found:
                                 break
@@ -403,7 +368,7 @@ def make_scan_prediction_dicts(consensus_scan):
                 first_seq_algs = alg_combo[: -1]
                 second_seq_alg = alg_combo[-1]
 
-                # Get the LCS for the first seq algs
+                # Get the first seq LCS
                 first_seq_lcs_dict = scan_consensus_info_dict[combo_level - 1][first_seq_algs]['longest_cs']
                 if 'encoded_consensus_seq' in first_seq_lcs_dict:
                     parent_seq_alg_ranks = first_seq_lcs_dict['alg_ranks']
@@ -440,7 +405,7 @@ def make_scan_prediction_dicts(consensus_scan):
                     first_encoded_seq_dict[rank_index[0] + rank_index[1]] = encoded_cs
 
                 # Get seqs for the second seq alg
-                alg_rank_encoded_seq_list = scan_alg_consensus_source_df_dict[second_seq_alg]['encoded seq']
+                alg_rank_encoded_seq_list = alg_consensus_source_df_for_scan_dict[second_seq_alg]['encoded seq']
                 second_encoded_seq_dict = OrderedDict(
                     [((rank,), encoded_seq) for rank, encoded_seq in enumerate(alg_rank_encoded_seq_list)])
 
@@ -455,7 +420,7 @@ def make_scan_prediction_dicts(consensus_scan):
                     first_seq_encoded_lcs, 
                     first_seq_trcs_rank_index, 
                     first_seq_encoded_trcs, 
-                    first_seq_second_seq_max_ranks_for_alg_combo_list
+                    alg_max_rank_dict
                     )
                 scan_generator_fns_for_combo_level_dict[alg_combo] = seq_comparison_generator
                 
@@ -490,23 +455,30 @@ def make_scan_prediction_dicts(consensus_scan):
                     
                 # Get the generators and comparison records for the first seqs and their parent first seqs
                 first_seq_scan_generator_fns_dict = OrderedDict()
-                first_seq_comparison_performed_dict = OrderedDict()
+                first_seq_did_comparison_dict = OrderedDict()
                 for parent_seq_combo_level in range(combo_level - 1, 1, -1):
                     first_seq_scan_generator_fns_dict[parent_seq_combo_level] = scan_generator_fns_dict[parent_seq_combo_level][first_seq_algs[: parent_seq_combo_level]]
-                    first_seq_comparison_performed_dict[parent_seq_combo_level] = comparison_performed_dict[parent_seq_combo_level][first_seq_algs[: parent_seq_combo_level]]
+                    first_seq_did_comparison_dict[parent_seq_combo_level] = did_comparison_dict[parent_seq_combo_level][first_seq_algs[: parent_seq_combo_level]]
 
                 first_seq_rank_indices = list(first_encoded_seq_dict.keys())
                 last_comparison_index = len(first_seq_rank_indices) - 1
+
+                longest_cs_len = 0
+                min_cs_rank_sum = 1000
+
                 # Even if the LCS and TRCS were found earlier,
                 # perform the first comparison for the purposes of
                 # the operation of the consensus first seq comparison check
                 for comparison_index, generator_output in enumerate(seq_comparison_generator):
 
                     first_seq_cs_start_position, second_seq_cs_start_position, cs_len, first_seq_rank_index, second_seq_rank_index = generator_output
-                    comparison_performed_for_alg_combo_dict[first_seq_rank_index + second_seq_rank_index] = True
+                    did_comparison_for_alg_combo_dict[first_seq_rank_index + second_seq_rank_index] = True
 
                     if cs_len is not None:
                         parse_generator_output(
+                            longest_cs_len,
+                            min_cs_rank_sum,
+                            first_encoded_seq_dict,
                             scan_common_substrings_info_for_alg_combo_dict,
                             first_seq_cs_start_position,
                             second_seq_cs_start_position,
@@ -522,30 +494,28 @@ def make_scan_prediction_dicts(consensus_scan):
                     # The next first seq cannot exist if its comparison was not performed
                     if comparison_index < last_comparison_index:
                         first_seq_next_rank_index = first_seq_rank_indices[comparison_index + 1]
-                        if not first_seq_comparison_performed_dict[first_seq_next_rank_index]:
+                        if not first_seq_did_comparison_dict[first_seq_next_rank_index]:
                             # Perform the first seq comparison and all further necessary parent seq comparisons
                             do_parent_comparisons(
                                 combo_level, 
                                 alg_combo, 
                                 first_seq_next_rank_index, 
                                 first_seq_scan_generator_fns_dict, 
-                                first_seq_comparison_performed_dict
+                                first_seq_did_comparison_dict
                                 )
 
             # Back to consideration of both 2- and >2-alg consensus seqs:
             # If an LCS meeting the min length threshold was found
             if longest_cs_dict['alg_ranks'] is not None:
-                first_seq_second_seq_alg_positions_subdict = first_seq_second_seq_alg_positions_dict[combo_level][alg_combo]
 
                 # If considering a CS that is both LCS and T-R CS
                 if longest_cs_dict['alg_ranks'] == top_rank_cs_dict['alg_ranks']:
                     cs_prediction_dict = make_seq_prediction_dict(
                         consensus_scan,
-                        scan_alg_consensus_source_df_dict=scan_alg_consensus_source_df_dict,
+                        alg_consensus_source_df_for_scan_dict=alg_consensus_source_df_for_scan_dict,
                         cs_info_dict=longest_cs_dict,
                         cs_type_list=['longest', 'top rank'],
                         alg_combo=alg_combo,
-                        first_seq_second_seq_alg_positions_subdict=first_seq_second_seq_alg_positions_subdict
                         )
                     top_rank_cs_dict['encoded_consensus_seq'] = longest_cs_dict['encoded_consensus_seq']
                     scan_prediction_dict_list.append(cs_prediction_dict)
@@ -553,19 +523,17 @@ def make_scan_prediction_dicts(consensus_scan):
                 else:
                     longest_cs_prediction_dict = make_seq_prediction_dict(
                         consensus_scan,
-                        scan_alg_consensus_source_df_dict=scan_alg_consensus_source_df_dict,
+                        alg_consensus_source_df_for_scan_dict=alg_consensus_source_df_for_scan_dict,
                         cs_info_dict=longest_cs_dict,
                         cs_type_list=['longest'],
                         alg_combo=alg_combo,
-                        first_seq_second_seq_alg_positions_subdict=first_seq_second_seq_alg_positions_subdict
                         )
                     top_rank_cs_prediction_dict = make_seq_prediction_dict(
                         consensus_scan,
-                        scan_alg_consensus_source_df_dict=scan_alg_consensus_source_df_dict,
+                        alg_consensus_source_df_for_scan_dict=alg_consensus_source_df_for_scan_dict,
                         cs_info_dict=top_rank_cs_dict,
                         cs_type_list=['top rank'],
                         alg_combo=alg_combo,
-                        first_seq_second_seq_alg_positions_subdict=first_seq_second_seq_alg_positions_subdict
                         )
                     scan_prediction_dict_list.append(longest_cs_prediction_dict)
                     scan_prediction_dict_list.append(top_rank_cs_prediction_dict)
@@ -575,6 +543,7 @@ def make_scan_prediction_dicts(consensus_scan):
 def parse_generator_output(
     longest_cs_len,
     min_cs_rank_sum,
+    first_encoded_seq_dict,
     scan_common_substrings_info_for_alg_combo_dict,
     first_seq_cs_start_position,
     second_seq_cs_start_position,
@@ -600,7 +569,7 @@ def parse_generator_output(
     # LCS found
     if cs_len > longest_cs_len:
         longest_cs_len = cs_len
-        longest_cs_dict['alg_ranks'] = (first_seq_rank_index, second_seq_rank_index)
+        longest_cs_dict['alg_ranks'] = first_seq_rank_index + second_seq_rank_index
         longest_cs_dict['rank_sum'] = cs_rank_sum
         longest_cs_dict['seq_starts'] = (first_seq_cs_start_position, second_seq_cs_start_position)
         longest_cs_dict['consensus_len'] = cs_len
@@ -608,7 +577,7 @@ def parse_generator_output(
     # Top-ranking (T-R) seq found
     if cs_rank_sum < min_cs_rank_sum:
         min_cs_rank_sum = cs_rank_sum
-        top_rank_cs_dict['alg_ranks'] = (first_seq_rank_index, second_seq_rank_index)
+        top_rank_cs_dict['alg_ranks'] = first_seq_rank_index + second_seq_rank_index
         top_rank_cs_dict['rank_sum'] = cs_rank_sum
         top_rank_cs_dict['seq_starts'] = (first_seq_cs_start_position, second_seq_cs_start_position)
         top_rank_cs_dict['consensus_len'] = cs_len
@@ -620,7 +589,7 @@ def do_parent_comparisons(
     alg_combo, 
     rank_index, 
     first_seq_scan_generator_fns_dict, 
-    first_seq_comparison_performed_dict
+    first_seq_did_comparison_dict
     ):
 
     # If the comparison involves a first seq that is a consensus seq,
@@ -629,14 +598,14 @@ def do_parent_comparisons(
         first_seq_combo_level = combo_level - 1
         first_seq_alg_combo = alg_combo[: -1]
         first_seq_rank_index = rank_index[: -1]
-        if not first_seq_comparison_performed_dict[combo_level][first_seq_rank_index]:
+        if not first_seq_did_comparison_dict[combo_level][first_seq_rank_index]:
             do_parent_comparisons(first_seq_combo_level, first_seq_alg_combo, first_seq_rank_index, first_seq_scan_generator_fns_dict[first_seq_combo_level])
     # Else the first seq is an irreducible single-alg seq
     else:
         # Perform the comparison
         first_seq_cs_start_position, second_seq_cs_start_position, cs_len, first_seq_rank_index, second_seq_rank_index =\
             next(first_seq_scan_generator_fns_dict[combo_level][rank_index])
-        first_seq_comparison_performed_dict[combo_level][rank_index] = True
+        first_seq_did_comparison_dict[combo_level][rank_index] = True
         if cs_len is not None:
             # Record the consensus seq found from the comparison
             scan_common_substrings_info_for_alg_combo_dict[(first_seq_rank_index, second_seq_rank_index)] =\
@@ -651,7 +620,7 @@ def do_seq_comparisons(
     first_seq_encoded_lcs=None,
     first_seq_trcs_rank_index=None,
     first_seq_encoded_trcs=None, 
-    first_seq_second_seq_max_ranks_for_alg_combo_list=None
+    alg_max_rank_dict=None
     ):
     # yield: first_seq_lcs_start_position, second_seq_lcs_start_position, lcs_len, first_seq_rank_index, second_seq_rank_index
 
@@ -763,36 +732,26 @@ def do_seq_comparisons(
             # or only 1 of the parent seqs is rank 1,
             # then it will be impossible to find a CS with a lower sum rank,
             # so stop searching for additional CS's
+            top_rank_cs_found = False
             second_rank_sum = sum(second_seq_rank_index)
             if first_rank_sum + second_rank_sum <= 1:
-                yield first_seq_cs_start_position, second_seq_cs_start_position, cs_len, first_seq_rank_index, second_seq_rank_index
-                break
+                top_rank_cs_found = True
 
-            # Rule:
-            # (potential rank reduction of second seq > 1
+            # In addition, the following rule can demonstrate that the seq is a T-R CS:
+            # The potential rank reduction of the second seq <= 1
             # AND 
-            # potential rank increment of first seq's constituent seqs (> 0))
-            # OR
-            # potential rank reduction of subsequent parent seqs > 1
-
-            top_rank_cs_found = False
-            if second_rank_sum > 1:
-                for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index):
-                    if first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index] - first_seq_parent_rank > 1:
-                        top_rank_cs_found = True
-                        break
-            if not top_rank_cs_found:
-                if len(first_seq_rank_index) > 1:
+            # there is no total rank increment of the first seq's parent seqs > 1
+            else:
+                if sum(second_seq_rank_index) <= 1:
                     potential_rank_reduction = 0
-                    for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index[: -1]):
-                        if first_seq_second_seq_max_ranks_for_alg_combo_list[first_seq_parent_index] > 0:
+                    for first_seq_parent_index, first_seq_parent_rank in enumerate(first_seq_rank_index):
+                        if alg_max_rank_dict[first_seq_algs[first_seq_parent_index]] > 0:
                             potential_rank_reduction += 1
                     if potential_rank_reduction > 1:
                         top_rank_cs_found = True
 
             if top_rank_cs_found:
                 yield first_seq_cs_start_position, second_seq_cs_start_position, cs_len, first_seq_rank_index, second_seq_rank_index
-                break
 
         else:
             yield None, None, None, first_seq_rank_index, second_seq_rank_index
@@ -808,13 +767,12 @@ def do_seq_comparisons(
 
 def make_seq_prediction_dict(
     consensus_scan,
-    scan_alg_consensus_source_df_dict=None,
-    scan_alg_consensus_source_df=None, 
+    alg_consensus_source_df_for_scan_dict=None,
+    alg_consensus_source_df_for_scan=None, 
     alg=None, 
     cs_info_dict=None,
     cs_type_list=None,
-    alg_combo=None,
-    first_seq_second_seq_alg_positions_subdict=None
+    alg_combo=None
     ):
 
     # If no common substring searches have yet been performed
@@ -824,24 +782,24 @@ def make_seq_prediction_dict(
             if k == 'scan':
                 prediction_dict['scan'] = consensus_scan
             elif k == 'measured mass':
-                prediction_dict['measured mass'] = scan_alg_consensus_source_df.at[0, 'measured mass']
+                prediction_dict['measured mass'] = alg_consensus_source_df_for_scan.at[0, 'measured mass']
             elif k == 'is top rank single alg':
                 prediction_dict['is top rank single alg'] = 1
             elif k == 'seq':
-                prediction_dict['seq'] = seq = scan_alg_consensus_source_df.at[0, 'seq']
+                prediction_dict['seq'] = seq = alg_consensus_source_df_for_scan.at[0, 'seq']
             elif k == 'len':
-                prediction_dict['len'] = scan_alg_consensus_source_df.at[0, 'encoded seq'].size
+                prediction_dict['len'] = alg_consensus_source_df_for_scan.at[0, 'encoded seq'].size
         
         alg_prediction_dict = {}.fromkeys(config.single_alg_prediction_dict_cols[alg])
         if alg == 'novor':
-            aa_score = scan_alg_consensus_source_df.at[0, 'aa score']
+            aa_score = alg_consensus_source_df_for_scan.at[0, 'aa score']
             for k in alg_prediction_dict:
                 if k == 'retention time':
-                    alg_prediction_dict['retention time'] = scan_alg_consensus_source_df.at[0, 'retention time']
+                    alg_prediction_dict['retention time'] = alg_consensus_source_df_for_scan.at[0, 'retention time']
                 elif k == 'is novor seq':
                     alg_prediction_dict['is novor seq'] = 1
                 elif k == 'avg novor aa score':
-                    alg_prediction_dict['avg novor aa score'] = scan_alg_consensus_source_df.at[0, 'avg aa score']
+                    alg_prediction_dict['avg novor aa score'] = alg_consensus_source_df_for_scan.at[0, 'avg aa score']
                 elif k == 'mono-di isobaric sub score':
                     mono_di_isobaric_sub_score = 0
                     for peptide in config.mono_di_isobaric_subs:
@@ -875,18 +833,18 @@ def make_seq_prediction_dict(
                 if k == 'is pn seq':
                     alg_prediction_dict['is pn seq'] = 1
                 elif k == 'rank score':
-                    alg_prediction_dict['rank score'] = scan_alg_consensus_source_df.at[0, 'rank score']
+                    alg_prediction_dict['rank score'] = alg_consensus_source_df_for_scan.at[0, 'rank score']
                 elif k == 'pn score':
-                    alg_prediction_dict['pn score'] = scan_alg_consensus_source_df.at[0, 'pn score']
+                    alg_prediction_dict['pn score'] = alg_consensus_source_df_for_scan.at[0, 'pn score']
                 elif k == 'sqs':
-                    alg_prediction_dict['sqs'] = scan_alg_consensus_source_df.at[0, 'sqs']
+                    alg_prediction_dict['sqs'] = alg_consensus_source_df_for_scan.at[0, 'sqs']
         elif alg == 'deepnovo':
-            aa_score = scan_alg_consensus_source_df.at[0, 'aa score']
+            aa_score = alg_consensus_source_df_for_scan.at[0, 'aa score']
             for k in alg_prediction_dict:
                 if k == 'is deepnovo seq':
                     alg_prediction_dict['is deepnovo seq'] = 1
                 elif k == 'avg deepnovo aa score':
-                    alg_prediction_dict['avg deepnovo aa score'] = scan_alg_consensus_source_df.at[0, 'avg aa score']
+                    alg_prediction_dict['avg deepnovo aa score'] = alg_consensus_source_df_for_scan.at[0, 'avg aa score']
                 elif k == 'mono-di isobaric sub score':
                     mono_di_isobaric_sub_score = 0
                     for peptide in config.mono_di_isobaric_subs:
@@ -921,11 +879,11 @@ def make_seq_prediction_dict(
         return prediction_dict
 
     else:
-        last_alg_consensus_source_df = scan_alg_consensus_source_df_dict[alg_combo[-1]]
+        last_alg_consensus_source_df = alg_consensus_source_df_for_scan_dict[alg_combo[-1]]
         prediction_dict = {}.fromkeys(config.consensus_prediction_dict_cols['general'])
         selection_seq_start = cs_info_dict['seq_starts'][1]
         selection_seq_end = selection_seq_start + cs_info_dict['consensus_len']
-        last_seq_rank_index = cs_info_dict['alg_ranks'][1][0]
+        last_seq_rank_index = cs_info_dict['alg_ranks'][-1]
         for k in prediction_dict:
             if k == 'scan':
                 prediction_dict['scan'] = consensus_scan
@@ -949,11 +907,11 @@ def make_seq_prediction_dict(
                 else:
                     prediction_dict['is top rank consensus'] = 0
 
-        for alg in alg_combo:
-            alg_rank = cs_info_dict['alg_ranks'][first_seq_second_seq_alg_positions_subdict[alg][0]][first_seq_second_seq_alg_positions_subdict[alg][1]]
+        for i, alg in enumerate(alg_combo):
+            alg_rank = cs_info_dict['alg_ranks'][i]
             alg_prediction_dict = {}.fromkeys(config.consensus_prediction_dict_cols[alg])
             if alg == 'novor':
-                novor_consensus_source_df = scan_alg_consensus_source_df_dict['novor']
+                novor_consensus_source_df = alg_consensus_source_df_for_scan_dict['novor']
                 consensus_aa_score = novor_consensus_source_df.at[alg_rank, 'aa score'][selection_seq_start: selection_seq_end]
                 for k in alg_prediction_dict:
                     if k == 'retention time':
@@ -993,7 +951,7 @@ def make_seq_prediction_dict(
                                     di_near_isobaric_sub_score += 100 - sum(consensus_aa_score[match_group.start(): match_group.end()]) / 2
                         alg_prediction_dict['di near-isobaric sub score'] = di_near_isobaric_sub_score
             elif alg == 'pn':
-                pn_consensus_source_df = scan_alg_consensus_source_df_dict['pn']
+                pn_consensus_source_df = alg_consensus_source_df_for_scan_dict['pn']
                 for k in alg_prediction_dict:
                     if k == 'is pn seq':
                         alg_prediction_dict['is pn seq'] = 1
@@ -1008,7 +966,7 @@ def make_seq_prediction_dict(
                     elif k == 'sqs':
                         alg_prediction_dict['sqs'] = pn_consensus_source_df.at[alg_rank, 'sqs']
             elif alg == 'deepnovo':
-                deepnovo_consensus_source_df = scan_alg_consensus_source_df_dict['deepnovo']
+                deepnovo_consensus_source_df = alg_consensus_source_df_for_scan_dict['deepnovo']
                 consensus_aa_score = deepnovo_consensus_source_df.at[alg_rank, 'aa score'][selection_seq_start: selection_seq_end]
                 for k in alg_prediction_dict:
                     if k == 'is deepnovo seq':
@@ -1095,7 +1053,7 @@ def setup_scan_info_dicts(combo_level_alg_dict):
 
     scan_consensus_info_dict = OrderedDict().fromkeys(combo_level_alg_dict)
     scan_generator_fns_dict = OrderedDict().fromkeys(combo_level_alg_dict)
-    comparison_performed_dict = OrderedDict().fromkeys(combo_level_alg_dict)
+    did_comparison_dict = OrderedDict().fromkeys(combo_level_alg_dict)
     scan_common_substrings_info_dict = OrderedDict().fromkeys(combo_level_alg_dict)
 
     for i, combo_level in enumerate(combo_level_alg_dict):
@@ -1108,40 +1066,27 @@ def setup_scan_info_dicts(combo_level_alg_dict):
             scan_consensus_info_dict[combo_level][alg_combo]['top_rank_cs'] = {}.fromkeys(consensus_info_keys)
 
         scan_generator_fns_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict_for_combo_level)
-        comparison_performed_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict_for_combo_level)
+        did_comparison_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict_for_combo_level)
         scan_common_substrings_info_dict[combo_level] = OrderedDict().fromkeys(combo_level_alg_dict_for_combo_level)
 
-    return scan_consensus_info_dict, scan_generator_fns_dict, comparison_performed_dict, scan_common_substrings_info_dict
+    return scan_consensus_info_dict, scan_generator_fns_dict, did_comparison_dict, scan_common_substrings_info_dict
 
-def make_first_seq_second_seq_comparisons_dicts(scan_consensus_info_dict):
+def make_rank_comparison_dict(scan_consensus_info_dict):
 
-    first_seq_second_seq_rank_comparisons_dict = OrderedDict()
-    first_seq_second_seq_max_ranks_dict = OrderedDict()
-    first_seq_second_seq_alg_positions_dict = OrderedDict()
+    rank_comparison_dict = OrderedDict()
 
     for combo_level in scan_consensus_info_dict:
-        first_seq_second_seq_rank_comparisons_dict[combo_level] = OrderedDict()
-        first_seq_second_seq_max_ranks_dict[combo_level] = OrderedDict()
-        first_seq_second_seq_alg_positions_dict[combo_level] = OrderedDict()
-
+        rank_comparison_dict[combo_level] = OrderedDict()
         for alg_combo in scan_consensus_info_dict[combo_level]:
-            alg_ranks_ranges = []
             last_ranks_list = []
+            alg_ranks_ranges = []
 
             for alg in alg_combo:
                 last_ranks_list.append(config.seqs_reported_per_alg_dict[alg])
                 alg_ranks_ranges.append(range(last_ranks_list[-1]))
-            first_seq_second_seq_max_ranks_dict[combo_level][alg_combo] = last_ranks_list
-            rank_comparisons = list(product(*alg_ranks_ranges))
-            first_seq_second_seq_rank_comparisons_dict[combo_level][alg_combo] = [
-                ((rank_comparison[:-1]), (rank_comparison[-1],)) for rank_comparison in rank_comparisons]
+            rank_comparison_dict[combo_level][alg_combo] = list(product(*alg_ranks_ranges))
 
-            first_seq_second_seq_alg_positions_dict[combo_level][alg_combo] = OrderedDict()
-            for i, alg in enumerate(alg_combo[:-1]):
-                first_seq_second_seq_alg_positions_dict[combo_level][alg_combo][alg] = (0, i)
-            first_seq_second_seq_alg_positions_dict[combo_level][alg_combo][alg_combo[-1]] = (1, 0)
-
-    return first_seq_second_seq_rank_comparisons_dict, first_seq_second_seq_max_ranks_dict, first_seq_second_seq_alg_positions_dict
+    return rank_comparison_dict
 
 # Join encoded seq cols by merge on scan, retaining seq ranks
 
