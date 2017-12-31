@@ -241,15 +241,14 @@ def dereplicate_deepnovo_scan_tables(scan_table):
 
 def filter_shared_scans(input_df_dict):
     for tol in config.frag_mass_tols:
-        for alg0, alg1 in combinations(config.alg_list, 2):
-            df0 = input_df_dict[alg0][tol]
-            df1 = input_df_dict[alg1][tol]
-
-            common = df0.iloc[:, :1].join(
-                df1.iloc[:, :1], lsuffix = '_l', rsuffix = '_r')
-            df0 = df0[df0.index.get_level_values(0).isin(
-                common.index.get_level_values(0))]
-            df1 = df1[df1.index.get_level_values(0).isin(
-                common.index.get_level_values(0))]
+        # Get the set of scans retained from the first alg
+        common = set(input_df_dict[config.alg_list[0]][tol].index.get_level_values(0).tolist())
+        # Loop through the other algs and only retain the scans in common
+        for alg in config.alg_list[1:]:
+            common = common.intersection(set(input_df_dict[alg][tol].index.get_level_values(0).tolist()))
+        common = list(common)
+        for alg in config.alg_list:
+            input_df = input_df_dict[alg][tol]
+            input_df_dict[alg][tol] = input_df[input_df.index.get_level_values(0).isin(common)]
 
     return input_df_dict

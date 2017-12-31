@@ -103,8 +103,9 @@ rf_default_params = {('novor',): {'max_depth': 16, 'max_features': 'sqrt'},
 # feature selection from input data
 prediction_dict_source_cols = {
     'novor': ['retention time', 'measured mass', 'seq', 'aa score', 'avg aa score', 'encoded seq'],
-    'pn': ['measured mass', 'seq', 'rank score', 'pn score', 'sqs', 'encoded seq'],
+    'pn': ['retention time', 'measured mass', 'seq', 'rank score', 'pn score', 'sqs', 'encoded seq'],
     'deepnovo': [
+        'retention time',
         'measured mass',
         'seq',
         'aa score',
@@ -113,14 +114,35 @@ prediction_dict_source_cols = {
         ]
     }
 single_alg_prediction_dict_cols = {
-    'general': ['scan', 'measured mass', 'is top rank single alg', 'seq', 'len'],
-    'novor': ['retention time', 'is novor seq', 'avg novor aa score',
-              'mono-di isobaric sub score', 'di isobaric sub score',
-              'mono-di near-isobaric sub score', 'di near-isobaric sub score'],
-    'pn': ['is pn seq', 'rank score', 'pn score', 'sqs'],
+    'general': [
+        'scan',
+        'measured mass',
+        'is top rank single alg',
+        'seq',
+        'len'
+        ],
+    'novor': [
+        'retention time',
+        'is novor seq',
+        'avg novor aa score',
+        'low-scoring dipeptide count',
+        'low-scoring tripeptide count',
+        'mono-di isobaric sub score',
+        'di isobaric sub score',
+        'mono-di near-isobaric sub score',
+        'di near-isobaric sub score'
+        ],
+    'pn': [
+        'is pn seq',
+        'rank score',
+        'pn score',
+        'sqs'
+        ],
     'deepnovo': [
         'is deepnovo seq',
         'avg deepnovo aa score',
+        'low-scoring dipeptide count',
+        'low-scoring tripeptide count',
         'mono-di isobaric sub score',
         'di isobaric sub score',
         'mono-di near-isobaric sub score',
@@ -128,16 +150,41 @@ single_alg_prediction_dict_cols = {
         ]
     }
 consensus_prediction_dict_cols = {
-    'general': ['scan', 'measured mass', 'seq', 'len', 'avg rank', 'is longest consensus', 'is top rank consensus'],
-    'novor': ['retention time', 'is novor seq', 'fraction novor parent len', 'avg novor aa score',
-              'mono-di isobaric sub score', 'di isobaric sub score',
-              'mono-di near-isobaric sub score', 'di near-isobaric sub score'],
-    'pn': ['is pn seq', 'fraction pn parent len', 'rank score', 'pn score', 'pn rank', 'sqs'],
+    'general': [
+        'scan',
+        'measured mass',
+        'seq',
+        'len','avg rank',
+        'is longest consensus',
+        'is top rank consensus'
+        ],
+    'novor': [
+        'retention time',
+        'is novor seq',
+        'fraction novor parent len',
+        'avg novor aa score',
+        'low-scoring dipeptide count',
+        'low-scoring tripeptide count',
+        'mono-di isobaric sub score',
+        'di isobaric sub score',
+        'mono-di near-isobaric sub score',
+        'di near-isobaric sub score'
+        ],
+    'pn': [
+        'is pn seq',
+        'fraction pn parent len',
+        'rank score',
+        'pn score',
+        'pn rank',
+        'sqs'
+        ],
     'deepnovo': [
         'is deepnovo seq',
         'fraction deepnovo parent len',
         'deepnovo rank',
         'avg deepnovo aa score',
+        'low-scoring dipeptide count',
+        'low-scoring tripeptide count',
         'mono-di isobaric sub score',
         'di isobaric sub score',
         'mono-di near-isobaric sub score',
@@ -145,51 +192,65 @@ consensus_prediction_dict_cols = {
         ]
     }
 
-# parameters for subsampling training data
-subsample_size = 20000
-subsample_accuracy_divisor = 10
-subsample_accuracy_distribution_lower_bound = 0
-subsample_accuracy_distribution_upper_bound = 3
-subsample_accuracy_distribution_sigma = 0.9
-subsample_accuracy_distribution_mu_location = 0.5
-clustering_min_retained_features = 2
-clustering_feature_retention_factor_dict = {1: 1400000, 2: 900000, 3: 900000}
-clustering_birch_threshold = 1
-# feature ranking for subsampling
-features_ordered_by_importance = ['rank score', 'pn score', 'avg novor aa score', 'avg rank',
-                                  'retention time', 'pn rank', 'sqs',
-                                  '0.2 match', '0.7 match', '0.3 match', '0.4 match', '0.5 match', '0.6 match',
-                                  'fraction novor parent len', 'fraction pn parent len',
-                                  'len', 'is longest consensus', 'is top rank consensus',
-                                  '0.2', '0.7', '0.3', '0.4', '0.5', '0.6']
-
 # feature groups
-feature_groups = {'novor score': ['avg novor aa score'],
-                  'pn scores': ['rank score', 'pn score'],
-                  'deepnovo score': ['avg deepnovo aa score'],
-                  'other': ['retention time', 'len', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7'],
-                  'consensus info': ['avg rank', 'pn rank', 'deepnovo rank',
-                                     'fraction novor parent len', 'fraction pn parent len',
-                                     'is longest consensus', 'is top rank consensus'],
-                  'mass tolerance agreement': ['0.2 seq match', '0.3 seq match', '0.4 seq match',
-                                          '0.5 seq match', '0.6 seq match', '0.7 seq match'],
-                  'substitution info': ['mono-di isobaric sub score', 'di isobaric sub score',
-                                        'mono-di near-isobaric sub score', 'di near-isobaric sub score'],
-                  'inter-spectrum agreement': ['precursor seq agreement', 'precursor seq count']
-                  }
+feature_groups = OrderedDict([
+    ('novor score', ['avg novor aa score']),
+    ('pn scores', ['rank score', 'pn score']), 
+    ('deepnovo score', ['avg deepnovo aa score']), 
+    ('other', ['retention time', 'len', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7']),
+    ('consensus info', ['avg rank', 'pn rank', 'deepnovo rank', 'fraction novor parent len', 'fraction pn parent len', 'is longest consensus', 'is top rank consensus']),
+    ('mass tolerance agreement', ['0.2 seq match', '0.3 seq match', '0.4 seq match', '0.5 seq match', '0.6 seq match', '0.7 seq match']),
+    ('subseq scores', ['low-scoring dipeptide count', 'low-scoring tripeptide count']), 
+    ('substitution info', ['mono-di isobaric sub score', 'di isobaric sub score', 'mono-di near-isobaric sub score', 'di near-isobaric sub score']),
+    ('inter-spectrum agreement', ['precursor seq agreement', 'precursor seq count'])
+    ])
 
 # report
-reported_df_cols = ['seq', 'probability', 'ref match',
-                    'scan has db search PSM', 'de novo seq matches db search seq', 'correct de novo seq not found in db search',
-                    'is novor seq', 'is pn seq', 'is deepnovo seq',
-                    '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
-                    '0.2 seq match', '0.3 seq match', '0.4 seq match', '0.5 seq match', '0.6 seq match', '0.7 seq match',
-                    'precursor seq agreement', 'precursor seq count',
-                    'mono-di isobaric sub score', 'di isobaric sub score',
-                    'mono-di near-isobaric sub score', 'di near-isobaric sub score',
-                    'avg novor aa score', 'rank score', 'pn score',
-                    'avg rank', 'pn rank', 'deepnovo rank',
-                    'len', 'fraction novor parent len', 'fraction pn parent len', 'fraction deepnovo parent len',
-                    'is longest consensus', 'is top rank consensus', 'is top rank single alg',
-                    'sqs', 'retention time',
-                    'measured mass', 'mass error']
+reported_df_cols = [
+    'seq', 
+    'probability', 
+    'ref match', 
+    'scan has db search PSM', 
+    'de novo seq matches db search seq', 
+    'correct de novo seq not found in db search', 
+    'is novor seq', 
+    'is pn seq', 
+    'is deepnovo seq',
+    '0.2', 
+    '0.3', 
+    '0.4', 
+    '0.5', 
+    '0.6', 
+    '0.7', 
+    '0.2 seq match', 
+    '0.3 seq match', 
+    '0.4 seq match', 
+    '0.5 seq match', 
+    '0.6 seq match', 
+    '0.7 seq match', 
+    'precursor seq agreement', 
+    'precursor seq count', 
+    'low-scoring dipeptide count',
+    'low-scoring tripeptide count',  
+    'mono-di isobaric sub score', 
+    'di isobaric sub score', 
+    'mono-di near-isobaric sub score', 
+    'di near-isobaric sub score', 
+    'avg novor aa score', 
+    'rank score', 
+    'pn score', 
+    'avg rank', 
+    'pn rank', 
+    'deepnovo rank', 
+    'len', 
+    'fraction novor parent len', 
+    'fraction pn parent len', 
+    'fraction deepnovo parent len', 
+    'is longest consensus', 
+    'is top rank consensus', 
+    'is top rank single alg', 
+    'sqs', 
+    'retention time', 
+    'measured mass', 
+    'mass error'
+    ]

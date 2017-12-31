@@ -22,7 +22,7 @@ def update_prediction_df(prediction_df):
 
     utils.verbose_print('setting up mass tolerance comparison')
     prediction_df.reset_index(inplace = True)
-    # combo level col = sum of 'is novor seq', 'is peaks seq', 'is pn seq' values
+    # combo level col = sum of 'is novor seq', 'is pn seq', 'is deepnovo seq' values
     prediction_df['combo level'] = prediction_df.iloc[:, :len(config.alg_list)].sum(axis = 1)
     scan_list = sorted(list(set(prediction_df['scan'])))
     one_percent_number_scans = len(scan_list) / 100 / config.cores[0]

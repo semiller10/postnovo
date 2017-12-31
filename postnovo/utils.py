@@ -59,8 +59,8 @@ def load_json_objects(dir, *args):
 def verbose_print(*args):
     if config.verbose[0]:
         for arg in args:
-            print(arg, end = ' ')
-        print()
+            print(arg, end=' ', flush=True)
+        print(flush=True)
 
 def verbose_print_over_same_line(output_str):
     if config.verbose[0]:

@@ -35,13 +35,15 @@ def main():
     #    '--cores',
     #    '3'
     #    ]
-    test_argv = [
-        '--filename',
-        '042017_toolik_core_27_2_1_1_sem.test',
-        '--deepnovo',
-        '--iodir',
-        'C:\\Users\\Samuel\\Downloads\\postnovo_test_121917'
-        ]
+    #test_argv = [
+    #    '--filename',
+    #    '042017_toolik_core_27_2_1_1_sem.test',
+    #    '--deepnovo',
+    #    '--iodir',
+    #    'C:\\Users\\Samuel\\Downloads\\postnovo_test_121917',
+    #    '--cores',
+    #    '3'
+    #    ]
 
     #test_argv = ['--iodir',
     #             'C:\\Users\\Samuel\\Downloads',
@@ -184,12 +186,12 @@ def main():
     else:
         args = userargs.setup()
 
-    #input_df_dict = input.load_files()
-    #utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
-    #utils.save_dfs(config.iodir[0], 
-    #               **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
-    #                  for alg in config.alg_list for tol in config.frag_mass_tols})
-    input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
+    input_df_dict = input.load_files()
+    utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
+    utils.save_dfs(config.iodir[0], 
+                   **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
+                      for alg in config.alg_list for tol in config.frag_mass_tols})
+    #input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
 
     prediction_df = consensus.make_prediction_df(input_df_dict)
     utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})

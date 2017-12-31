@@ -73,10 +73,6 @@ def classify(prediction_df = None):
     
     elif config.mode[0] in ['train', 'optimize']:
         
-        #subsampled_df = subsample_training_data(prediction_df)
-        #utils.save_pkl_objects(config.iodir[0], **{'subsampled_df': subsampled_df})
-        #subsampled_df = utils.load_pkl_objects(config.iodir[0], 'subsampled_df')
-
         utils.verbose_print('updating training database')
         training_df = update_training_data(prediction_df)
         #training_df = utils.load_pkl_objects(config.data_dir, 'training_df')
@@ -85,10 +81,9 @@ def classify(prediction_df = None):
         utils.save_pkl_objects(config.data_dir, **{'forest_dict': forest_dict})
         #forest_dict = utils.load_pkl_objects(config.data_dir, 'forest_dict')
 
-
 def find_target_accuracy(prediction_df):
-    utils.verbose_print('loading', basename(config.db_search_ref_file[0]))
-    db_search_ref = load_db_search_ref_file(config.db_search_ref_file[0])
+    utils.verbose_print('loading', basename(config.db_search_psm_file[0]))
+    db_search_ref = load_db_search_ref_file(config.db_search_psm_file[0])
     utils.verbose_print('loading', basename(config.db_search_ref_file[0]))
     fasta_ref = load_fasta_ref_file(config.db_search_ref_file[0])
 
@@ -209,159 +204,13 @@ def match_seq_to_fasta_ref(denovo_seq, fasta_ref, print_percent_progress_fn):
 
 def standardize_prediction_df_cols(prediction_df):
 
-    # No longer necessary with preset mass tol list
-    #for accepted_mass_tol in config.accepted_mass_tols:
-    #    if accepted_mass_tol not in prediction_df.columns:
-    #        prediction_df[accepted_mass_tol] = 0
     prediction_df.drop('is top rank single alg', inplace = True)
     min_retention_time = prediction_df['retention time'].min()
     max_retention_time = prediction_df['retention time'].max()
     prediction_df['retention time'] = (prediction_df['retention time'] - min_retention_time) / (max_retention_time - min_retention_time)
     prediction_df.sort_index(1, inplace = True)
+
     return prediction_df
-
-def subsample_training_data(prediction_df_orig):
-
-    subsample_row_indices = []
-    prediction_df_orig['unique index'] = [i for i in range(prediction_df_orig.shape[0])]
-    prediction_df_orig.set_index('unique index', append = True, inplace = True)
-    prediction_df = prediction_df_orig.copy()
-    prediction_df.drop(['is top rank single alg', 'seq'], axis = 1, inplace = True)
-
-    accuracy_bins = sorted([round(x / config.subsample_accuracy_divisor, 1) for x in range(config.subsample_accuracy_divisor)], reverse = True)
-    
-    lower = config.subsample_accuracy_distribution_lower_bound
-    upper = config.subsample_accuracy_distribution_upper_bound
-    weight_bins = np.arange(lower, upper + (upper - lower) / config.subsample_accuracy_divisor, (upper - lower) / config.subsample_accuracy_divisor)
-    sigma = config.subsample_accuracy_distribution_sigma
-    mu_location = config.subsample_accuracy_distribution_mu_location
-    accuracy_weights = (norm.cdf(weight_bins[1: 1 + config.subsample_accuracy_divisor], loc = mu_location, scale = sigma)
-                        - norm.cdf(weight_bins[: config.subsample_accuracy_divisor], loc = mu_location, scale = sigma))\
-                            / (norm.cdf(upper, loc = mu_location, scale = sigma)
-                               - norm.cdf(lower, loc = mu_location, scale = sigma))
-    accuracy_subsample_weights = {acc_bin: weight for acc_bin, weight in zip(accuracy_bins, accuracy_weights)}
-    accuracy_subsample_sizes = {acc_bin: int(weight * config.subsample_size) for acc_bin, weight in accuracy_subsample_weights.items()}
-    while sum(accuracy_subsample_sizes.values()) != config.subsample_size:
-        accuracy_subsample_sizes[accuracy_bins[0]] += 1
-
-    for multiindex_key in config.is_alg_col_multiindex_keys:
-        multiindex_list = list(multiindex_key)
-        alg_group_df_key = tuple([alg for i, alg in enumerate(config.alg_list) if multiindex_key[i]])
-        if sum(multiindex_key) == 1:
-            utils.verbose_print('subsampling', alg_group_df_key[0], 'top-ranking sequences')
-        else:
-            utils.verbose_print('subsampling', '-'.join(alg_group_df_key), 'consensus sequences')
-        alg_group_df = prediction_df.xs(multiindex_key)
-        alg_group_unique_index = alg_group_df.index.get_level_values('unique index')
-        alg_group_df.reset_index(inplace = True)
-        alg_group_df.set_index(['scan'], inplace = True)
-        alg_group_df.dropna(1, inplace = True)
-        ref_match_col = alg_group_df['ref match'].copy()
-
-        retained_features_target = round(config.clustering_feature_retention_factor_dict[sum(multiindex_key)] / alg_group_df.shape[0], 0)
-        if retained_features_target < config.clustering_min_retained_features:
-            retained_features_target = config.clustering_min_retained_features
-        retained_features_list = []
-        retained_feature_count = 0
-        for feature in config.features_ordered_by_importance:
-            if feature in alg_group_df.columns:
-                retained_features_list.append(feature)
-                retained_feature_count += 1
-            if retained_feature_count == retained_features_target:
-                break
-        alg_group_df = alg_group_df[retained_features_list]
-
-        if alg_group_df.shape[0] > config.subsample_size:
-
-            pipe = make_pipeline(StandardScaler(),
-                                 Birch(threshold = config.clustering_birch_threshold, n_clusters = None))
-            cluster_assignments = pipe.fit_predict(alg_group_df.as_matrix())
-
-            cluster_assignment_accuracies = zip(cluster_assignments, ref_match_col)
-            sum_cluster_accuracies = {}.fromkeys(cluster_assignments, 0)
-            for cluster, acc in cluster_assignment_accuracies:
-                sum_cluster_accuracies[cluster] += acc
-            cluster_counts = Counter(cluster_assignments)
-            mean_cluster_accuracies = {}.fromkeys(sum_cluster_accuracies, 0)
-            for cluster in cluster_counts:
-                mean_cluster_accuracies[cluster] = min(
-                    accuracy_bins,
-                    key = lambda accuracy_bin: abs(accuracy_bin - int(
-                        sum_cluster_accuracies[cluster] * 10 / cluster_counts[cluster]) / 10))
-            ordered_clusters_accuracies = sorted(
-                mean_cluster_accuracies.items(), key = lambda cluster_accuracy_tuple: cluster_accuracy_tuple[1], reverse = True)
-            cluster_assignments_row_indices = [(cluster, index) for index, cluster in enumerate(cluster_assignments)]
-            cluster_row_indices_dict = {cluster: [] for cluster in mean_cluster_accuracies}
-            for cluster, index in cluster_assignments_row_indices:
-                cluster_row_indices_dict[cluster].append(index)
-            cluster_accuracies_ordered_by_cluster = [cluster_acc_tuple[1] for cluster_acc_tuple in
-                                                     sorted(ordered_clusters_accuracies, key = lambda cluster_acc_tuple: cluster_acc_tuple[0])]
-            cluster_accuracies_row_indices = [(x[1], x[0][1]) for x in sorted(
-                zip(cluster_row_indices_dict.items(), cluster_accuracies_ordered_by_cluster),
-                key = lambda cluster_acc_tuple: cluster_acc_tuple[1], reverse = True)]
-
-            accuracy_row_indices_dict = {acc: [] for acc in cluster_accuracies_ordered_by_cluster}
-            for acc_row_indices_tuple in cluster_accuracies_row_indices:
-                accuracy_row_indices_dict[acc_row_indices_tuple[0]] += acc_row_indices_tuple[1]
-
-            alg_group_subsample_indices = []
-            remaining_subsample_size = config.subsample_size
-            remaining_accuracy_bins = [acc_bin for acc_bin in accuracy_bins]
-            remaining_accuracy_subsample_sizes = {acc_bin: size for acc_bin, size in accuracy_subsample_sizes.items()}
-            loop_remaining_accuracy_bins = [acc_bin for acc_bin in remaining_accuracy_bins]
-            while remaining_subsample_size > 0:
-                for acc_bin in loop_remaining_accuracy_bins:
-                    if acc_bin not in accuracy_row_indices_dict:
-                        residual = remaining_accuracy_subsample_sizes[acc_bin]
-                        remaining_accuracy_bins.remove(acc_bin)
-                        remaining_accuracy_subsample_sizes[acc_bin] = 0
-                        remaining_accuracy_subsample_sizes = redistribute_residual_subsample(
-                            residual, remaining_accuracy_bins, accuracy_subsample_weights, remaining_accuracy_subsample_sizes)
-                    elif remaining_accuracy_subsample_sizes[acc_bin] > len(accuracy_row_indices_dict[acc_bin]):
-                        acc_bin_subsample_size = len(accuracy_row_indices_dict[acc_bin])
-                        remaining_subsample_size -= acc_bin_subsample_size
-                        residual = remaining_accuracy_subsample_sizes[acc_bin] - acc_bin_subsample_size
-                        remaining_accuracy_bins.remove(acc_bin)
-                        remaining_accuracy_subsample_sizes[acc_bin] = 0
-                        alg_group_subsample_indices += accuracy_row_indices_dict[acc_bin]
-                        remaining_accuracy_subsample_sizes = redistribute_residual_subsample(
-                            residual, remaining_accuracy_bins, accuracy_subsample_weights, remaining_accuracy_subsample_sizes)
-                    else:
-                        alg_group_subsample_indices += np.random.choice(
-                            accuracy_row_indices_dict[acc_bin], remaining_accuracy_subsample_sizes[acc_bin], replace = False).tolist()
-                        remaining_subsample_size -= remaining_accuracy_subsample_sizes[acc_bin]
-                        remaining_accuracy_subsample_sizes[acc_bin] = 0
-                loop_remaining_accuracy_bins = remaining_accuracy_bins
-
-            scan_index = alg_group_df.index
-            for i in alg_group_subsample_indices:
-                subsample_row_indices.append(tuple(multiindex_list + [scan_index[i], alg_group_unique_index[i]])) 
-
-        else:
-            for i, scan in enumerate(alg_group_df.index):
-                subsample_row_indices.append(tuple(multiindex_list + [scan, alg_group_unique_index[i]]))
-
-    subsampled_df = prediction_df_orig.loc[sorted(subsample_row_indices)]
-    retained_multiindices = subsampled_df.index.names[:-1]
-    subsampled_df.reset_index(inplace = True)
-    subsampled_df.drop('unique index', axis = 1, inplace = True)
-    subsampled_df.set_index(retained_multiindices, inplace = True)
-
-    return subsampled_df
-
-def redistribute_residual_subsample(residual, remaining_accuracy_bins, accuracy_subsample_weights, remaining_accuracy_subsample_sizes):
-
-    residual_of_residual = residual
-    sum_remaining_weights = 0
-    for acc_bin in remaining_accuracy_bins:
-        sum_remaining_weights += accuracy_subsample_weights[acc_bin]
-    for acc_bin in remaining_accuracy_bins:
-        acc_bin_redistributed_residual = int(residual * accuracy_subsample_weights[acc_bin] / sum_remaining_weights)
-        remaining_accuracy_subsample_sizes[acc_bin] += acc_bin_redistributed_residual
-        residual_of_residual -= acc_bin_redistributed_residual
-    remaining_accuracy_subsample_sizes[remaining_accuracy_bins[0]] += residual_of_residual
-
-    return remaining_accuracy_subsample_sizes
 
 def update_training_data(prediction_df):
 
@@ -382,10 +231,6 @@ def update_training_data(prediction_df):
         training_df_csv = prediction_df_csv
     training_df_csv.set_index(['timestamp', 'scan'], inplace = True)
     training_df_csv.to_csv(join(config.data_dir, 'training_df.csv'))
-    # save prediction df as csv in case training df is too big to open in Excel
-    # NEEDS FIXING: KeyError: 'timestamp'
-    #prediction_df_csv.set_index(['timestamp', 'scan'], inplace = True)
-    #prediction_df_csv.to_csv(join(config.test_dir, 'last_added_training_df.csv'))
 
     return training_df
 
