@@ -2,10 +2,12 @@
 
 import json
 import os
+import os.path
 import pandas as pd
 import pickle as pkl
 import sys
 
+from collections import OrderedDict
 from multiprocessing import current_process
 from shutil import copyfileobj
 from urllib.request import urlopen
@@ -20,7 +22,7 @@ progress_count = 0
 def save_dfs(dir, **kwargs):
     for df_name, df in kwargs.items():
         verbose_print('saving', df_name)
-        df.to_csv(os.path.join(dir, df_name + '.tsv'), sep='\t', index=False)
+        df.to_csv(os.path.join(dir, df_name + '.tsv'), sep='\t', index=True)
 
 def save_pkl_objects(dir, **kwargs):
     for obj_name, obj in kwargs.items():

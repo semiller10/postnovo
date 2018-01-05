@@ -27,26 +27,55 @@ def load_files():
     input_df_dict = OrderedDict()
 
     if config.novor_files:
-        input_df_dict['novor'] = OrderedDict.fromkeys(
-            [basename(novor_file) for novor_file in config.novor_files])
-        for i, novor_file in enumerate(config.novor_files):
-            utils.verbose_print('loading', basename(novor_file))
-            input_df_dict['novor'][config.frag_mass_tols[i]] = load_novor_file(novor_file)
+        input_df_dict['novor'] = OrderedDict()
+
+        ## Single-threaded
+        #for i, novor_file in enumerate(config.novor_files):
+        #    utils.verbose_print('loading', basename(novor_file))
+        #    input_df_dict['novor'][config.frag_mass_tols[i]] = load_novor_file(novor_file)
+
+        # Multi-threaded
+        mp_pool = multiprocessing.Pool(config.cores[0])
+        utils.verbose_print('loading Novor files')
+        novor_dfs = mp_pool.map(load_novor_file, config.novor_files)
+        mp_pool.close()
+        mp_pool.join()
+        for i, novor_df in enumerate(novor_dfs):
+            input_df_dict['novor'][config.frag_mass_tols[i]] = novor_df
 
     if config.pn_files:
-        input_df_dict['pn'] = OrderedDict.fromkeys(
-            [basename(pn_file) for pn_file in config.pn_files])
-        for i, pn_file in enumerate(config.pn_files):
-            utils.verbose_print('loading', basename(pn_file))
-            input_df_dict['pn'][config.frag_mass_tols[i]] = load_pn_file(pn_file)
+        input_df_dict['pn'] = OrderedDict()
+
+        ## Single-threaded
+        #for i, pn_file in enumerate(config.pn_files):
+        #    utils.verbose_print('loading', basename(pn_file))
+        #    input_df_dict['pn'][config.frag_mass_tols[i]] = load_pn_file(pn_file)
+
+        # Multi-threaded
+        mp_pool = multiprocessing.Pool(config.cores[0])
+        utils.verbose_print('loading PepNovo+ files')
+        pn_dfs = mp_pool.map(load_pn_file, config.pn_files)
+        mp_pool.close()
+        mp_pool.join()
+        for i, pn_df in enumerate(pn_dfs):
+            input_df_dict['pn'][config.frag_mass_tols[i]] = pn_df
 
     if config.deepnovo_files:
-        input_df_dict['deepnovo'] = OrderedDict.fromkeys(
-            [basename(path) for path in config.deepnovo_files]
-            )
-        for i, path in enumerate(config.deepnovo_files):
-            utils.verbose_print('loading', basename(path))
-            input_df_dict['deepnovo'][config.frag_mass_tols[i]] = load_deepnovo_file(path)
+        input_df_dict['deepnovo'] = OrderedDict()
+
+        ## Single-threaded
+        #for i, path in enumerate(config.deepnovo_files):
+        #    utils.verbose_print('loading', basename(path))
+        #    input_df_dict['deepnovo'][config.frag_mass_tols[i]] = load_deepnovo_file(path)
+
+        # Multi-threaded: do not use, since there is currently multithreading within load_deepnovo_file
+        mp_pool = multiprocessing.Pool(config.cores[0])
+        utils.verbose_print('loading DeepNovo files')
+        deepnovo_dfs = mp_pool.map(load_deepnovo_file, config.deepnovo_files)
+        mp_pool.close()
+        mp_pool.join()
+        for i, deepnovo_df in enumerate(deepnovo_dfs):
+            input_df_dict['deepnovo'][config.frag_mass_tols[i]] = deepnovo_df
 
     utils.verbose_print('cleaning up input data')
     input_df_dict = filter_shared_scans(input_df_dict)

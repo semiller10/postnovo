@@ -680,7 +680,7 @@ def make_fasta(retained_seq_dict):
                     info_table.append([
                         str(seq_number),
                         ','.join(sorted(map(str, fasta_scan_lists_list[i]))),
-                        str(round(fasta_best_score_list[i]), 2),
+                        str(round(fasta_best_score_list[i], 2)),
                         ','.join(sorted(best_predicts_from)),
                         ','.join(sorted(also_contains_predicts_from))
                         ])

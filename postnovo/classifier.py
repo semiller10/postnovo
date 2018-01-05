@@ -70,11 +70,19 @@ def classify(prediction_df = None):
                 reported_cols_in_order.append(reported_df_col)
         reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
         reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
+
+        # Loop through each predic
     
     elif config.mode[0] in ['train', 'optimize']:
         
         utils.verbose_print('updating training database')
         training_df = update_training_data(prediction_df)
+        #training_df = pd.read_csv(
+        #    os.path.join(config.data_dir, 'training_df.csv'),
+        #    header=0,
+        #    index_col=config.is_alg_col_names
+        #)
+        # REMOVE
         #training_df = utils.load_pkl_objects(config.data_dir, 'training_df')
 
         forest_dict = make_training_forests(training_df)
@@ -169,7 +177,7 @@ def load_db_search_ref_file(db_search_ref_file_path):
         db_search_ref_df.columns = ['scan', 'ref seq', 'fdr']
         db_search_ref_df.drop_duplicates(subset = 'scan', inplace = True)
 
-    db_search_ref_df = db_search_ref_df[db_search_ref_df['fdr'] <= config.min_fdr]
+    db_search_ref_df = db_search_ref_df[db_search_ref_df['fdr'] <= config.max_fdr]
     db_search_ref_df['ref seq'] = db_search_ref_df['ref seq'].apply(lambda seq: seq.upper())
     db_search_ref_df['ref seq'] = db_search_ref_df['ref seq'].apply(lambda seq: seq.replace('I', 'L'))
 
@@ -214,43 +222,65 @@ def standardize_prediction_df_cols(prediction_df):
 
 def update_training_data(prediction_df):
 
+    # REMOVE
+    #try:
+    #    training_df = utils.load_pkl_objects(config.data_dir, 'training_df')
+    #    training_df = pd.concat([training_df, prediction_df])
+    #except (FileNotFoundError, OSError) as e:
+    #    training_df = prediction_df
+    #utils.save_pkl_objects(config.data_dir, **{'training_df': training_df})
+
+    #prediction_df_csv = prediction_df.copy()
+    #prediction_df_csv['timestamp'] = str(datetime.datetime.now()).split('.')[0]
+    #prediction_df_csv.reset_index(inplace = True)
+    #try:
+    #    training_df_csv = pd.read_csv(join(config.data_dir, 'training_df.csv'))
+    #    training_df_csv = pd.concat([training_df_csv, prediction_df_csv])
+    #except (FileNotFoundError, OSError) as e:
+    #    training_df_csv = prediction_df_csv
+    #training_df_csv.set_index(['timestamp', 'scan'], inplace = True)
+    #training_df_csv.to_csv(join(config.data_dir, 'training_df.csv'))
+
+    #return training_df
+
+    prediction_df['timestamp'] = str(datetime.datetime.now()).split('.')[0]
+    prediction_df.reset_index(inplace = True)
     try:
-        training_df = utils.load_pkl_objects(config.data_dir, 'training_df')
+        training_df = pd.read_csv(join(config.data_dir, 'training_df.csv'))
         training_df = pd.concat([training_df, prediction_df])
     except (FileNotFoundError, OSError) as e:
         training_df = prediction_df
-    utils.save_pkl_objects(config.data_dir, **{'training_df': training_df})
-
-    prediction_df_csv = prediction_df.copy()
-    prediction_df_csv['timestamp'] = str(datetime.datetime.now()).split('.')[0]
-    prediction_df_csv.reset_index(inplace = True)
-    try:
-        training_df_csv = pd.read_csv(join(config.data_dir, 'training_df.csv'))
-        training_df_csv = pd.concat([training_df_csv, prediction_df_csv])
-    except (FileNotFoundError, OSError) as e:
-        training_df_csv = prediction_df_csv
-    training_df_csv.set_index(['timestamp', 'scan'], inplace = True)
-    training_df_csv.to_csv(join(config.data_dir, 'training_df.csv'))
+    training_df.set_index(['timestamp', 'scan'], inplace = True)
+    training_df.to_csv(join(config.data_dir, 'training_df.csv'))
+    training_df.reset_index(inplace=True)
+    training_df.set_index(config.is_alg_col_names, inplace=True)
 
     return training_df
 
 def make_predictions(prediction_df, db_search_ref = None):
 
-    print(config.data_dir)
+    # REMOVE
+    print(config.data_dir, flush=True)
     forest_dict = utils.load_pkl_objects(config.data_dir, 'forest_dict')
 
     prediction_df['probability'] = np.nan
     for multiindex_key in config.is_alg_col_multiindex_keys:
+        # REMOVE
+        print(str(multiindex_key), flush=True)
         alg_group = tuple([alg for i, alg in enumerate(config.alg_list) if multiindex_key[i]])
+        # REMOVE
+        print(alg_group, flush=True)
 
         alg_group_data = prediction_df.xs(multiindex_key)
         if config.mode[0] == 'predict':
             alg_group_data.drop(['seq', 'probability', 'measured mass', 'mass error'], axis = 1, inplace = True)
         elif config.mode[0] == 'test':
             accuracy_labels = alg_group_data['ref match'].tolist()
-            alg_group_data.drop(['seq', 'ref match', 'probability', 'measured mass', 'mass error'], axis = 1, inplace = True)
-        alg_group_data.dropna(1, inplace = True)
+            alg_group_data.drop(['seq', 'ref match', 'probability', 'measured mass', 'mass error'], axis=1, inplace=True)
+        alg_group_data.dropna(1, inplace=True)
         forest_dict[alg_group].n_jobs = config.cores[0]
+        # REMOVE
+        print(alg_group_data.columns, flush=True)
         probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
 
         if config.mode[0] == 'test':
@@ -305,14 +335,18 @@ def make_train_target_arr_dict(training_df):
     model_keys_used = []
     train_target_arr_dict = {}
     for multiindex in config.is_alg_col_multiindex_keys:
+        print(str(multiindex), flush=True)
         model_key = tuple([alg for i, alg in enumerate(config.alg_list) if multiindex[i]])
+        print(model_key, flush=True)
         model_keys_used.append(model_key)
         train_target_arr_dict[model_keys_used[-1]] = {}.fromkeys(['train', 'target'])
         try:
             alg_group_df = training_df.xs(multiindex).reset_index().set_index(['scan', 'seq'])
             alg_group_df.dropna(1, inplace = True)
             train_columns = alg_group_df.columns.tolist()
-            train_columns.remove('ref match')
+            for c in config.is_alg_col_names + ['ref match', 'mass error', 'measured mass', 'timestamp']:
+                train_columns.remove(c)
+            print(train_columns)
             train_target_arr_dict[model_key]['train'] = alg_group_df.as_matrix(train_columns)
             train_target_arr_dict[model_key]['target'] = alg_group_df['ref match'].tolist()
             train_target_arr_dict[model_key]['feature_names'] = train_columns
@@ -554,6 +588,8 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
             alg_scores_dict[alg] = alg_group_data['avg novor aa score']
         elif alg == 'pn':
             alg_scores_dict[alg] = alg_group_data['rank score']
+        elif alg == 'deepnovo':
+            alg_scores_dict[alg] = alg_group_data['avg deepnovo aa score']
 
     alg_pr_dict = {}
     alg_auc_dict = {}
@@ -564,34 +600,34 @@ def plot_precision_recall_curve(accuracy_labels, probabilities, alg_group, alg_g
     fig, ax = plt.subplots()
 
     model_line_collection = colorline(recall, true_positive_rate, thresholds)
-    plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
-    annotation_x = recall[int(len(recall) / 1.2)]
-    annotation_y = true_positive_rate[int(len(true_positive_rate) / 1.2)]
-    plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
-                 xy = (annotation_x, annotation_y),
-                 xycoords = 'data',
-                 xytext = (annotation_x + 25, annotation_y + 25),
-                 textcoords = 'offset pixels',
-                 arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                 horizontalalignment = 'right', verticalalignment = 'bottom',
-                 )
+    plt.colorbar(model_line_collection, label = 'moving threshold:\npostnovo probability score or\nde novo algorithm score percentile')
+    #annotation_x = recall[int(len(recall) / 1.2)]
+    #annotation_y = true_positive_rate[int(len(true_positive_rate) / 1.2)]
+    #plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
+    #             xy = (annotation_x, annotation_y),
+    #             xycoords = 'data',
+    #             xytext = (annotation_x + 25, annotation_y + 25),
+    #             textcoords = 'offset pixels',
+    #             arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+    #             horizontalalignment = 'right', verticalalignment = 'bottom',
+    #             )
 
-    arrow_position = 1.2
+    #arrow_position = 1.2
     for alg in alg_pr_dict:
         alg_recall = alg_pr_dict[alg][1]
         alg_tpr = alg_pr_dict[alg][0]
         alg_thresh = alg_pr_dict[alg][2].argsort() / alg_pr_dict[alg][2].size
-        annotation_x = alg_recall[int(len(alg_recall) / arrow_position)]
-        annotation_y = alg_tpr[int(len(alg_tpr) / arrow_position)]
+        #annotation_x = alg_recall[int(len(alg_recall) / arrow_position)]
+        #annotation_y = alg_tpr[int(len(alg_tpr) / arrow_position)]
         colorline(alg_recall, alg_tpr, alg_thresh)
-        plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
-                     xy = (annotation_x, annotation_y),
-                     xycoords = 'data',
-                     xytext = (annotation_x - 25, annotation_y - 25),
-                     textcoords = 'offset pixels',
-                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                     horizontalalignment = 'right', verticalalignment = 'top',
-                     )
+        #plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
+        #             xy = (annotation_x, annotation_y),
+        #             xycoords = 'data',
+        #             xytext = (annotation_x - 25, annotation_y - 25),
+        #             textcoords = 'offset pixels',
+        #             arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+        #             horizontalalignment = 'right', verticalalignment = 'top',
+        #             )
 
     if len(alg_group) == 1:
         plt.title('precision-recall curve: ' + alg_group[0] + ' sequences')
@@ -643,28 +679,31 @@ def plot_precision_yield(prediction_df, db_search_ref):
         y = precision[::100]
         z = (best_alg_group_data['probability'].argsort() / best_alg_group_data['probability'].size).tolist()[::100]
         model_line_collection = colorline(x, y, z)
-        plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
-        annotation_x = x[len(x) // 2]
-        annotation_y = y[len(y) // 2]
-        plt.annotate('_'.join(alg_group) + '\n' + 'random forest',
-                     xy = (annotation_x, annotation_y),
-                     xycoords = 'data',
-                     xytext = (25, 25),
-                     textcoords = 'offset pixels',
-                     arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                     horizontalalignment = 'left', verticalalignment = 'bottom',
-                     )
+        #plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
+        plt.colorbar(model_line_collection, label = 'moving threshold:\npostnovo probability score or\nde novo algorithm score percentile')
+        #annotation_x = x[len(x) // 2]
+        #annotation_y = y[len(y) // 2]
+        #plt.annotate('_'.join(alg_group) + '\n' + 'random forest',
+        #             xy = (annotation_x, annotation_y),
+        #             xycoords = 'data',
+        #             xytext = (25, 25),
+        #             textcoords = 'offset pixels',
+        #             arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+        #             horizontalalignment = 'left', verticalalignment = 'bottom',
+        #             )
 
         if x[-1] > x_max:
             x_max = x[-1]
             plt.xlim([x_min, x_max])
 
-        arrow_position = 2.5
+        #arrow_position = 2.5
         for i, alg in enumerate(alg_group):
             if alg == 'novor':
                 score_str = 'avg novor aa score'
             elif alg == 'pn':
                 score_str = 'rank score'
+            elif alg == 'deepnovo':
+                score_str = 'avg deepnovo aa score'
             precision = make_precision_col(best_alg_group_data, score_str)
             best_alg_group_data[alg + ' precision'] = precision
 
@@ -672,17 +711,17 @@ def plot_precision_yield(prediction_df, db_search_ref):
             y = precision[::100]
             z = (best_alg_group_data[score_str].argsort() / best_alg_group_data[score_str].size).tolist()[::100]
             colorline(x, y, z)
-            annotation_x = x[int(len(x) / arrow_position)]
-            annotation_y = y[int(len(y) / arrow_position)]
-            arrow_position -= 1
-            plt.annotate('_'.join(alg_group) + '\n' + score_str,
-                         xy = (annotation_x, annotation_y),
-                         xycoords = 'data',
-                         xytext = (-25, -25),
-                         textcoords = 'offset pixels',
-                         arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-                         horizontalalignment = 'right', verticalalignment = 'top'
-                         )
+            #annotation_x = x[int(len(x) / arrow_position)]
+            #annotation_y = y[int(len(y) / arrow_position)]
+            #arrow_position -= 1
+            #plt.annotate('_'.join(alg_group) + '\n' + score_str,
+            #             xy = (annotation_x, annotation_y),
+            #             xycoords = 'data',
+            #             xytext = (-25, -25),
+            #             textcoords = 'offset pixels',
+            #             arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
+            #             horizontalalignment = 'right', verticalalignment = 'top'
+            #             )
 
             if x[-1] > x_max:
                 x_max = x[-1]
@@ -692,6 +731,13 @@ def plot_precision_yield(prediction_df, db_search_ref):
         if db_search_ref_x > x_max:
             x_max = db_search_ref_x + 1000
             plt.xlim([x_min, x_max])
+
+        # Set x-axis tick marks
+        if 0 < x_max <= 100000:
+            x_tick_spacing = 20000
+        elif x_max > 100000:
+            x_tick_spacing = 40000
+        plt.xticks(np.arange(0, x_max, x_tick_spacing))
 
         plt.tight_layout(True)
         save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_yield.pdf')

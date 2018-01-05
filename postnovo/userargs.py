@@ -70,13 +70,13 @@ def parse_args(test_argv=None):
         )
     parser.add_argument(
         '--fixed_mods',
-        default='Oxidation of M',
+        default='Carbamidomethylation of C',
         help=('enter mods as comma-separated list in quotes, '
               'display list of accepted mods with python postnovo --mods_list')
         )
     parser.add_argument(
         '--variable_mods',
-        default='Carbamidomethylation of C',
+        default='Oxidation of M', 
         help=('enter mods as comma-separated list in quotes, '
               'display list of accepted mods with python postnovo --mods_list')
         )
@@ -144,8 +144,8 @@ def parse_args(test_argv=None):
     report_info(raw_args)
     # config.iodir[0] is assigned before other package-wide variables
     determine_iodir(raw_args)
-    raw_args = check_args(parser, raw_args)
     args = parse_mods_strings(raw_args)
+    raw_args = check_args(parser, raw_args)
 
     return args
 

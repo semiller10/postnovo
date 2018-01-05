@@ -77,6 +77,8 @@ data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 # global info from user input
 filename = []
 alg_list = ['novor', 'pn']
+## example
+## alg_combo_list = [('novor', 'pn'), ('novor', 'deepnovo'), ('pn', 'deepnovo'), ('novor', 'pn', 'deepnovo')]
 alg_combo_list = []
 novor_files = []
 pn_files = []
@@ -85,7 +87,7 @@ db_name_list = []
 psm_fp_list = []
 db_fp_list = []
 ## example
-## alg_combo_list = [('novor', 'pn'), ('novor', 'deepnovo'), ('pn', 'deepnovo'), ('novor', 'pn', 'deepnovo')]
+## is_alg_col_names = ['is novor seq', 'is pn seq', 'is deepnovo seq']
 is_alg_col_names = []
 is_alg_col_multiindex_keys = []
 precursor_mass_tol = [10.0]
@@ -94,11 +96,17 @@ precursor_mass_tol = [10.0]
 mod_chars = ['.', '|', '^', '+', '-'] + [str(i) for i in range(10)]
 
 # training parameters
-min_fdr = 0.05
+max_fdr = 0.01
 rf_n_estimators = 150
-rf_default_params = {('novor',): {'max_depth': 16, 'max_features': 'sqrt'},
-                     ('pn',): {'max_depth': 12, 'max_features': 'sqrt'},
-                     ('novor', 'pn'): {'max_depth': 16, 'max_features': 'sqrt'}}
+rf_default_params = {
+    ('novor',): {'max_depth': 16, 'max_features': 'sqrt'},
+    ('pn',): {'max_depth': 12, 'max_features': 'sqrt'},
+    ('deepnovo',): {'max_depth': 16, 'max_features': 'sqrt'},
+    ('novor', 'pn'): {'max_depth': 16, 'max_features': 'sqrt'},
+    ('novor', 'deepnovo'): {'max_depth': 16, 'max_features': 'sqrt'},
+    ('pn', 'deepnovo'): {'max_depth': 16, 'max_features': 'sqrt'},
+    ('novor', 'pn', 'deepnovo'): {'max_depth': 16, 'max_features': 'sqrt'}
+    }
 
 # feature selection from input data
 prediction_dict_source_cols = {
@@ -125,12 +133,12 @@ single_alg_prediction_dict_cols = {
         'retention time',
         'is novor seq',
         'avg novor aa score',
-        'low-scoring dipeptide count',
-        'low-scoring tripeptide count',
-        'mono-di isobaric sub score',
-        'di isobaric sub score',
-        'mono-di near-isobaric sub score',
-        'di near-isobaric sub score'
+        'novor low-scoring dipeptide count',
+        'novor low-scoring tripeptide count',
+        'novor mono-di isobaric sub score',
+        'novor di isobaric sub score',
+        'novor mono-di near-isobaric sub score',
+        'novor di near-isobaric sub score'
         ],
     'pn': [
         'is pn seq',
@@ -141,12 +149,12 @@ single_alg_prediction_dict_cols = {
     'deepnovo': [
         'is deepnovo seq',
         'avg deepnovo aa score',
-        'low-scoring dipeptide count',
-        'low-scoring tripeptide count',
-        'mono-di isobaric sub score',
-        'di isobaric sub score',
-        'mono-di near-isobaric sub score',
-        'di near-isobaric sub score'
+        'deepnovo low-scoring dipeptide count',
+        'deepnovo low-scoring tripeptide count',
+        'deepnovo mono-di isobaric sub score',
+        'deepnovo di isobaric sub score',
+        'deepnovo mono-di near-isobaric sub score',
+        'deepnovo di near-isobaric sub score'
         ]
     }
 consensus_prediction_dict_cols = {
@@ -154,7 +162,8 @@ consensus_prediction_dict_cols = {
         'scan',
         'measured mass',
         'seq',
-        'len','avg rank',
+        'len',
+        'avg rank',
         'is longest consensus',
         'is top rank consensus'
         ],
@@ -163,12 +172,12 @@ consensus_prediction_dict_cols = {
         'is novor seq',
         'fraction novor parent len',
         'avg novor aa score',
-        'low-scoring dipeptide count',
-        'low-scoring tripeptide count',
-        'mono-di isobaric sub score',
-        'di isobaric sub score',
-        'mono-di near-isobaric sub score',
-        'di near-isobaric sub score'
+        'novor low-scoring dipeptide count',
+        'novor low-scoring tripeptide count',
+        'novor mono-di isobaric sub score',
+        'novor di isobaric sub score',
+        'novor mono-di near-isobaric sub score',
+        'novor di near-isobaric sub score'
         ],
     'pn': [
         'is pn seq',
@@ -183,26 +192,72 @@ consensus_prediction_dict_cols = {
         'fraction deepnovo parent len',
         'deepnovo rank',
         'avg deepnovo aa score',
-        'low-scoring dipeptide count',
-        'low-scoring tripeptide count',
-        'mono-di isobaric sub score',
-        'di isobaric sub score',
-        'mono-di near-isobaric sub score',
-        'di near-isobaric sub score'
+        'deepnovo low-scoring dipeptide count',
+        'deepnovo low-scoring tripeptide count',
+        'deepnovo mono-di isobaric sub score',
+        'deepnovo di isobaric sub score',
+        'deepnovo mono-di near-isobaric sub score',
+        'deepnovo di near-isobaric sub score'
         ]
     }
 
 # feature groups
 feature_groups = OrderedDict([
-    ('novor score', ['avg novor aa score']),
-    ('pn scores', ['rank score', 'pn score']), 
-    ('deepnovo score', ['avg deepnovo aa score']), 
-    ('other', ['retention time', 'len', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7']),
-    ('consensus info', ['avg rank', 'pn rank', 'deepnovo rank', 'fraction novor parent len', 'fraction pn parent len', 'is longest consensus', 'is top rank consensus']),
-    ('mass tolerance agreement', ['0.2 seq match', '0.3 seq match', '0.4 seq match', '0.5 seq match', '0.6 seq match', '0.7 seq match']),
-    ('subseq scores', ['low-scoring dipeptide count', 'low-scoring tripeptide count']), 
-    ('substitution info', ['mono-di isobaric sub score', 'di isobaric sub score', 'mono-di near-isobaric sub score', 'di near-isobaric sub score']),
-    ('inter-spectrum agreement', ['precursor seq agreement', 'precursor seq count'])
+    ('novor score', [
+        'avg novor aa score'
+        ]),
+    ('pn scores', [
+        'rank score', 
+        'pn score'
+        ]), 
+    ('deepnovo score', [
+        'avg deepnovo aa score'
+        ]), 
+    ('other', [
+        'retention time',
+        'len', 
+        '0.2', 
+        '0.3', 
+        '0.4', 
+        '0.5', 
+        '0.6', 
+        '0.7'
+        ]),
+    ('consensus info', [
+        'avg rank', 
+        'pn rank', 
+        'deepnovo rank', 
+        'fraction novor parent len', 
+        'fraction pn parent len', 
+        'is longest consensus', 
+        'is top rank consensus'
+        ]),
+    ('mass tolerance agreement', [
+        '0.2 seq match', 
+        '0.3 seq match', 
+        '0.4 seq match', 
+        '0.5 seq match', 
+        '0.6 seq match', 
+        '0.7 seq match'
+        ]),
+    ('substitution info', [
+        'novor mono-di isobaric sub score', 
+        'novor di isobaric sub score', 
+        'novor mono-di near-isobaric sub score', 
+        'novor di near-isobaric sub score', 
+        'novor low-scoring dipeptide count', 
+        'novor low-scoring tripeptide count'
+        'deepnovo mono-di isobaric sub score', 
+        'deepnovo di isobaric sub score', 
+        'deepnovo mono-di near-isobaric sub score', 
+        'deepnovo di near-isobaric sub score', 
+        'deepnovo low-scoring dipeptide count', 
+        'deepnovo low-scoring tripeptide count'
+        ]),
+    ('inter-spectrum agreement', [
+        'precursor seq agreement', 
+        'precursor seq count'
+        ])
     ])
 
 # report
@@ -230,12 +285,18 @@ reported_df_cols = [
     '0.7 seq match', 
     'precursor seq agreement', 
     'precursor seq count', 
-    'low-scoring dipeptide count',
-    'low-scoring tripeptide count',  
-    'mono-di isobaric sub score', 
-    'di isobaric sub score', 
-    'mono-di near-isobaric sub score', 
-    'di near-isobaric sub score', 
+    'novor mono-di isobaric sub score', 
+    'novor di isobaric sub score', 
+    'novor mono-di near-isobaric sub score', 
+    'novor di near-isobaric sub score', 
+    'novor low-scoring dipeptide count', 
+    'novor low-scoring tripeptide count'
+    'deepnovo mono-di isobaric sub score', 
+    'deepnovo di isobaric sub score', 
+    'deepnovo mono-di near-isobaric sub score', 
+    'deepnovo di near-isobaric sub score', 
+    'deepnovo low-scoring dipeptide count', 
+    'deepnovo low-scoring tripeptide count',
     'avg novor aa score', 
     'rank score', 
     'pn score', 
