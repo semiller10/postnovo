@@ -185,29 +185,31 @@ def main():
         args = userargs.setup(test_argv)
     else:
         args = userargs.setup()
+    ## REMOVE
+    #sys.exit()
 
-    input_df_dict = input.load_files()
-    utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
-    #utils.save_dfs(config.iodir[0], 
-    #               **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
-    #                  for alg in config.alg_list for tol in config.frag_mass_tols})
-    #input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
+    #input_df_dict = input.load_files()
+    #utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
+    ##utils.save_dfs(config.iodir[0], 
+    ##               **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
+    ##                  for alg in config.alg_list for tol in config.frag_mass_tols})
+    input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
 
-    prediction_df = consensus.make_prediction_df(input_df_dict)
-    utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})
-    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'consensus_prediction_df')
+    #prediction_df = consensus.make_prediction_df(input_df_dict)
+    #utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})
+    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'consensus_prediction_df')
 
-    prediction_df = masstol.update_prediction_df(prediction_df)
-    utils.save_pkl_objects(config.iodir[0], **{'mass_tol_prediction_df': prediction_df})
-    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'mass_tol_prediction_df')
+    #prediction_df = masstol.update_prediction_df(prediction_df)
+    #utils.save_pkl_objects(config.iodir[0], **{'mass_tol_prediction_df': prediction_df})
+    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'mass_tol_prediction_df')
 
-    prediction_df = interspec.update_prediction_df(prediction_df)
-    utils.save_pkl_objects(config.iodir[0], **{'interspec_prediction_df': prediction_df})
-    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'interspec_prediction_df')
+    #prediction_df = interspec.update_prediction_df(prediction_df)
+    #utils.save_pkl_objects(config.iodir[0], **{'interspec_prediction_df': prediction_df})
+    prediction_df = utils.load_pkl_objects(config.iodir[0], 'interspec_prediction_df')
 
-    classifier.classify(prediction_df = prediction_df)
+    classifier.classify(prediction_df=prediction_df, input_df_dict=input_df_dict)
     # COMMENT
-    #classifier.classify()
+    #classifier.classify(input_df_dict = input_df_dict)
 
     utils.verbose_print('total time elapsed:', time() - start_time)
 

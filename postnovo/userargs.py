@@ -145,7 +145,7 @@ def parse_args(test_argv=None):
     # config.iodir[0] is assigned before other package-wide variables
     determine_iodir(raw_args)
     args = parse_mods_strings(raw_args)
-    raw_args = check_args(parser, raw_args)
+    args = check_args(parser, args)
 
     return args
 
@@ -252,7 +252,8 @@ def check_args(parser, args):
     if args.denovogui_fp:
         check_path(args.denovogui_fp, args.iodir)
         check_path(args.mgf_fp, args.iodir)
-        check_mgf(args.mgf_fp, args.iodir)
+        # UNCOMMENT AND FIX THE ORDERING OF SUBSTRINGS IN THE TITLE LINE CHECK
+        #check_mgf(args.mgf_fp, args.iodir)
 
     if args.db_name_list:
         iodir_files = [f for f in os.listdir(args.iodir) if os.path.isfile(os.path.join(args.iodir, f))]
@@ -477,7 +478,8 @@ def run_denovogui(args):
         denovogui_args['-id_params'] = denovogui_param_args['-out']
         for opt, arg in denovogui_args.items():
             denovogui_cmd += opt + ' ' + arg + ' '
-        subprocess.call(denovogui_cmd, shell = True)
+        with open('denovogui.out', 'w') as handle:
+            subprocess.call(denovogui_cmd, shell = True, stdout=handle)
 
         set_novor_output_filename_cmd = 'mv ' +\
             '\"' + os.path.join(config.iodir[0], args.filename + '.novor.csv') + '\" ' +\

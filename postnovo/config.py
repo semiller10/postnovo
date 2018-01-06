@@ -53,8 +53,8 @@ for numerical_alg_combo in list(product((0, 1), repeat = len(accepted_algs)))[1:
     possible_alg_combos.append(tuple([alg for i, alg in enumerate(accepted_algs) if numerical_alg_combo[i]]))
 seqs_reported_per_alg_dict = {'novor': 1, 'pn': 20, 'deepnovo': 20}
 frag_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
-fixed_mods = ['Oxidation of M']
-variable_mods = ['Carbamidomethylation of C']
+fixed_mods = ['Carbamidomethylation of C']
+variable_mods = ['Oxidation of M']
 frag_method = 'CID'
 frag_mass_analyzer = 'Trap'
 train_consensus_len = 7
