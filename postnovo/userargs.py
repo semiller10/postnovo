@@ -112,10 +112,40 @@ def parse_args(test_argv=None):
         help='min length of seqs reported by postnovo ({0} aa)'.format(config.min_len[0])
         )
     parser.add_argument(
-        '--min_prob',
+        '--max_total_sacrifice', 
         type=float,
-        default=0.5,
-        help='min prob of seqs reported by postnovo'
+        help=(
+            'maximum probability score that can be sacrificed '
+            'to extend the reported sequence'
+            )
+        )
+    parser.add_argument(
+        '--sacrifice_floor',
+        type=float, 
+        default=0.5, 
+        help=(
+            'minimum probability below which sequences will not be extended '
+            'at the expense of probability'
+            )
+        )
+    parser.add_argument(
+        '--max_sacrifice_per_percent_extension', 
+        type=float, 
+        default=0.0035, 
+        help=(
+            'maximum probability score that can be sacrificed '
+            'per percent change in sequence length: '
+            'default is 0.0035, or max score sacrifice of 0.05 '
+            'to add an amino acid to a length 7 seq (0.0035 = 0.05 / (1/7 * 100)) ; '
+            'max score sacrifice of 0.025 '
+            'to add an amino acid to a length 14 seq'
+            )
+        )
+    parser.add_argument(
+        '--min_prob', 
+        type=float, 
+        default=0.5, 
+        help='minimum probability of postnovo predictions to be used in database search'
         )
     parser.add_argument(
         '--db_search_psm_file',
@@ -282,8 +312,16 @@ def check_args(parser, args):
         parser.error(str(cpu_count()) + ' cores are available')
     if args.min_len < 6:
         parser.error('min length of reported peptides must be >= {0} aa'.format(config.min_len[0]))
-    if args.min_prob < 0 or args.min_prob > 1:
-        parser.error('min reported prob must be between 0 and 1')
+    if args.max_total_sacrifice != None:
+        if not 0 < args.max_total_sacrifice < 1:
+            parser.error('max_sacrifice must be between 0 and 1')
+        if not 0 < args.sacrifice_floor < 1:
+            parser.error('sacrifice_floor must be between 0 and 1')
+        if not 0 < args.max_sacrifice_per_percent_extension < 1:
+            parser.error('max_sacrifice_per_percent_extension must be between 0 and 1')
+    if not 0 < args.min_prob < 1:
+        parser.error('min_prob must be between 0 and 1')
+
     if args.db_search_psm_file != None:
         check_path(args.db_search_psm_file, args.iodir)
     if args.db_search_ref_file != None:
@@ -554,6 +592,10 @@ def set_global_vars(args):
 
     config.cores[0] = args.cores
     config.min_len[0] = args.min_len
+    if args.max_total_sacrifice != None:
+        config.max_total_sacrifice[0] = args.max_total_sacrifice
+        config.sacrifice_floor[0] = args.sacrifice_floor
+        config.max_sacrifice_per_percent_extension[0] = args.max_sacrifice_per_percent_extension
     config.min_prob[0] = args.min_prob
     if args.db_search_ref_file != None:
         if args.iodir == None:

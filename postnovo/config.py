@@ -65,6 +65,9 @@ min_blast_query_len = 9
 verbose = [True]
 mode = ['predict']
 min_len = [train_consensus_len]
+max_total_sacrifice = [None]
+max_sacrifice_per_percent_extension = [0.0021]
+sacrifice_floor = [0.5]
 min_prob = [0.5]
 db_search_psm_file = [None]
 db_search_ref_file = [None]
@@ -208,13 +211,19 @@ feature_groups = OrderedDict([
         ]),
     ('pn scores', [
         'rank score', 
-        'pn score'
+        'pn score', 
+        'sqs'
         ]), 
     ('deepnovo score', [
         'avg deepnovo aa score'
         ]), 
     ('other', [
-        'retention time',
+        'scan', 
+        'measured mass', 
+        'retention time', 
+        'is novor seq', 
+        'is pn seq', 
+        'is deepnovo seq', 
         'len', 
         '0.2', 
         '0.3', 
@@ -229,6 +238,7 @@ feature_groups = OrderedDict([
         'deepnovo rank', 
         'fraction novor parent len', 
         'fraction pn parent len', 
+        'fraction deepnovo parent len', 
         'is longest consensus', 
         'is top rank consensus'
         ]),
@@ -290,16 +300,17 @@ reported_df_cols = [
     'novor mono-di near-isobaric sub score', 
     'novor di near-isobaric sub score', 
     'novor low-scoring dipeptide count', 
-    'novor low-scoring tripeptide count'
+    'novor low-scoring tripeptide count', 
     'deepnovo mono-di isobaric sub score', 
     'deepnovo di isobaric sub score', 
     'deepnovo mono-di near-isobaric sub score', 
     'deepnovo di near-isobaric sub score', 
     'deepnovo low-scoring dipeptide count', 
-    'deepnovo low-scoring tripeptide count',
+    'deepnovo low-scoring tripeptide count', 
     'avg novor aa score', 
     'rank score', 
     'pn score', 
+    'avg deepnovo aa score', 
     'avg rank', 
     'pn rank', 
     'deepnovo rank', 

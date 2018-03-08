@@ -67,41 +67,76 @@ def main():
     #             '--cores',
     #             '32']
 
-    #test_argv = ['--iodir',
-    #             '/scratch/samuelmiller/11-11-17/082917_toolik_core_9_2_1_1_sem_results',
-    #             '--filename',
-    #             '082917_toolik_core_9_2_1_1_sem',
-    #             '--db_name_list',
-    #             'ERR1017187',
-    #             'ERR1019366',
-    #             'ERR1022687',
-    #             'ERR1022692',
-    #             'ERR1034454',
-    #             'ERR1035437',
-    #             'ERR1035438',
-    #             'ERR1035441',
-    #             'ERR1039457',
-    #             'ERR1039458',
-    #             'SRR5208451.transcript',
-    #             'SRR5208454.transcript',
-    #             'SRR5208455.transcript',
-    #             'SRR5208541.transcript',
-    #             'SRR5208544.transcript',
-    #             'SRR5208545.transcript',
-    #             'SRR5450431',
-    #             'SRR5450432',
-    #             'SRR5450434',
-    #             'SRR5450438',
-    #             'SRR5450631',
-    #             'SRR5450755',
-    #             'SRR5471030',
-    #             'SRR5471031',
-    #             'SRR5471032',
-    #             'SRR5471221',
-    #             'SRR5476649',
-    #             'SRR5476651',
-    #             '--cores',
-    #             '32']
+    #test_argv = [
+    #    '--filename',
+    #    'toolik_13_2_2_1',
+    #    '--deepnovo',
+    #    '--iodir',
+    #    '/scratch/samuelmiller/12-26-17/postnovo/io/toolik/toolik_13_2_2_1',
+    #    '--mode', 
+    #    'predict', 
+    #    '--db_name_list',
+    #    'ERR1017187.DBGraphPep2Pro',
+    #    'ERR1019366.DBGraphPep2Pro',
+    #    'ERR1022687.DBGraphPep2Pro',
+    #    'ERR1022692.DBGraphPep2Pro',
+    #    'ERR1034454.DBGraphPep2Pro',
+    #    'ERR1035437.DBGraphPep2Pro',
+    #    'ERR1035438.DBGraphPep2Pro',
+    #    'ERR1035441.DBGraphPep2Pro',
+    #    'ERR1039457.DBGraphPep2Pro',
+    #    'ERR1039458.DBGraphPep2Pro',
+    #    'SRR5208451.transcript.DBGraphPep2Pro',
+    #    'SRR5208454.transcript.DBGraphPep2Pro',
+    #    'SRR5208455.transcript.DBGraphPep2Pro',
+    #    'SRR5208541.transcript.DBGraphPep2Pro',
+    #    'SRR5208544.transcript.DBGraphPep2Pro',
+    #    'SRR5208545.transcript.DBGraphPep2Pro',
+    #    'SRR5450431.DBGraphPep2Pro',
+    #    'SRR5450432.DBGraphPep2Pro',
+    #    'SRR5450434.DBGraphPep2Pro',
+    #    'SRR5450438.DBGraphPep2Pro',
+    #    'SRR5450631.DBGraphPep2Pro',
+    #    'SRR5450755.DBGraphPep2Pro',
+    #    'SRR5471030.DBGraphPep2Pro',
+    #    'SRR5471031.DBGraphPep2Pro',
+    #    'SRR5471032.DBGraphPep2Pro',
+    #    'SRR5471221.DBGraphPep2Pro',
+    #    'SRR5476649.DBGraphPep2Pro',
+    #    'SRR5476651.DBGraphPep2Pro',
+    #    'ERR1017187.reads',
+    #    'ERR1019366.reads',
+    #    'ERR1022687.reads',
+    #    'ERR1022692.reads',
+    #    'ERR1034454.reads',
+    #    'ERR1035437.reads',
+    #    'ERR1035438.reads',
+    #    'ERR1035441.reads',
+    #    'ERR1039457.reads',
+    #    'ERR1039458.reads',
+    #    'SRR5208451.transcript.reads',
+    #    'SRR5208454.transcript.reads',
+    #    'SRR5208455.transcript.reads',
+    #    'SRR5208541.transcript.reads',
+    #    'SRR5208544.transcript.reads',
+    #    'SRR5208545.transcript.reads',
+    #    'SRR5450431.reads',
+    #    'SRR5450432.reads',
+    #    'SRR5450434.reads',
+    #    'SRR5450438.reads',
+    #    'SRR5450631.reads',
+    #    'SRR5450755.reads',
+    #    'SRR5471030.reads',
+    #    'SRR5471031.reads',
+    #    'SRR5471032.reads',
+    #    'SRR5471221.reads',
+    #    'SRR5476649.reads',
+    #    'SRR5476651.reads',
+    #    '--cores',
+    #    '32', 
+    #    '--max_total_sacrifice', 
+    #    '0.2'
+    #    ]
 
     #test_argv = ['--iodir',
     #             '/scratch/samuelmiller/11-11-17/082917_toolik_core_10_2_1_1_sem_results',
@@ -188,25 +223,27 @@ def main():
     ## REMOVE
     #sys.exit()
 
-    #input_df_dict = input.load_files()
-    #utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
-    ##utils.save_dfs(config.iodir[0], 
-    ##               **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
-    ##                  for alg in config.alg_list for tol in config.frag_mass_tols})
-    input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
+    input_df_dict = input.load_files()
+    utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
+    #utils.save_dfs(config.iodir[0], 
+    #               **{alg + '.' + config.filename[0] + '.' + tol: input_df_dict[alg][tol]
+    #                  for alg in config.alg_list for tol in config.frag_mass_tols})
+    #input_df_dict = utils.load_pkl_objects(config.iodir[0], 'input_df_dict')
 
-    #prediction_df = consensus.make_prediction_df(input_df_dict)
-    #utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})
-    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'consensus_prediction_df')
+    prediction_df = consensus.make_prediction_df(input_df_dict)
+    utils.save_pkl_objects(config.iodir[0], **{'consensus_prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'consensus_prediction_df')
 
-    #prediction_df = masstol.update_prediction_df(prediction_df)
-    #utils.save_pkl_objects(config.iodir[0], **{'mass_tol_prediction_df': prediction_df})
-    ##prediction_df = utils.load_pkl_objects(config.iodir[0], 'mass_tol_prediction_df')
+    prediction_df = masstol.update_prediction_df(prediction_df)
+    utils.save_pkl_objects(config.iodir[0], **{'mass_tol_prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'mass_tol_prediction_df')
 
-    #prediction_df = interspec.update_prediction_df(prediction_df)
-    #utils.save_pkl_objects(config.iodir[0], **{'interspec_prediction_df': prediction_df})
-    prediction_df = utils.load_pkl_objects(config.iodir[0], 'interspec_prediction_df')
+    prediction_df = interspec.update_prediction_df(prediction_df)
+    utils.save_pkl_objects(config.iodir[0], **{'interspec_prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'interspec_prediction_df')
 
+    # TRAIN
+    #classifier.classify(prediction_df=prediction_df)
     classifier.classify(prediction_df=prediction_df, input_df_dict=input_df_dict)
     # COMMENT
     #classifier.classify(input_df_dict = input_df_dict)

@@ -137,6 +137,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     progress_count = 0
 
     ### single processor method
+    #one_percent_number_consensus_scans * config.cores[0]
     #print_percent_progress_fn = partial(
     #    utils.print_percent_progress_singlethreaded,
     #    procedure_str = tol + ' Da progress: ',

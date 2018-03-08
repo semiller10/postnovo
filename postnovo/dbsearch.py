@@ -135,9 +135,12 @@ def merge_predictions(postnovo_df):
         protein_seqs = []
         for i, line in enumerate(db_lines):
             if line[0] == '>':
-                # With Graph2Pro, seq length (a number) is separated by the protein ID by a space
                 protein_id = line.rstrip().lstrip('>')
-                protein_id = protein_id[:protein_id.index(' ')]
+                # With Graph2Pro, seq length (a number) is separated by the protein ID by a space
+                try:
+                    protein_id = protein_id[:protein_id.index(' ')]
+                except:
+                    pass
                 protein_ids.append(protein_id)
             else:
                 protein_seqs.append(line.rstrip())
@@ -434,11 +437,11 @@ def group_predictions(input_df):
                     if abs(first_scan - second_scan) <= scan_proximity:
                         adjusted_seq_similarity = (seq_similarity + scan_proximity_bonus - 
                                                     (abs(len(first_seq) - len(second_seq)) // length_diff_multiplier * length_diff_penalty)
-                                                    )
+                                                   )
                     else:
                         adjusted_seq_similarity = (seq_similarity - 
                                                     (abs(len(first_seq) - len(second_seq)) // length_diff_multiplier * length_diff_penalty)
-                                                    )
+                                                   )
 
                     if adjusted_seq_similarity >= min_seq_similarity:
                         if ((local_final_mass_group_list[first_row_index] == -1) and 

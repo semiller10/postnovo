@@ -6,9 +6,12 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.collections as mcoll
 import matplotlib.pyplot as plt
+import multiprocessing
 import numpy as np
 import os.path
+import numpy as np
 import pandas as pd
+import pickle as pkl
 import sklearn as sk
 import sys
 import warnings
@@ -35,10 +38,18 @@ else:
     import dbsearch
     import utils
 
-def classify(prediction_df = None, input_df_dict=None):
+def classify(prediction_df=None, input_df_dict=None):
     utils.verbose_print()
     if config.mode[0] in ['train', 'test', 'optimize']:
         prediction_df, ref_correspondence_df, db_search_ref = find_target_accuracy(prediction_df)
+        with open(os.path.join(config.iodir[0], 'ref_correspondence_df.pkl'), 'wb') as f:
+            pkl.dump(ref_correspondence_df, f, 2)
+        with open(os.path.join(config.iodir[0], 'db_search_ref.pkl'), 'wb') as f:
+            pkl.dump(db_search_ref, f, 2)
+        #with open(os.path.join(config.iodir[0], 'ref_correspondence_df.pkl'), 'rb') as f:
+        #    ref_correspondence_df = pkl.load(f)
+        #with open(os.path.join(config.iodir[0], 'db_search_ref.pkl'), 'rb') as f:
+        #    db_search_ref = pkl.load(f)
 
     utils.verbose_print('formatting data for compatability with model')
     prediction_df = standardize_prediction_df_cols(prediction_df)
@@ -49,6 +60,8 @@ def classify(prediction_df = None, input_df_dict=None):
         reported_prediction_df = make_predictions(prediction_df)
         reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
         #reported_prediction_df = pd.read_csv(os.path.join(config.iodir[0], 'best_predictions.csv'), header=0)
+
+        reported_prediction_df = reported_prediction_df[reported_prediction_df['probability'] >= config.min_prob]
 
         df = reported_prediction_df.reset_index()
         if config.psm_fp_list:
@@ -226,27 +239,6 @@ def standardize_prediction_df_cols(prediction_df):
 
 def update_training_data(prediction_df):
 
-    # REMOVE
-    #try:
-    #    training_df = utils.load_pkl_objects(config.data_dir, 'training_df')
-    #    training_df = pd.concat([training_df, prediction_df])
-    #except (FileNotFoundError, OSError) as e:
-    #    training_df = prediction_df
-    #utils.save_pkl_objects(config.data_dir, **{'training_df': training_df})
-
-    #prediction_df_csv = prediction_df.copy()
-    #prediction_df_csv['timestamp'] = str(datetime.datetime.now()).split('.')[0]
-    #prediction_df_csv.reset_index(inplace = True)
-    #try:
-    #    training_df_csv = pd.read_csv(join(config.data_dir, 'training_df.csv'))
-    #    training_df_csv = pd.concat([training_df_csv, prediction_df_csv])
-    #except (FileNotFoundError, OSError) as e:
-    #    training_df_csv = prediction_df_csv
-    #training_df_csv.set_index(['timestamp', 'scan'], inplace = True)
-    #training_df_csv.to_csv(join(config.data_dir, 'training_df.csv'))
-
-    #return training_df
-
     prediction_df['timestamp'] = str(datetime.datetime.now()).split('.')[0]
     prediction_df.reset_index(inplace = True)
     try:
@@ -313,7 +305,7 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
         elif config.mode[0] == 'test':
             
             # Prepare single-alg data for precision-recall, precision-yield plots
-            alg_score_accuracy_df_dict = {}.fromkeys(alg_group)
+            alg_score_accuracy_df_dict = OrderedDict().fromkeys(alg_group)
             for alg in alg_group:
                 alg_score_accuracy_df_dict[alg] = retrieve_single_alg_score_accuracy_df(alg)
                 
@@ -328,31 +320,112 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
 
         prediction_df.loc[multiindex_key, 'probability'] = probabilities
 
-        if config.mode[0] == 'test':
-            utils.verbose_print('making', '_'.join(alg_group), 'test plots')
-            #plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
-            postnovo_alg_combo_df = prediction_df.xs(multiindex_key)
-            postnovo_alg_combo_df = postnovo_alg_combo_df.reset_index().set_index('scan')[['probability', 'ref match']]
-            max_probabilities = postnovo_alg_combo_df.groupby(level='scan')['probability'].transform(max)
-            postnovo_alg_combo_df = postnovo_alg_combo_df[postnovo_alg_combo_df['probability'] == max_probabilities][['probability', 'ref match']]
-            postnovo_alg_combo_df = postnovo_alg_combo_df.groupby(level='scan').first()
+        # UNCOMMENT
+        #if config.mode[0] == 'test':
+        #    utils.verbose_print('making', '_'.join(alg_group), 'test plots')
+        #    #plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
+        #    postnovo_alg_combo_df = prediction_df.xs(multiindex_key)
+        #    postnovo_alg_combo_df = postnovo_alg_combo_df.reset_index().set_index('scan')[['probability', 'ref match']]
+        #    max_probabilities = postnovo_alg_combo_df.groupby(level='scan')['probability'].transform(max)
+        #    postnovo_alg_combo_df = postnovo_alg_combo_df[postnovo_alg_combo_df['probability'] == max_probabilities][['probability', 'ref match']]
+        #    postnovo_alg_combo_df = postnovo_alg_combo_df.groupby(level='scan').first()
 
-            plot_precision_recall_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dict)
-            plot_precision_yield_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dict, len(db_search_ref))
+        #    plot_precision_recall_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dict)
+        #    plot_precision_yield_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dict, len(db_search_ref))
 
     prediction_df = prediction_df.reset_index().set_index('scan')
-    max_probabilities = prediction_df.groupby(level='scan')['probability'].transform(max)
-    best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
-    best_prediction_df = best_prediction_df.groupby(level = 'scan').first()
+
+    if config.max_total_sacrifice[0]:
+        # Recover the longest seq prediction that fulfills the score sacrifice conditions
+        # First, filter to those predictions with prob score above <sacrifice_floor>
+        above_sac_floor_df = prediction_df[prediction_df['probability'] >= config.sacrifice_floor]
+        # Loop through the predictions for each spectrum
+        above_sac_floor_scan_dfs = [df for _, df in above_sac_floor_df.groupby(level='scan')]
+
+        one_percent_number_scans_above_sac_floor = \
+            len(above_sac_floor_scan_dfs) / 100 / config.cores[0]
+        max_total_sacrifice = config.max_total_sacrifice[0]
+        sacrifice_extension_ratio = config.max_sacrifice_per_percent_extension[0] * 100
+
+        ## Single-threaded
+        #for scan_df in above_sac_floor_scan_dfs:
+        #    one_percent_number_scans_above_sac_floor * config.cores[0]
+        #    print_percent_progress_fn = partial(
+        #        utils.print_percent_progress_multithreaded,
+        #        procedure_str='Score-length tradeoff progress: ',
+        #        one_percent_total_count=one_percent_number_scans_above_sac_floor
+        #        )
+        #initialize_workers(
+        #    print_percent_progress_fn, 
+        #    max_total_sacrifice, 
+        #    sacrifice_extension_ratio
+        #    )
+        #    reported_above_sac_floor_scan_dfs = []
+        #    for scan_df in above_sac_floor_scan_dfs:
+        #        reported_above_sac_floor_scan_dfs.append(do_score_sacrifice_extension(scan_df))
+
+        # Multiprocessing
+        print_percent_progress_fn = partial(
+            utils.print_percent_progress_multithreaded,
+            procedure_str='Score-length tradeoff progress: ',
+            one_percent_total_count=one_percent_number_scans_above_sac_floor,
+            cores=config.cores[0]
+            )
+        mp_pool = multiprocessing.Pool(
+            config.cores[0], 
+            initializer=initialize_workers, 
+            initargs=(
+                print_percent_progress_fn, 
+                max_total_sacrifice, 
+                sacrifice_extension_ratio
+                )
+            )
+        reported_above_sac_floor_scan_dfs = mp_pool.map(
+            do_score_sacrifice_extension, above_sac_floor_scan_dfs
+            )
+        mp_pool.close()
+        mp_pool.join()
+        reported_above_sac_floor_df = pd.concat(reported_above_sac_floor_scan_dfs)
+
+        # Find the best predictions from below the sacrifice floor
+        predictions_below_floor_df = pd.concat(
+            [scan_df for _, scan_df in prediction_df.groupby(level='scan')
+             if (scan_df['probability'] <= config.sacrifice_floor).all()]
+            )
+        max_probabilities = \
+            predictions_below_floor_df.groupby(level='scan')['probability'].transform(max)
+        best_predictions_below_floor_df = predictions_below_floor_df[
+            predictions_below_floor_df['probability'] == max_probabilities
+            ]
+        reported_below_sac_floor_df = \
+            best_predictions_below_floor_df.groupby(level='scan').first()
+
+        # Concatenate the data from above and below the floor
+        reported_prediction_df = pd.concat([
+            reported_above_sac_floor_df, 
+            reported_below_sac_floor_df
+            ]).sort_index()
+    else:
+        max_probabilities = prediction_df.groupby(level='scan')['probability'].transform(max)
+        best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
+        best_prediction_df = best_prediction_df.groupby(level='scan').first()
+        reported_prediction_df = best_prediction_df
 
     if config.mode[0] == 'test':
-        alg_score_accuracy_df_dict = {}.fromkeys(config.alg_list)
+        alg_score_accuracy_df_dict = OrderedDict().fromkeys(config.alg_list)
         for alg in config.alg_list:
             alg_score_accuracy_df_dict[alg] = retrieve_single_alg_score_accuracy_df(alg)
-        plot_precision_recall(best_prediction_df[['probability', 'ref match']], alg_score_accuracy_df_dict)
-        plot_precision_yield_curve(best_prediction_df[['probability', 'ref match']], alg_score_accuracy_df_dict, len(db_search_ref))
-
-    reported_prediction_df = best_prediction_df[best_prediction_df['probability'] >= config.min_prob[0]]
+        plot_precision_recall_curve(
+            reported_prediction_df[['probability', 'ref match']], 
+            alg_score_accuracy_df_dict, 
+            all_postnovo_predictions=True
+            )
+        plot_precision_yield_curve(
+            reported_prediction_df[['probability', 'ref match']], 
+            alg_score_accuracy_df_dict, 
+            len(db_search_ref), 
+            all_postnovo_predictions=True
+            )
 
     reported_cols_in_order = []
     for reported_df_col in config.reported_df_cols:
@@ -361,6 +434,48 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
     reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
 
     return reported_prediction_df
+
+def initialize_workers(
+    _print_percent_progress_fn, 
+    _max_total_sacrifice, 
+    _sacrifice_extension_ratio
+    ):
+
+    global print_percent_progress_fn, max_total_sacrifice, sacrifice_extension_ratio
+
+    print_percent_progress_fn = _print_percent_progress_fn
+    max_total_sacrifice = _max_total_sacrifice
+    sacrifice_extension_ratio = _sacrifice_extension_ratio
+
+    return
+
+def do_score_sacrifice_extension(scan_df):
+
+    scan_df.sort_values('probability', ascending=False, inplace=True)
+    probs = scan_df['probability'].tolist()
+    highest_prob = probs[0]
+    lower_prob_seqs = scan_df['seq'].tolist()[1:]
+    current_longest_seq = scan_df.iloc[0]['seq']
+    current_prob = highest_prob
+    longest_row_index = 0
+    for i, seq in enumerate(lower_prob_seqs):
+        if len(seq) > len(current_longest_seq):
+            # The longer seq must contain the shorter, higher-prob seq
+            if current_longest_seq in seq:
+                lower_prob = probs[i + 1]
+                # The longer seq must be within <max_total_sacrifice> score of highest score
+                if highest_prob - lower_prob <= max_total_sacrifice:
+                    # Finally, the loss in score per percent extension must meet the criterion
+                    length_weighted_max_sacrifice = sacrifice_extension_ratio * \
+                        np.sum(np.reciprocal(np.arange(
+                            len(current_longest_seq) + 1, len(seq) + 1, dtype=np.float16
+                            )))
+                    if current_prob - lower_prob <= length_weighted_max_sacrifice:
+                        longest_row_index = i + 1
+                        current_longest_seq = seq
+                        current_prob = lower_prob
+
+    return scan_df.iloc[[longest_row_index]]
 
 def make_training_forests(training_df):
 
@@ -632,7 +747,11 @@ def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
     save_path = join(config.iodir[0], '_'.join(alg_group) + '_roc.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
-def plot_precision_recall_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dict):
+def plot_precision_recall_curve(
+    postnovo_alg_combo_df, 
+    alg_score_accuracy_df_dict, 
+    all_postnovo_predictions=False
+    ):
 
     true_positive_rate, recall, thresholds = precision_recall_curve(
         postnovo_alg_combo_df['ref match'].tolist(), 
@@ -655,8 +774,14 @@ def plot_precision_recall_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dic
 
     fig, ax = plt.subplots()
 
-    model_line_collection = colorline(recall, true_positive_rate, thresholds)
-    plt.colorbar(model_line_collection, label = 'moving threshold:\npostnovo probability score or\nde novo algorithm score percentile')
+    line_collection = colorline(recall, true_positive_rate, thresholds)
+    cb = plt.colorbar(
+        line_collection, 
+        label=(
+            'moving threshold:\npostnovo probability score or\n'
+            'de novo algorithm score percentile'
+            )
+        )
     #annotation_x = recall[int(len(recall) / 1.2)]
     #annotation_y = true_positive_rate[int(len(true_positive_rate) / 1.2)]
     #plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
@@ -668,14 +793,51 @@ def plot_precision_recall_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dic
     #             horizontalalignment = 'right', verticalalignment = 'bottom',
     #             )
 
+    # Tabulate the probability score cutoffs required for different levels of precision
+    if all_postnovo_predictions:
+        next_precision = 0.5
+        precision_index = 0
+        score_cutoffs = []
+        for prob_index, prob in enumerate(thresholds):
+            while true_positive_rate[precision_index] > next_precision:
+                score_cutoffs.append(thresholds[prob_index])
+                next_precision += 0.05
+            precision_index += 1
+        cutoff_precision_table = pd.DataFrame()
+        cutoff_precision_table['precision'] = np.arange(0.5, 1, 0.05)
+        cutoff_precision_table['score cutoff'] = score_cutoffs
+        cutoff_precision_table.to_csv(
+            os.path.join(config.iodir[0], 'cutoff_precision.tsv'), 
+            sep='\t', 
+            index=False
+            )
+
     #arrow_position = 1.2
     for alg in alg_pr_dict:
         alg_recall = alg_pr_dict[alg][1]
         alg_tpr = alg_pr_dict[alg][0]
-        alg_thresh = alg_pr_dict[alg][2].argsort() / alg_pr_dict[alg][2].size
+       
+        #alg_thresh = alg_pr_dict[alg][2].argsort() / alg_pr_dict[alg][2].size
+        alg_thresh = alg_pr_dict[alg][2]
+
         #annotation_x = alg_recall[int(len(alg_recall) / arrow_position)]
         #annotation_y = alg_tpr[int(len(alg_tpr) / arrow_position)]
-        colorline(alg_recall, alg_tpr, alg_thresh)
+        if alg == 'novor':
+            line_collection = colorline(alg_recall, alg_tpr, alg_thresh, norm=plt.Normalize(0, 100))
+            tick_locs = [0, 20, 40, 60, 80, 100]
+        elif alg == 'pn':
+            line_collection = colorline(alg_recall, alg_tpr, alg_thresh, norm=plt.Normalize(-10, 15))
+            tick_locs = [-10, -5, 0, 5, 10, 15]
+            #line_collection = colorline(alg_recall, alg_tpr, alg_thresh, norm=plt.Normalize(alg_thresh[0], alg_thresh[-1]))
+            #tick_locs = []
+            #tick_interval = (alg_thresh[-1] - alg_thresh[0]) / 5
+            #for i in range(6):
+            #    tick_locs.append(alg_thresh[0] + i * tick_interval)
+        elif alg == 'deepnovo':
+            line_collection = colorline(alg_recall, alg_tpr, alg_thresh, norm=plt.Normalize(0, 1))
+            tick_locs = [0, 0.2, 0.4, 0.6, 0.8, 1]
+        #plt.colorbar(line_collection, ticks=tick_locs)
+
         #plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
         #             xy = (annotation_x, annotation_y),
         #             xycoords = 'data',
@@ -685,62 +847,82 @@ def plot_precision_recall_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dic
         #             horizontalalignment = 'right', verticalalignment = 'top',
         #             )
 
-    alg_group = list(alg_score_accuracy_df_dict.keys())
-    if len(alg_score_accuracy_df_dict) == 1:
-        # e.g., title is 'novor sequences'
-        plt.title(alg_group[0] + ' sequences')
-    else:
-        # e.g., title is 'novor-pn consensus sequences'
-        plt.title('-'.join(alg_group) + ' consensus sequences')
+    #if all_postnovo_predictions:
+    #    plt.title('all postnovo predictions')
+    #else:
+    #    alg_group = list(alg_score_accuracy_df_dict.keys())
+    #    if len(alg_score_accuracy_df_dict) == 1:
+    #        # e.g., title is 'novor sequences'
+    #        plt.title(alg_group[0] + ' sequences')
+    #    else:
+    #        # e.g., title is 'novor-pn consensus sequences'
+    #        plt.title('-'.join(alg_group) + ' consensus sequences')
     plt.xlim([0, 1])
     plt.ylim([0, 1])
-    plt.xlabel('recall (true positive rate) = ' + r'$\frac{T_p}{T_p + F_n}$')
-    plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
+    plt.xlabel('recall')
+    #plt.xlabel('recall (true positive rate) = ' + r'$\frac{T_p}{T_p + F_n}$')
+    plt.ylabel('precision')
+    #plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
     plt.tight_layout(True)
 
-    save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_recall.pdf')
+    if all_postnovo_predictions:
+        save_path = join(config.iodir[0], 'full_precision_recall.pdf')
+    else:
+        save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_recall.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
     return
 
-def plot_precision_yield_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dict, db_search_yield):
+def plot_precision_yield_curve(
+    postnovo_alg_combo_df, 
+    alg_score_accuracy_df_dict, 
+    db_search_yield, 
+    all_postnovo_predictions=False
+    ):
 
     fig, ax = plt.subplots()
     x_min = 1
     x_max = 0
     plt.ylim([0, 1])
     plt.xlabel('sequence yield')
-    plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
+    plt.ylabel('precision')
+    #plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
 
     db_search_x = db_search_yield
-    db_search_y = 0.95
+    db_search_y = 1 - config.max_fdr
 
     alg_group = list(alg_score_accuracy_df_dict.keys())
 
     # Plot postnovo results
     # Get the numbers from 1 to N postnovo seq predictions
     sample_size_list = list(range(1, len(postnovo_alg_combo_df) + 1))
-    postnovo_alg_combo_df['precision'] = make_precision_col(postnovo_alg_combo_df, 'probability')
+    precision_list = make_precision_list(postnovo_alg_combo_df, 'probability')
 
     x = sample_size_list[::100]
-    y = precision[::100]
-    # Color is seq percentile, sorted by probability score
-    z = (postnovo_alg_combo_df['probability'].argsort() / postnovo_alg_combo_df['probability'].size).tolist()[::100]
-    model_line_collection = colorline(x, y, z)
+    y = precision_list[::100]
+    # Color is probability score (ranges from 0 to 1)
+    z = sorted(postnovo_alg_combo_df['probability'].tolist(), reverse=True)[::100]
+    line_collection = colorline(x, y, z)
 
-    plt.colorbar(model_line_collection, label = 'moving threshold:\npostnovo probability score or\nde novo algorithm score percentile')
-    annotation_x = x[len(x) // 2]
-    annotation_y = y[len(y) // 2]
-    plt.annotate(
-        '_'.join(alg_group) + '\n' + 'random forest', 
-        xy=(annotation_x, annotation_y), 
-        xycoords='data', 
-        xytext=(25, 25), 
-        textcoords = 'offset pixels', 
-        arrowprops = dict(facecolor='black', shrink=0.01, width=1, headwidth=6), 
-        horizontalalignment='left', 
-        verticalalignment='bottom'
+    plt.colorbar(
+        line_collection, 
+        label=(
+            'moving threshold:\npostnovo probability score or\n'
+            'de novo algorithm score percentile'
+            )
         )
+    #annotation_x = x[len(x) // 2]
+    #annotation_y = y[len(y) // 2]
+    #plt.annotate(
+    #    '_'.join(alg_group) + '\n' + 'random forest', 
+    #    xy=(annotation_x, annotation_y), 
+    #    xycoords='data', 
+    #    xytext=(25, 25), 
+    #    textcoords = 'offset pixels', 
+    #    arrowprops = dict(facecolor='black', shrink=0.01, width=1, headwidth=6), 
+    #    horizontalalignment='left', 
+    #    verticalalignment='bottom'
+    #    )
 
     # Push the x-axis maximum to the highest yield
     # Yield can theoretically be higher than db search yield, 
@@ -748,175 +930,110 @@ def plot_precision_yield_curve(postnovo_alg_combo_df, alg_score_accuracy_df_dict
     if x[-1] > x_max:
         x_max = x[-1]
 
+    #arrow_position = 2.5
     for alg, alg_score_accuracy_df in alg_score_accuracy_df_dict.items():
 
         sample_size_list = list(range(1, len(alg_score_accuracy_df) + 1))
-        alg_score_accuracy_df['precision'] = make_precision_col(alg_score_accuracy_df, 'score')
+        precision_list = make_precision_list(alg_score_accuracy_df, 'score')
 
         x = sample_size_list[::100]
-        y = precision[::100]
-        z = (alg_score_accuracy_df['score'].argsort() / alg_score_accuracy_df['score'].size).tolist()[::100]
-        colorline(x, y, z)
-        annotation_x = x[int(len(x) / arrow_position)]
-        annotation_y = y[int(len(y) / arrow_position)]
-        arrow_position -= 1
-        plt.annotate(
-            alg,
-            xy=(annotation_x, annotation_y),
-            xycoords='data',
-            xytext = (-25, -25),
-            textcoords='offset pixels',
-            arrowprops=dict(facecolor='black', shrink=0.01, width=1, headwidth=6),
-            horizontalalignment='right', 
-            verticalalignment='top'
-            )
+        y = precision_list[::100]
+
+        # Color is raw score
+        z = sorted(alg_score_accuracy_df['score'].tolist(), reverse=True)[::100]
+        ## Color is score percentile (0 to 1)
+        #score_count = len(alg_score_accuracy_df)
+        #z = [i / score_count for i in range(score_count, 0, -100)]
+        #line_collection = colorline(x, y, z)
+        if alg == 'novor':
+            line_collection = colorline(x, y, z, norm=plt.Normalize(0, 100))
+            tick_locs = [0, 20, 40, 60, 80, 100]
+        elif alg == 'pn':
+            line_collection = colorline(x, y, z, norm=plt.Normalize(-10, 15))
+            tick_locs = [-10, -5, 0, 5, 10, 15]
+            #line_collection = colorline(x, y, z, norm=plt.Normalize(z[-1], z[0]))
+            #tick_locs = []
+            #tick_interval = (z[0] - z[-1]) / 5
+            #for i in range(6):
+            #    tick_locs.append(z[-1] + i * tick_interval)
+        elif alg == 'deepnovo':
+            line_collection = colorline(x, y, z, norm=plt.Normalize(0, 1))
+            tick_locs = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+        
+        #plt.colorbar(
+        #    line_collection, 
+        #    ticks=tick_locs, 
+        #    #label = (
+        #    #    'moving threshold:\npostnovo probability score or\n'
+        #    #    'de novo algorithm score percentile'
+        #    #    )
+        #    )
+
+        #annotation_x = x[int(len(x) / arrow_position)]
+        #annotation_y = y[int(len(y) / arrow_position)]
+        #arrow_position -= 0.5
+        #plt.annotate(
+        #    alg,
+        #    xy=(annotation_x, annotation_y),
+        #    xycoords='data',
+        #    xytext = (-25, -25),
+        #    textcoords='offset pixels',
+        #    arrowprops=dict(facecolor='black', shrink=0.01, width=1, headwidth=6),
+        #    horizontalalignment='right', 
+        #    verticalalignment='top'
+        #    )
 
         if x[-1] > x_max:
             x_max = x[-1]
 
-    ax.plot(db_search_x, db_search_y, color='r', marker='*')
+    ax.plot(db_search_x, db_search_y, color='r', marker='*', markersize=10)
     if db_search_x > x_max:
         x_max = db_search_x + 1000
-        plt.xlim([x_min, x_max])
+    plt.xlim([x_min, x_max])
 
-    # Set x-axis tick marks
-    if 0 < x_max <= 100000:
-        x_tick_spacing = 20000
-    elif x_max > 100000:
-        x_tick_spacing = 40000
-    plt.xticks(np.arange(0, x_max, x_tick_spacing))
+    #if all_postnovo_predictions:
+    #    plt.title('all postnovo predictions')
+    #else:
+    #    alg_group = list(alg_score_accuracy_df_dict.keys())
+    #    if len(alg_score_accuracy_df_dict) == 1:
+    #        # e.g., title is 'novor sequences'
+    #        plt.title(alg_group[0] + ' sequences')
+    #    else:
+    #        # e.g., title is 'novor-pn consensus sequences'
+    #        plt.title('-'.join(alg_group) + ' consensus sequences')
 
     plt.tight_layout(True)
-    save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_yield.pdf')
+    if all_postnovo_predictions:
+        save_path = join(config.iodir[0], 'full_precision_yield.pdf')
+    else:
+        save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_yield.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
     plt.close()
 
     return
 
-#def plot_precision_yield(prediction_df, db_search_ref):
-
-#    fig, ax = plt.subplots()
-#    plt.title('precision vs sequence yield')
-#    x_min = 1
-#    x_max = 0
-#    plt.ylim([0, 1])
-#    plt.xlabel('sequence yield')
-#    plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
-
-#    db_search_ref_x = len(db_search_ref)
-#    db_search_ref_y = 0.95
-
-#    for multiindex_key in config.is_alg_col_multiindex_keys:
-
-#        fig, ax = plt.subplots()
-#        plt.title('precision vs sequence yield')
-#        x_min = 1
-#        x_max = 0
-#        plt.ylim([0, 1])
-#        plt.xlabel('sequence yield')
-#        plt.ylabel('precision = ' + r'$\frac{T_p}{T_p + F_p}$')
-
-#        alg_group = tuple([alg for i, alg in enumerate(config.alg_list) if multiindex_key[i]])
-#        alg_group_data = prediction_df.xs(multiindex_key)
-#        max_probabilities = alg_group_data.groupby(level = 'scan')['probability'].transform(max)
-#        best_alg_group_data = alg_group_data[alg_group_data['probability'] == max_probabilities]
-#        best_alg_group_data = best_alg_group_data.groupby(level = 'scan').first()
-
-#        sample_size_list = list(range(1, len(best_alg_group_data) + 1))
-#        precision = make_precision_col(best_alg_group_data, 'probability')
-#        best_alg_group_data['random forest precision'] = precision
-
-#        x = sample_size_list[::100]
-#        y = precision[::100]
-#        z = (best_alg_group_data['probability'].argsort() / best_alg_group_data['probability'].size).tolist()[::100]
-#        model_line_collection = colorline(x, y, z)
-#        #plt.colorbar(model_line_collection, label = 'moving threshold:\nrandom forest probability or\nde novo algorithm score percentile')
-#        plt.colorbar(model_line_collection, label = 'moving threshold:\npostnovo probability score or\nde novo algorithm score percentile')
-#        #annotation_x = x[len(x) // 2]
-#        #annotation_y = y[len(y) // 2]
-#        #plt.annotate('_'.join(alg_group) + '\n' + 'random forest',
-#        #             xy = (annotation_x, annotation_y),
-#        #             xycoords = 'data',
-#        #             xytext = (25, 25),
-#        #             textcoords = 'offset pixels',
-#        #             arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-#        #             horizontalalignment = 'left', verticalalignment = 'bottom',
-#        #             )
-
-#        if x[-1] > x_max:
-#            x_max = x[-1]
-#            plt.xlim([x_min, x_max])
-
-#        #arrow_position = 2.5
-#        for i, alg in enumerate(alg_group):
-#            if alg == 'novor':
-#                score_str = 'avg novor aa score'
-#            elif alg == 'pn':
-#                score_str = 'rank score'
-#            elif alg == 'deepnovo':
-#                score_str = 'avg deepnovo aa score'
-#            precision = make_precision_col(best_alg_group_data, score_str)
-#            best_alg_group_data[alg + ' precision'] = precision
-
-#            x = sample_size_list[::100]
-#            y = precision[::100]
-#            z = (best_alg_group_data[score_str].argsort() / best_alg_group_data[score_str].size).tolist()[::100]
-#            colorline(x, y, z)
-#            #annotation_x = x[int(len(x) / arrow_position)]
-#            #annotation_y = y[int(len(y) / arrow_position)]
-#            #arrow_position -= 1
-#            #plt.annotate('_'.join(alg_group) + '\n' + score_str,
-#            #             xy = (annotation_x, annotation_y),
-#            #             xycoords = 'data',
-#            #             xytext = (-25, -25),
-#            #             textcoords = 'offset pixels',
-#            #             arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-#            #             horizontalalignment = 'right', verticalalignment = 'top'
-#            #             )
-
-#            if x[-1] > x_max:
-#                x_max = x[-1]
-#                plt.xlim([x_min, x_max])
-
-#        ax.plot(db_search_ref_x, db_search_ref_y, color = 'r', marker = '*')
-#        if db_search_ref_x > x_max:
-#            x_max = db_search_ref_x + 1000
-#            plt.xlim([x_min, x_max])
-
-#        # Set x-axis tick marks
-#        if 0 < x_max <= 100000:
-#            x_tick_spacing = 20000
-#        elif x_max > 100000:
-#            x_tick_spacing = 40000
-#        plt.xticks(np.arange(0, x_max, x_tick_spacing))
-
-#        plt.tight_layout(True)
-#        save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_yield.pdf')
-#        fig.savefig(save_path, bbox_inches = 'tight')
-#        plt.close()
-
-def colorline(x, y, z, cmap = 'jet', norm = plt.Normalize(0.0, 1.0), linewidth = 3, alpha = 1.0):
+def colorline(x, y, z, cmap='jet', norm=plt.Normalize(0.0, 1.0), linewidth=3, alpha=1.0):
 
     z = np.asarray(z)
 
     points = np.array([x, y]).T.reshape(-1, 1, 2)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    line_collection = mcoll.LineCollection(segments, array = z, cmap = cmap, norm = norm, linewidth = linewidth, alpha = alpha)
+    line_collection = mcoll.LineCollection(segments, array=z, cmap=cmap, norm=norm, linewidth=linewidth, alpha=alpha)
 
     ax = plt.gca()
     ax.add_collection(line_collection)
     return line_collection
 
-def make_precision_col(df, sort_col):
+def make_precision_list(df, sort_col):
     # Make a list of cumulative precision values as successively lower-scoring seqs are considered
 
     df.sort_values(sort_col, ascending=False, inplace=True)
     ref_matches = df['ref match'].tolist()
     cumulative_ref_matches = [ref_matches[0]]
-    precision = [cumulative_ref_matches[0] / 1]
+    precision_list = [cumulative_ref_matches[0] / 1]
     for i, ref_match in enumerate(ref_matches[1:]):
         cumulative_ref_match_sum = cumulative_ref_matches[-1] + ref_match
         cumulative_ref_matches.append(cumulative_ref_match_sum)
-        precision.append(cumulative_ref_match_sum / (i + 2))
+        precision_list.append(cumulative_ref_match_sum / (i + 2))
 
-    return precision
+    return precision_list
