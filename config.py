@@ -7,6 +7,9 @@ from itertools import product
 from collections import OrderedDict
 from functools import partial
 
+#Global variables are stored in a mutable object.
+globals = dict()
+
 # websites
 forest_dict_url = ''
 
@@ -55,8 +58,8 @@ seqs_reported_per_alg_dict = {'novor': 1, 'pn': 20, 'deepnovo': 20}
 frag_mass_tols = ['0.2', '0.3', '0.4', '0.5', '0.6', '0.7']
 fixed_mods = ['Carbamidomethylation of C']
 variable_mods = ['Oxidation of M']
-frag_method = 'CID'
-frag_mass_analyzer = 'Trap'
+frag_methods = ['CID', 'HCD']
+frag_mass_analyzers = ['Trap', 'FT']
 train_consensus_len = 7
 min_ref_match_len = 7
 min_blast_query_len = 9

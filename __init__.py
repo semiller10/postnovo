@@ -221,6 +221,8 @@ def main():
     else:
         args = userargs.setup()
 
+    sys.exit()
+
     input_df_dict = input.load_files()
     utils.save_pkl_objects(config.iodir[0], **{'input_df_dict': input_df_dict})
     #utils.save_dfs(config.iodir[0], 

@@ -81,6 +81,18 @@ def parse_args(test_argv=None):
               'display list of accepted mods with python postnovo --mods_list')
         )
     parser.add_argument(
+        '--frag_method', 
+        choices=['CID', 'HCD'], 
+        default='CID', 
+        help=('Fragmentation method')
+    )
+    parser.add_argument(
+        '--frag_analyzer', 
+        choices=['Trap', 'FT'], 
+        default='Trap', 
+        help=('Fragment mass analyzer, low or high resolution')
+    )
+    parser.add_argument(
         '--denovogui_fp',
         help='denovogui jar filepath'
         )
@@ -273,6 +285,9 @@ def check_args(parser, args):
         check_mods(parser, args.fixed_mods, 'fixed')
     if args.variable_mods != config.variable_mods[0]:
         check_mods(parser, args.variable_mods, 'variable')
+
+    config.globals['frag_method'] = args.frag_method
+    config.globals['frag_analyzer'] = args.frag_analyzer
 
     if (args.denovogui_fp != None) ^ (args.mgf_fp != None):
         parser.error('both denovogui_fp and mgf_fp are needed')
@@ -474,19 +489,19 @@ def run_denovogui(args):
 
     denovogui_param_args = \
         OrderedDict().fromkeys(
-            ['-out',
-             '-frag_tol',
-             '-fixed_mods',
-             '-variable_mods',
-             '-pepnovo_hitlist_length',
+            ['-out', 
+             '-frag_tol', 
+             '-fixed_mods', 
+             '-variable_mods', 
+             '-pepnovo_hitlist_length', 
              '-novor_fragmentation',
              '-novor_mass_analyzer']
             )
     denovogui_param_args['-fixed_mods'] = '\"' + ', '.join(args.fixed_mods) + '\"'
     denovogui_param_args['-variable_mods'] = '\"' + ', '.join(args.variable_mods) + '\"'
     denovogui_param_args['-pepnovo_hitlist_length'] = str(config.seqs_reported_per_alg_dict['pn'])
-    denovogui_param_args['-novor_fragmentation'] = '\"' + config.frag_method + '\"'
-    denovogui_param_args['-novor_mass_analyzer'] = '\"' + config.frag_mass_analyzer + '\"'
+    denovogui_param_args['-novor_fragmentation'] = '\"' + config.globals['frag_method'] + '\"'
+    denovogui_param_args['-novor_mass_analyzer'] = '\"' + config.globals['frag_analyzer'] + '\"'
 
     denovogui_args = OrderedDict().fromkeys(['-spectrum_files', '-output_folder', '-id_params',
                                              '-pepnovo', '-novor', '-directag', '-threads'])
