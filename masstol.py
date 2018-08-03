@@ -17,24 +17,24 @@ else:
 def update_prediction_df(prediction_df):
     utils.verbose_print()
 
-    if len(config.frag_mass_tols) == 1:
+    if len(config.globals['frag_mass_tols']) == 1:
         return prediction_df
 
     utils.verbose_print('setting up mass tolerance comparison')
     prediction_df.reset_index(inplace = True)
     # combo level col = sum of 'is novor seq', 'is pn seq', 'is deepnovo seq' values
-    prediction_df['combo level'] = prediction_df.iloc[:, :len(config.alg_list)].sum(axis = 1)
+    prediction_df['combo level'] = prediction_df.iloc[:, :len(config.globals['algs'])].sum(axis = 1)
     scan_list = sorted(list(set(prediction_df['scan'])))
-    one_percent_number_scans = len(scan_list) / 100 / config.cores[0]
+    one_percent_number_scans = len(scan_list) / 100 / config.globals['cpus']
     tol_group_key_list = []
-    for i, tol in enumerate(config.frag_mass_tols):
-        tol_group_key = [0] * len(config.frag_mass_tols)
+    for i, tol in enumerate(config.globals['frag_mass_tols']):
+        tol_group_key = [0] * len(config.globals['frag_mass_tols'])
         tol_group_key[-(i + 1)] = 1
         tol_group_key_list.append(tuple(tol_group_key))
     # set index as scan, '0.2' -> '0.7', combo level
-    prediction_df.set_index(['scan'] + config.frag_mass_tols, inplace = True)
+    prediction_df.set_index(['scan'] + config.globals['frag_mass_tols'], inplace = True)
     # tol list indices are sorted backwards: 0.7 predictions come before 0.2 in scan group
-    prediction_df.sort_index(level = ['scan'] + config.frag_mass_tols, inplace = True)
+    prediction_df.sort_index(level = ['scan'] + config.globals['frag_mass_tols'], inplace = True)
     mass_tol_compar_df = prediction_df[['seq', 'combo level']]
     scan_groups = mass_tol_compar_df.groupby(level = 'scan')
 
@@ -44,7 +44,7 @@ def update_prediction_df(prediction_df):
     #                                    procedure_str = 'mass tolerance comparison progress: ',
     #                                    one_percent_total_count = one_percent_number_scans)
     #child_initialize(scan_groups,
-    #                 config.frag_mass_tols,
+    #                 config.globals['frag_mass_tols'],
     #                 tol_group_key_list,
     #                 print_percent_progress_fn)
     #utils.verbose_print('performing mass tolerance comparison')
@@ -55,11 +55,11 @@ def update_prediction_df(prediction_df):
     print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
                                         procedure_str = 'mass tolerance comparison progress: ',
                                         one_percent_total_count = one_percent_number_scans,
-                                        cores = config.cores[0])
-    multiprocessing_pool = Pool(config.cores[0],
+                                        cores = config.globals['cpus'])
+    multiprocessing_pool = Pool(config.globals['cpus'],
                                 initializer = child_initialize,
                                 initargs = (scan_groups,
-                                            config.frag_mass_tols,
+                                            config.globals['frag_mass_tols'],
                                             tol_group_key_list,
                                             print_percent_progress_fn)
                                 )
@@ -68,7 +68,7 @@ def update_prediction_df(prediction_df):
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
-    tol_match_cols = [tol + ' seq match' for tol in config.frag_mass_tols]
+    tol_match_cols = [tol + ' seq match' for tol in config.globals['frag_mass_tols']]
     tol_match_df = pd.DataFrame(np.fliplr(np.concatenate(tol_match_array_list)),
                                 index = prediction_df.index,
                                 columns = tol_match_cols)

@@ -673,7 +673,7 @@ def make_fasta(retained_seq_dict):
 
     info_table = [['seq_number', 'scan_list', 'seq_score', 'best_predicts_from', 'also_contains_predicts_from']]
     seq_number = 0
-    with open(os.path.join(config.iodir[0], 'postnovo_seqs.faa'), 'w') as fasta_file:
+    with open(os.path.join(config.globals['iodir'], 'postnovo_seqs.faa'), 'w') as fasta_file:
         for i, remove in enumerate(removal_list):
             if not remove:
                 fasta_seq = fasta_best_predicts_list[i]
@@ -695,7 +695,7 @@ def make_fasta(retained_seq_dict):
                     fasta_file.write(fasta_seq + '\n')
 
                     seq_number += 1
-    pd.DataFrame(info_table[1:], columns=info_table[0]).to_csv(os.path.join(config.iodir[0], 'postnovo_seqs_info.tsv'), sep='\t', index=False)
+    pd.DataFrame(info_table[1:], columns=info_table[0]).to_csv(os.path.join(config.globals['iodir'], 'postnovo_seqs_info.tsv'), sep='\t', index=False)
 
 def make_xle_permutations(seq, residue_number = 0, permuted_seqs = None):
 

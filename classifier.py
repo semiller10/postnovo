@@ -38,30 +38,34 @@ else:
     import dbsearch
     import utils
 
+total_ref_len = 0
+
 def classify(prediction_df=None, input_df_dict=None):
     utils.verbose_print()
-    if config.mode[0] in ['train', 'test', 'optimize']:
+    if config.globals['mode'] in ['train', 'test', 'optimize']:
         prediction_df, ref_correspondence_df, db_search_ref = find_target_accuracy(prediction_df)
-        with open(os.path.join(config.iodir[0], 'ref_correspondence_df.pkl'), 'wb') as f:
+        with open(os.path.join(config.globals['iodir'], 'ref_correspondence_df.pkl'), 'wb') as f:
             pkl.dump(ref_correspondence_df, f, 2)
-        with open(os.path.join(config.iodir[0], 'db_search_ref.pkl'), 'wb') as f:
+        with open(os.path.join(config.globals['iodir'], 'db_search_ref.pkl'), 'wb') as f:
             pkl.dump(db_search_ref, f, 2)
-        #with open(os.path.join(config.iodir[0], 'ref_correspondence_df.pkl'), 'rb') as f:
+        #with open(os.path.join(config.globals['iodir'], 'ref_correspondence_df.pkl'), 'rb') as f:
         #    ref_correspondence_df = pkl.load(f)
-        #with open(os.path.join(config.iodir[0], 'db_search_ref.pkl'), 'rb') as f:
+        #with open(os.path.join(config.globals['iodir'], 'db_search_ref.pkl'), 'rb') as f:
         #    db_search_ref = pkl.load(f)
 
     utils.verbose_print('formatting data for compatability with model')
     prediction_df = standardize_prediction_df_cols(prediction_df)
-    utils.save_pkl_objects(config.iodir[0], **{'prediction_df': prediction_df})
-    #prediction_df = utils.load_pkl_objects(config.iodir[0], 'prediction_df')
+    utils.save_pkl_objects(config.globals['iodir'], **{'prediction_df': prediction_df})
+    #prediction_df = utils.load_pkl_objects(config.globals['iodir'], 'prediction_df')
 
-    if config.mode[0] == 'predict':
+    if config.globals['mode'] == 'predict':
         reported_prediction_df = make_predictions(prediction_df)
-        reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
-        #reported_prediction_df = pd.read_csv(os.path.join(config.iodir[0], 'best_predictions.csv'), header=0)
+        reported_prediction_df.to_csv(os.path.join(config.globals['iodir'], 'best_predictions.csv'))
+        #reported_prediction_df = pd.read_csv(os.path.join(config.globals['iodir'], 'best_predictions.csv'), header=0)
 
-        reported_prediction_df = reported_prediction_df[reported_prediction_df['probability'] >= config.min_prob]
+        reported_prediction_df = reported_prediction_df[
+            reported_prediction_df['probability'] >= config.globals['min_prob']
+        ]
 
         df = reported_prediction_df.reset_index()
         if config.psm_fp_list:
@@ -70,23 +74,29 @@ def classify(prediction_df=None, input_df_dict=None):
         retained_seq_dict = dbsearch.lengthen_seqs(mass_grouped_df)
         dbsearch.make_fasta(retained_seq_dict)
 
-    elif config.mode[0] == 'test':
+    elif config.globals['mode'] == 'test':
         reported_prediction_df = make_predictions(prediction_df, input_df_dict, db_search_ref)
-        reported_prediction_df = reported_prediction_df.reset_index().\
-            merge(ref_correspondence_df.reset_index(),
-                  how = 'left',
-                  on = config.is_alg_col_names + ['scan'] + config.frag_mass_tols + ['is longest consensus', 'is top rank consensus'])
+        reported_prediction_df = reported_prediction_df.reset_index().merge(
+            ref_correspondence_df.reset_index(), 
+            how='left', 
+            on=(
+                config.is_alg_col_names 
+                + ['scan'] 
+                + config.globals['frag_mass_tols'] 
+                + ['is longest consensus', 'is top rank consensus']
+            )
+        )
         reported_prediction_df.set_index('scan', inplace = True)
         reported_cols_in_order = []
         for reported_df_col in config.reported_df_cols:
             if reported_df_col in reported_prediction_df.columns:
                 reported_cols_in_order.append(reported_df_col)
         reported_prediction_df = reported_prediction_df.reindex_axis(reported_cols_in_order, axis = 1)
-        reported_prediction_df.to_csv(os.path.join(config.iodir[0], 'best_predictions.csv'))
+        reported_prediction_df.to_csv(os.path.join(config.globals['iodir'], 'best_predictions.csv'))
 
         # Loop through each predic
     
-    elif config.mode[0] in ['train', 'optimize']:
+    elif config.globals['mode'] in ['train', 'optimize']:
         
         utils.verbose_print('updating training database')
         training_df = update_training_data(prediction_df)
@@ -113,62 +123,105 @@ def find_seqs_in_paired_seqs(seq_list1, seq_list2):
     return matches
 
 def find_target_accuracy(prediction_df):
-    utils.verbose_print('loading', basename(config.db_search_psm_file[0]))
-    db_search_ref = load_db_search_ref_file(config.db_search_psm_file[0])
-    utils.verbose_print('loading', basename(config.db_search_ref_file[0]))
-    fasta_ref = load_fasta_ref_file(config.db_search_ref_file[0])
+
+    utils.verbose_print('loading', basename(config.globals['db_search_fp']))
+    db_search_ref = load_db_search_ref_file(config.globals['db_search_fp'])
+    utils.verbose_print('loading', basename(config.globals['ref_fasta_fp']))
+    fasta_ref = load_fasta_ref_file(config.globals['ref_fasta_fp'])
+
+    #Determine the number of amino acids in the reference seqs.
+    for ref_seq in fasta_ref:
+        total_ref_len += len(ref_seq)
 
     utils.verbose_print('finding sequence matches to database search reference')
 
-    prediction_df.reset_index(inplace = True)
-    comparison_df = prediction_df.merge(db_search_ref, how = 'left', on = 'scan')
+    prediction_df.reset_index(inplace=True)
+    comparison_df = prediction_df.merge(db_search_ref, how='left', on='scan')
+    #Null entries exist for scans with a de novo but not a db search sequence.
     prediction_df['scan has db search PSM'] = comparison_df['ref seq'].notnull().astype(int)
     comparison_df['ref seq'][comparison_df['ref seq'].isnull()] = ''
+    #Add a column recording whether de novo seq is in db search reference (1 if true, 0 if false).
     prediction_df['de novo seq matches db search seq'] = find_seqs_in_paired_seqs(
         comparison_df['seq'].tolist(),
         comparison_df['ref seq'].tolist()
-        )
+    )
+    #Add column for the length of the de novo seq.
+    prediction_df['predict len'] = comparison_df['seq'].apply(len)
 
-    utils.verbose_print('finding de novo sequence matches to fasta reference for scans lacking database search PSM')
+    utils.verbose_print(
+        'finding de novo sequence matches to fasta reference for scans lacking database search PSM'
+    )
 
+    #Determine the number of de novo seqs meeting the length criterion without ref matches.
     no_db_search_psm_df = prediction_df[prediction_df['scan has db search PSM'] == 0]
     no_db_search_psm_df = no_db_search_psm_df[no_db_search_psm_df['seq'].apply(len) >= config.min_ref_match_len]
     unique_long_denovo_seqs = list(set(no_db_search_psm_df['seq']))
 
     utils.verbose_print('finding minimum de novo sequence length to uniquely match fasta reference')
-    #config.min_ref_match_len = find_min_seq_len(fasta_ref = fasta_ref, cores = config.cores[0])
-    one_percent_number_denovo_seqs = len(unique_long_denovo_seqs) / 100 / config.cores[0]
+    #config.min_ref_match_len = find_min_seq_len(fasta_ref = fasta_ref, cores = config.globals['cpus'])
+    one_percent_number_denovo_seqs = len(unique_long_denovo_seqs) / 100 / config.globals['cpus']
 
+    #Match de novo to the reference fasta file.
     # Multiprocess
-    multiprocessing_pool = Pool(config.cores[0])
-    print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
-                                        procedure_str = 'reference sequence matching progress: ',
-                                        one_percent_total_count = one_percent_number_denovo_seqs,
-                                        cores = config.cores[0])
-    single_var_match_seq_to_fasta_ref = partial(match_seq_to_fasta_ref,
-                                                fasta_ref = fasta_ref,
-                                                print_percent_progress_fn = print_percent_progress_fn)
-    fasta_matches = multiprocessing_pool.map(single_var_match_seq_to_fasta_ref, unique_long_denovo_seqs)
+    multiprocessing_pool = Pool(config.globals['cpus'])
+    print_percent_progress_fn = partial(
+        utils.print_percent_progress_multithreaded, 
+        procedure_str='reference sequence matching progress: ', 
+        one_percent_total_count=one_percent_number_denovo_seqs, 
+        cores=config.globals['cpus']
+    )
+    single_var_match_seq_to_fasta_ref = partial(
+        match_seq_to_fasta_ref, 
+        fasta_ref=fasta_ref, 
+        print_percent_progress_fn=print_percent_progress_fn
+    )
+    #Return a 1 if there is a match, 0 if there isn't.
+    fasta_matches = multiprocessing_pool.map(
+        single_var_match_seq_to_fasta_ref, unique_long_denovo_seqs
+    )
     multiprocessing_pool.close()
     multiprocessing_pool.join()
 
     fasta_match_dict = dict(zip(unique_long_denovo_seqs, fasta_matches))
-    single_var_get_match_from_dict = partial(get_match_from_dict, match_dict = fasta_match_dict)
-    no_db_search_psm_df['correct de novo seq not found in db search'] = no_db_search_psm_df['seq'].apply(single_var_get_match_from_dict)
-    prediction_df = prediction_df.merge(no_db_search_psm_df['correct de novo seq not found in db search'].to_frame(),
-                                        left_index = True, right_index = True, how = 'left')
+    single_var_get_match_from_dict = partial(get_match_from_dict, match_dict=fasta_match_dict)
+    no_db_search_psm_df['correct de novo seq not found in db search'] = \
+        no_db_search_psm_df['seq'].apply(single_var_get_match_from_dict)
+    prediction_df = prediction_df.merge(
+        no_db_search_psm_df['correct de novo seq not found in db search'].to_frame(), 
+        left_index=True, 
+        right_index=True, 
+        how='left'
+    )
     prediction_df['correct de novo seq not found in db search'].fillna(0, inplace = True)
 
-    prediction_df['ref match'] = prediction_df['de novo seq matches db search seq'] +\
+    #Count as correct all de novo seqs that matched either the db search results or the ref fasta.
+    prediction_df['ref match'] = prediction_df['de novo seq matches db search seq'] + \
         prediction_df['correct de novo seq not found in db search']
-    prediction_df.set_index(config.is_alg_col_names + ['scan'] + config.frag_mass_tols + ['is longest consensus', 'is top rank consensus'],
-                            inplace = True)
-    ref_correspondence_df = pd.concat([prediction_df['scan has db search PSM'],
-                                       prediction_df['de novo seq matches db search seq'],
-                                       prediction_df['correct de novo seq not found in db search']], 1)
-    prediction_df.drop(['scan has db search PSM',
-                        'de novo seq matches db search seq',
-                        'correct de novo seq not found in db search'], axis = 1, inplace = True)
+    prediction_df.set_index(
+        config.is_alg_col_names + 
+        ['scan'] + 
+        config.globals['frag_mass_tols'] + 
+        ['is longest consensus', 'is top rank consensus'], 
+        inplace=True
+    )
+    #Store information on de novo seq accuracy in a separate structure.
+    ref_correspondence_df = pd.concat(
+        [
+            prediction_df['scan has db search PSM'], 
+            prediction_df['de novo seq matches db search seq'], 
+            prediction_df['correct de novo seq not found in db search']
+        ], 
+        axis=1
+    )
+    prediction_df.drop(
+        [
+            'scan has db search PSM', 
+            'de novo seq matches db search seq', 
+            'correct de novo seq not found in db search'
+        ], 
+        axis=1, 
+        inplace=True
+    )
     prediction_df = prediction_df.reset_index().set_index(config.is_alg_col_names + ['scan'])
 
     return prediction_df, ref_correspondence_df, db_search_ref
@@ -229,11 +282,13 @@ def match_seq_to_fasta_ref(denovo_seq, fasta_ref, print_percent_progress_fn):
 
 def standardize_prediction_df_cols(prediction_df):
 
-    prediction_df.drop('is top rank single alg', inplace = True)
+    prediction_df.drop('is top rank single alg', inplace=True)
     min_retention_time = prediction_df['retention time'].min()
     max_retention_time = prediction_df['retention time'].max()
-    prediction_df['retention time'] = (prediction_df['retention time'] - min_retention_time) / (max_retention_time - min_retention_time)
-    prediction_df.sort_index(1, inplace = True)
+    prediction_df['retention time'] = \
+        (prediction_df['retention time'] - min_retention_time) / \
+        (max_retention_time - min_retention_time)
+    prediction_df.sort_index(1, inplace=True)
 
     return prediction_df
 
@@ -255,7 +310,11 @@ def update_training_data(prediction_df):
 
 def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
 
-    def retrieve_single_alg_score_accuracy_df(alg, frag_mass_tol='0.5'):
+    def retrieve_single_alg_score_accuracy_df(alg, frag_analyzer):
+        '''
+        Calculate the accuracy of individual algorithms' de novo sequences.
+        '''
+
         if alg == 'novor':
             score_col_name = 'avg aa score'
         elif alg == 'pn':
@@ -263,20 +322,30 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
         elif alg == 'deepnovo':
             score_col_name = 'avg aa score'
 
+        #Consider the de novo sequences predicted at standard fragment mass tolerances.
+        if frag_analyzer == 'Trap':
+            frag_mass_tol = '0.5'
+        elif frag_analyzer == 'FT':
+            frag_mass_tol = '0.05'
+
         single_alg_df = input_df_dict[alg][frag_mass_tol]
         single_alg_df = single_alg_df.groupby(single_alg_df.index.get_level_values(0)).first()
         single_alg_df = single_alg_df[['seq', score_col_name]]
         single_alg_df.reset_index(inplace=True)
-        single_alg_df['seq len'] = single_alg_df['seq'].apply(lambda x: len(x))
-        single_alg_df = single_alg_df[single_alg_df['seq len'] >= config.min_len]
+        #Record the lengths of predictions and references to calculate amino acid level statistics.
+        single_alg_df['predict len'] = single_alg_df['seq'].apply(lambda x: len(x))
+        single_alg_df = single_alg_df[single_alg_df['predict len'] >= config.globals['min_len']]
         single_alg_df = single_alg_df.merge(db_search_ref, how='left', on='scan')
         single_alg_df['ref seq'][single_alg_df['ref seq'].isnull()] = ''
         single_alg_df['ref match'] = find_seqs_in_paired_seqs(
             single_alg_df['seq'].tolist(), 
             single_alg_df['ref seq'].tolist()
-            )
-        single_alg_df = single_alg_df.set_index('scan')[[score_col_name, 'ref match']]
-        single_alg_df.columns = ['score', 'ref match']
+        )
+
+        single_alg_df = single_alg_df.set_index('scan')[
+            [score_col_name, 'ref match', 'predict len']
+        ]
+        single_alg_df.columns = ['score', 'ref match', 'predict len']
 
         return single_alg_df
 
@@ -290,38 +359,42 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
     print(config.data_dir, flush=True)
     forest_dict = utils.load_pkl_objects(config.data_dir, 'forest_dict')
 
+    #Run Postnovo model for each combination of algorithms (single alg seqs, consensus seqs).
     prediction_df['probability'] = np.nan
     for multiindex_key in config.is_alg_col_multiindex_keys:
         # REMOVE
         print(str(multiindex_key), flush=True)
-        alg_group = tuple([alg for i, alg in enumerate(config.alg_list) if multiindex_key[i]])
+        alg_group = tuple([alg for i, alg in enumerate(config.globals['algs']) if multiindex_key[i]])
         # REMOVE
         print(alg_group, flush=True)
 
         alg_group_data = prediction_df.xs(multiindex_key)
-        if config.mode[0] == 'predict':
+        if config.globals['mode'] == 'predict':
             # Remove the cols that are not features in ANY rf
-            alg_group_data.drop(['seq', 'probability', 'measured mass', 'mass error'], axis = 1, inplace = True)
-        elif config.mode[0] == 'test':
-            
-            # Prepare single-alg data for precision-recall, precision-yield plots
-            alg_score_accuracy_df_dict = OrderedDict().fromkeys(alg_group)
-            for alg in alg_group:
-                alg_score_accuracy_df_dict[alg] = retrieve_single_alg_score_accuracy_df(alg)
-                
+            alg_group_data.drop(
+                ['seq', 'probability', 'measured mass', 'mass error'], 
+                axis=1, 
+                inplace=True
+            )
+        elif config.globals['mode'] == 'test':                
             # Remove the cols that are not features in ANY rf
-            alg_group_data.drop(['seq', 'ref match', 'probability', 'measured mass', 'mass error'], axis=1, inplace=True)
-        # Remove empty cols that are not features in the appropriate rf
+            alg_group_data.drop(
+                ['seq', 'ref match', 'probability', 'measured mass', 'mass error'], 
+                axis=1, 
+                inplace=True
+            )
+        #Remove empty cols that are not features in the appropriate rf.
         alg_group_data.dropna(1, inplace=True)
-        forest_dict[alg_group].n_jobs = config.cores[0]
+        forest_dict[alg_group].n_jobs = config.globals['cpus']
         # REMOVE
         print(alg_group_data.columns, flush=True)
         probabilities = forest_dict[alg_group].predict_proba(alg_group_data.as_matrix())[:, 1]
 
+        #Add the predicted probabilities for the alg combination to the full table of results.
         prediction_df.loc[multiindex_key, 'probability'] = probabilities
 
         # UNCOMMENT
-        #if config.mode[0] == 'test':
+        #if config.globals['mode'] == 'test':
         #    utils.verbose_print('making', '_'.join(alg_group), 'test plots')
         #    #plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data)
         #    postnovo_alg_combo_df = prediction_df.xs(multiindex_key)
@@ -335,21 +408,21 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
 
     prediction_df = prediction_df.reset_index().set_index('scan')
 
-    if config.max_total_sacrifice[0]:
+    if config.globals['max_total_sacrifice']:
         # Recover the longest seq prediction that fulfills the score sacrifice conditions
         # First, filter to those predictions with prob score above <sacrifice_floor>
-        above_sac_floor_df = prediction_df[prediction_df['probability'] >= config.sacrifice_floor]
+        above_sac_floor_df = prediction_df[prediction_df['probability'] >= config.globals['sacrifice_floor']]
         # Loop through the predictions for each spectrum
         above_sac_floor_scan_dfs = [df for _, df in above_sac_floor_df.groupby(level='scan')]
 
         one_percent_number_scans_above_sac_floor = \
-            len(above_sac_floor_scan_dfs) / 100 / config.cores[0]
-        max_total_sacrifice = config.max_total_sacrifice[0]
-        sacrifice_extension_ratio = config.max_sacrifice_per_percent_extension[0] * 100
+            len(above_sac_floor_scan_dfs) / 100 / config.globals['cpus']
+        max_total_sacrifice = config.globals['max_total_sacrifice']
+        sacrifice_extension_ratio = config.globals['max_sacrifice_per_percent_extension'] * 100
 
         ## Single-threaded
         #for scan_df in above_sac_floor_scan_dfs:
-        #    one_percent_number_scans_above_sac_floor * config.cores[0]
+        #    one_percent_number_scans_above_sac_floor * config.globals['cpus']
         #    print_percent_progress_fn = partial(
         #        utils.print_percent_progress_multithreaded,
         #        procedure_str='Score-length tradeoff progress: ',
@@ -369,20 +442,20 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
             utils.print_percent_progress_multithreaded,
             procedure_str='Score-length tradeoff progress: ',
             one_percent_total_count=one_percent_number_scans_above_sac_floor,
-            cores=config.cores[0]
-            )
+            cores=config.globals['cpus']
+        )
         mp_pool = multiprocessing.Pool(
-            config.cores[0], 
+            config.globals['cpus'], 
             initializer=initialize_workers, 
             initargs=(
                 print_percent_progress_fn, 
                 max_total_sacrifice, 
                 sacrifice_extension_ratio
-                )
             )
+        )
         reported_above_sac_floor_scan_dfs = mp_pool.map(
             do_score_sacrifice_extension, above_sac_floor_scan_dfs
-            )
+        )
         mp_pool.close()
         mp_pool.join()
         reported_above_sac_floor_df = pd.concat(reported_above_sac_floor_scan_dfs)
@@ -390,13 +463,13 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
         # Find the best predictions from below the sacrifice floor
         predictions_below_floor_df = pd.concat(
             [scan_df for _, scan_df in prediction_df.groupby(level='scan')
-             if (scan_df['probability'] <= config.sacrifice_floor).all()]
-            )
+             if (scan_df['probability'] <= config.globals['sacrifice_floor']).all()]
+        )
         max_probabilities = \
             predictions_below_floor_df.groupby(level='scan')['probability'].transform(max)
         best_predictions_below_floor_df = predictions_below_floor_df[
             predictions_below_floor_df['probability'] == max_probabilities
-            ]
+        ]
         reported_below_sac_floor_df = \
             best_predictions_below_floor_df.groupby(level='scan').first()
 
@@ -404,28 +477,38 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
         reported_prediction_df = pd.concat([
             reported_above_sac_floor_df, 
             reported_below_sac_floor_df
-            ]).sort_index()
+        ]).sort_index()
     else:
         max_probabilities = prediction_df.groupby(level='scan')['probability'].transform(max)
         best_prediction_df = prediction_df[prediction_df['probability'] == max_probabilities]
         best_prediction_df = best_prediction_df.groupby(level='scan').first()
         reported_prediction_df = best_prediction_df
 
-    if config.mode[0] == 'test':
-        alg_score_accuracy_df_dict = OrderedDict().fromkeys(config.alg_list)
-        for alg in config.alg_list:
-            alg_score_accuracy_df_dict[alg] = retrieve_single_alg_score_accuracy_df(alg)
+    #Make plots from test data.
+    if config.globals['mode'] == 'test':
+        #Prepare single-alg "raw" de novo data for precision-recall and precision-yield plots.
+        alg_score_accuracy_df_dict = OrderedDict().fromkeys(alg_group)
+        for alg in alg_group:
+            alg_score_accuracy_df_dict[alg] = retrieve_single_alg_score_accuracy_df(
+                alg, config.globals['frag_analyzer']
+            )
+
         plot_precision_recall_curve(
             reported_prediction_df[['probability', 'ref match']], 
             alg_score_accuracy_df_dict, 
             all_postnovo_predictions=True
-            )
+        )
         plot_precision_yield_curve(
-            reported_prediction_df[['probability', 'ref match']], 
+            reported_prediction_df[['probability', 'ref match', 'ref fraction']], 
             alg_score_accuracy_df_dict, 
             len(db_search_ref), 
             all_postnovo_predictions=True
-            )
+        )
+
+        plot_aa_fraction_recall_curve(
+            reported_prediction_df[['probability', 'ref match', 'predict len']], 
+            alg_score_accuracy_df_dict
+        )
 
     reported_cols_in_order = []
     for reported_df_col in config.reported_df_cols:
@@ -481,7 +564,7 @@ def make_training_forests(training_df):
 
     train_target_arr_dict = make_train_target_arr_dict(training_df)
     
-    if config.mode[0] == 'train':
+    if config.globals['mode'] == 'train':
         forest_dict = make_forest_dict(train_target_arr_dict, config.rf_default_params)
 
         ## REMOVE
@@ -492,7 +575,7 @@ def make_training_forests(training_df):
             plot_binned_feature_importances(forest_dict[alg_key], alg_key, train_target_arr_dict[alg_key]['feature_names'])
         #    plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key)
 
-    elif config.mode[0] == 'optimize':
+    elif config.globals['mode'] == 'optimize':
         utils.verbose_print('optimizing random forest parameters')
         optimized_params = optimize_model(train_target_arr_dict)
         forest_dict = make_forest_dict(train_target_arr_dict, optimized_params)
@@ -506,7 +589,7 @@ def make_train_target_arr_dict(training_df):
     train_target_arr_dict = {}
     for multiindex in config.is_alg_col_multiindex_keys:
         print(str(multiindex), flush=True)
-        model_key = tuple([alg for i, alg in enumerate(config.alg_list) if multiindex[i]])
+        model_key = tuple([alg for i, alg in enumerate(config.globals['algs']) if multiindex[i]])
         print(model_key, flush=True)
         model_keys_used.append(model_key)
         train_target_arr_dict[model_keys_used[-1]] = {}.fromkeys(['train', 'target'])
@@ -540,7 +623,7 @@ def make_forest_dict(train_target_arr_dict, rf_params):
                                         max_depth = rf_params[alg_key]['max_depth'],
                                         max_features = rf_params[alg_key]['max_features'],
                                         oob_score = True,
-                                        n_jobs = config.cores[0])
+                                        n_jobs = config.globals['cpus'])
         forest.fit(train_data, target_data)
         forest_dict[alg_key] = forest
 
@@ -556,7 +639,7 @@ def optimize_model(train_target_arr_dict):
             train_test_split(train_target_arr_dict[alg_key]['train'], train_target_arr_dict[alg_key]['target'], stratify = train_target_arr_dict[alg_key]['target'])
         forest_grid = GridSearchCV(RandomForestClassifier(n_estimators = config.rf_n_estimators, oob_score = True),
                                    {'max_features': ['sqrt', None], 'max_depth': [depth for depth in range(11, 20)]},
-                                   n_jobs = config.cores[0])
+                                   n_jobs = config.globals['cpus'])
         forest_grid.fit(data_train_split, target_train_split)
         optimized_forest = forest_grid.best_estimator_
         optimized_params[alg_key]['max_depth'] = optimized_forest.max_depth
@@ -592,7 +675,7 @@ def plot_feature_importances(forest, alg_key, feature_names):
     fig.set_tight_layout(True)
 
     alg_key_str = '_'.join(alg_key)
-    save_path = join(config.iodir[0], alg_key_str + '_feature_importances.pdf')
+    save_path = join(config.globals['iodir'], alg_key_str + '_feature_importances.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 def plot_binned_feature_importances(forest, alg_key, feature_names):
@@ -631,7 +714,7 @@ def plot_binned_feature_importances(forest, alg_key, feature_names):
     fig.set_tight_layout(True)
 
     alg_key_str = '_'.join(alg_key)
-    save_path = join(config.iodir[0], alg_key_str + '_binned_feature_importances.pdf')
+    save_path = join(config.globals['iodir'], alg_key_str + '_binned_feature_importances.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 def plot_errors(data_train_split, data_validation_split, target_train_split, target_validation_split, alg_key):
@@ -642,9 +725,9 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
 
     ensemble_clfs = [
         #('max_features=\'sqrt\'',
-        # RandomForestClassifier(warm_start = True, max_features = 'sqrt', oob_score = True, max_depth = 15, n_jobs = config.cores[0], random_state = 1)),
+        # RandomForestClassifier(warm_start = True, max_features = 'sqrt', oob_score = True, max_depth = 15, n_jobs = config.globals['cpus'], random_state = 1)),
         ('max_features=None',
-         RandomForestClassifier(warm_start = True, max_features = None, oob_score = True, max_depth = 15, n_jobs = config.cores[0], random_state = 1))
+         RandomForestClassifier(warm_start = True, max_features = None, oob_score = True, max_depth = 15, n_jobs = config.globals['cpus'], random_state = 1))
     ]
 
     oob_errors = OrderedDict((label, []) for label, _ in ensemble_clfs)
@@ -678,7 +761,7 @@ def plot_errors(data_train_split, data_validation_split, target_train_split, tar
     fig.set_tight_layout(True)
 
     alg_key_str = '_'.join(alg_key)
-    save_path = join(config.iodir[0], alg_key_str + '_error.pdf')
+    save_path = join(config.globals['iodir'], alg_key_str + '_error.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
 def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
@@ -744,20 +827,53 @@ def plot_roc_curve(accuracy_labels, probabilities, alg_group, alg_group_data):
     plt.ylabel('true positive rate = ' + r'$\frac{T_p}{T_p + F_n}$')
     plt.tight_layout(True)
 
-    save_path = join(config.iodir[0], '_'.join(alg_group) + '_roc.pdf')
+    save_path = join(config.globals['iodir'], '_'.join(alg_group) + '_roc.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
+
+def plot_aa_fraction_recall_curve(
+    postnovo_alg_combo_df, 
+    alg_score_accuracy_df_dict
+):
+
+    #Sort seqs by probability.
+    #Loop through predict lens, ref matches.
+    #Calculate running sum of predict lens if ref match == 1.
+
+    aa_recalls = []
+    cumulative_len = 0
+    for _, ref_match, predict_len in sorted(zip(
+        postnovo_alg_combo_df['probability'].tolist(), 
+        postnovo_alg_combo_df['ref match'].tolist(), 
+        postnovo_alg_combo_df['predict len'].tolist()
+    ), lambda t: t[0]):
+        if ref_match:
+            cumulative_len += predict_len
+        aa_recalls.append(cumulative_len / total_ref_len)
+    
+    alg_aa_recall_dict = dict()
+    for alg, alg_score_accuracy_df in alg_score_accuracy_df_dict.items():
+        cumulative_len = 0
+        for _, ref_match, predict_len in sorted(zip(
+            alg_score_accuracy_df['score'].tolist(), 
+            alg_score_accuracy_df['ref match'].tolist(), 
+            alg_score_accuracy_df['predict len'].tolist()
+        ), lambda t: t[0]):
+            if ref_match:
+                cumulative_len += predict_len
+            aa_recalls.append(cumulative_len / total_ref_len)
+        alg_aa_recall_dict[alg] = aa_recalls
 
 def plot_precision_recall_curve(
     postnovo_alg_combo_df, 
     alg_score_accuracy_df_dict, 
     all_postnovo_predictions=False
-    ):
+):
 
     true_positive_rate, recall, thresholds = precision_recall_curve(
         postnovo_alg_combo_df['ref match'].tolist(), 
         postnovo_alg_combo_df['probability'].tolist(), 
         pos_label = 1
-        )
+    )
 
     alg_pr_dict = {}
     alg_auc_dict = {}
@@ -766,11 +882,11 @@ def plot_precision_recall_curve(
             alg_score_accuracy_df['ref match'].tolist(), 
             alg_score_accuracy_df['score'].tolist(), 
             pos_label = 1
-            )
+        )
         alg_auc_dict[alg] = average_precision_score(
             alg_score_accuracy_df['ref match'].tolist(), 
             alg_score_accuracy_df['score'].tolist()
-            )
+        )
 
     fig, ax = plt.subplots()
 
@@ -780,8 +896,8 @@ def plot_precision_recall_curve(
         label=(
             'moving threshold:\npostnovo probability score or\n'
             'de novo algorithm score percentile'
-            )
         )
+    )
     #annotation_x = recall[int(len(recall) / 1.2)]
     #annotation_y = true_positive_rate[int(len(true_positive_rate) / 1.2)]
     #plt.annotate('random forest\nauc = ' + str(round(model_auc, 2)),
@@ -807,12 +923,14 @@ def plot_precision_recall_curve(
         cutoff_precision_table['precision'] = np.arange(0.5, 1, 0.05)
         cutoff_precision_table['score cutoff'] = score_cutoffs
         cutoff_precision_table.to_csv(
-            os.path.join(config.iodir[0], 'cutoff_precision.tsv'), 
+            os.path.join(config.globals['iodir'], 'cutoff_precision.tsv'), 
             sep='\t', 
             index=False
-            )
+        )
 
-    #arrow_position = 1.2
+    #COMMENT
+    arrow_position = 1.2
+
     for alg in alg_pr_dict:
         alg_recall = alg_pr_dict[alg][1]
         alg_tpr = alg_pr_dict[alg][0]
@@ -820,8 +938,10 @@ def plot_precision_recall_curve(
         #alg_thresh = alg_pr_dict[alg][2].argsort() / alg_pr_dict[alg][2].size
         alg_thresh = alg_pr_dict[alg][2]
 
-        #annotation_x = alg_recall[int(len(alg_recall) / arrow_position)]
-        #annotation_y = alg_tpr[int(len(alg_tpr) / arrow_position)]
+        #COMMENT
+        annotation_x = alg_recall[int(len(alg_recall) / arrow_position)]
+        annotation_y = alg_tpr[int(len(alg_tpr) / arrow_position)]
+
         if alg == 'novor':
             line_collection = colorline(alg_recall, alg_tpr, alg_thresh, norm=plt.Normalize(0, 100))
             tick_locs = [0, 20, 40, 60, 80, 100]
@@ -838,14 +958,16 @@ def plot_precision_recall_curve(
             tick_locs = [0, 0.2, 0.4, 0.6, 0.8, 1]
         #plt.colorbar(line_collection, ticks=tick_locs)
 
-        #plt.annotate(alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)),
-        #             xy = (annotation_x, annotation_y),
-        #             xycoords = 'data',
-        #             xytext = (annotation_x - 25, annotation_y - 25),
-        #             textcoords = 'offset pixels',
-        #             arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6),
-        #             horizontalalignment = 'right', verticalalignment = 'top',
-        #             )
+        #COMMENT
+        plt.annotate(
+            alg + '\nauc = ' + str(round(alg_auc_dict[alg], 2)), 
+            xy = (annotation_x, annotation_y), 
+            xycoords = 'data', 
+            xytext = (annotation_x - 25, annotation_y - 25), 
+            textcoords = 'offset pixels', 
+            arrowprops = dict(facecolor = 'black', shrink = 0.01, width = 1, headwidth = 6), 
+            horizontalalignment = 'right', verticalalignment = 'top',
+        )
 
     #if all_postnovo_predictions:
     #    plt.title('all postnovo predictions')
@@ -866,9 +988,9 @@ def plot_precision_recall_curve(
     plt.tight_layout(True)
 
     if all_postnovo_predictions:
-        save_path = join(config.iodir[0], 'full_precision_recall.pdf')
+        save_path = join(config.globals['iodir'], 'full_precision_recall.pdf')
     else:
-        save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_recall.pdf')
+        save_path = join(config.globals['iodir'], '_'.join(alg_group) + '_precision_recall.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
 
     return
@@ -930,7 +1052,9 @@ def plot_precision_yield_curve(
     if x[-1] > x_max:
         x_max = x[-1]
 
-    #arrow_position = 2.5
+    #COMMENT
+    arrow_position = 2.5
+
     for alg, alg_score_accuracy_df in alg_score_accuracy_df_dict.items():
 
         sample_size_list = list(range(1, len(alg_score_accuracy_df) + 1))
@@ -969,19 +1093,20 @@ def plot_precision_yield_curve(
         #    #    )
         #    )
 
-        #annotation_x = x[int(len(x) / arrow_position)]
-        #annotation_y = y[int(len(y) / arrow_position)]
-        #arrow_position -= 0.5
-        #plt.annotate(
-        #    alg,
-        #    xy=(annotation_x, annotation_y),
-        #    xycoords='data',
-        #    xytext = (-25, -25),
-        #    textcoords='offset pixels',
-        #    arrowprops=dict(facecolor='black', shrink=0.01, width=1, headwidth=6),
-        #    horizontalalignment='right', 
-        #    verticalalignment='top'
-        #    )
+        #COMMENT
+        annotation_x = x[int(len(x) / arrow_position)]
+        annotation_y = y[int(len(y) / arrow_position)]
+        arrow_position -= 0.5
+        plt.annotate(
+            alg,
+            xy=(annotation_x, annotation_y),
+            xycoords='data',
+            xytext = (-25, -25),
+            textcoords='offset pixels',
+            arrowprops=dict(facecolor='black', shrink=0.01, width=1, headwidth=6),
+            horizontalalignment='right', 
+            verticalalignment='top'
+            )
 
         if x[-1] > x_max:
             x_max = x[-1]
@@ -1004,9 +1129,9 @@ def plot_precision_yield_curve(
 
     plt.tight_layout(True)
     if all_postnovo_predictions:
-        save_path = join(config.iodir[0], 'full_precision_yield.pdf')
+        save_path = join(config.globals['iodir'], 'full_precision_yield.pdf')
     else:
-        save_path = join(config.iodir[0], '_'.join(alg_group) + '_precision_yield.pdf')
+        save_path = join(config.globals['iodir'], '_'.join(alg_group) + '_precision_yield.pdf')
     fig.savefig(save_path, bbox_inches = 'tight')
     plt.close()
 

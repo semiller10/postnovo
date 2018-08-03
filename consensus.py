@@ -23,15 +23,15 @@ progress_count = 0
 def make_prediction_df(input_df_dict):
     utils.verbose_print()
 
-    if config.mode[0] in ['train', 'optimize']:
+    if config.globals['mode'] in ['train', 'optimize']:
         consensus_min_len = config.train_consensus_len
-    elif config.mode[0] in ['predict', 'test']:
-        consensus_min_len = config.min_len[0]
+    elif config.globals['mode'] in ['predict', 'test']:
+        consensus_min_len = config.globals['min_len']
 
     tol_prediction_df_list = []
-    for tol in config.frag_mass_tols:
+    for tol in config.globals['frag_mass_tols']:
         utils.verbose_print('setting up', tol, 'Da consensus comparison')
-        alg_df_dict = OrderedDict([(alg, input_df_dict[alg][tol]) for alg in config.alg_list])
+        alg_df_dict = OrderedDict([(alg, input_df_dict[alg][tol]) for alg in config.globals['algs']])
         tol_prediction_df = make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol)
         tol_prediction_df_list.append(tol_prediction_df)
 
@@ -40,7 +40,7 @@ def make_prediction_df(input_df_dict):
     prediction_df['retention time'] = grouped_by_scan['retention time'].transform(max)
     prediction_df = prediction_df[~prediction_df['retention time'].isnull()]
 
-    for tol in config.frag_mass_tols:
+    for tol in config.globals['frag_mass_tols']:
         prediction_df[tol].fillna(0, inplace = True)
 
     for is_alg_col_name in config.is_alg_col_names:
@@ -57,7 +57,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
         encode_seqs(df, consensus_min_len)
 
     combo_level_alg_dict = make_combo_level_alg_dict(alg_df_dict)
-    highest_level_alg_combo = config.alg_combo_list[-1]
+    highest_level_alg_combo = config.globals['alg_combos'][-1]
     ## example
     ## combo_level_alg_dict = odict(2: [('novor', 'pn'), ('novor', 'deepnovo'), ('pn', 'deepnovo')], 3: [('novor', 'pn', 'deepnovo')])
     ## highest_level_alg_combo = ('novor', 'pn', 'deepnovo')
@@ -66,7 +66,7 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     alg_df_dict = add_retention_time_cols(alg_df_dict)
     alg_consensus_source_df_dict = make_alg_consensus_source_df_dict(highest_level_alg_combo, alg_df_dict)
     consensus_scan_list = alg_consensus_source_df_dict[highest_level_alg_combo[0]].index.get_level_values('scan').tolist()
-    one_percent_number_consensus_scans = len(consensus_scan_list) / 100 / config.cores[0]
+    one_percent_number_consensus_scans = len(consensus_scan_list) / 100 / config.globals['cpus']
 
     scan_consensus_info_dict, scan_generator_fns_dict, did_comparison_dict, scan_common_substrings_info_dict = setup_scan_info_dicts(combo_level_alg_dict)
     ##examples
@@ -131,13 +131,13 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
     ##    )
 
     alg_max_rank_dict = OrderedDict()
-    for alg in config.alg_list:
+    for alg in config.globals['algs']:
         alg_max_rank_dict[alg] = config.seqs_reported_per_alg_dict[alg]
 
     progress_count = 0
 
     ### single processor method
-    #one_percent_number_consensus_scans * config.cores[0]
+    #one_percent_number_consensus_scans * config.globals['cpus']
     #print_percent_progress_fn = partial(
     #    utils.print_percent_progress_singlethreaded,
     #    procedure_str = tol + ' Da progress: ',
@@ -166,10 +166,10 @@ def make_prediction_df_for_tol(consensus_min_len, alg_df_dict, tol):
         utils.print_percent_progress_multithreaded,
         procedure_str = tol + ' Da progress: ',
         one_percent_total_count = one_percent_number_consensus_scans,
-        cores = config.cores[0]
+        cores = config.globals['cpus']
         )
     mp_pool = multiprocessing.Pool(
-        config.cores[0],
+        config.globals['cpus'],
         initializer = child_initialize,
         initargs = (
             alg_consensus_source_df_dict,
@@ -1142,7 +1142,7 @@ def make_combo_level_alg_dict(alg_df_dict):
     combo_level_alg_dict = OrderedDict()
     for combo_level in range(2, len(alg_df_dict) + 1):
         combo_level_alg_dict[combo_level] = []
-        combo_level_alg_dict[combo_level] += [alg_combo for alg_combo in config.alg_combo_list
+        combo_level_alg_dict[combo_level] += [alg_combo for alg_combo in config.globals['alg_combos']
                                               if len(alg_combo) == combo_level]
     return combo_level_alg_dict
 
@@ -1152,7 +1152,7 @@ def add_measured_mass_col(alg_df_dict):
     for alg in ['novor', 'pn']:
         alg_df = alg_df_dict[alg]
         alg_df['measured mass'] = alg_df['m/z'] * alg_df['charge']
-    if 'deepnovo' in config.alg_list:
+    if 'deepnovo' in config.globals['algs']:
         # mass is not reported in deepnovo output,
         # and is therefore transferred into the deepnovo table from novor
         novor_df = alg_df_dict['novor']
@@ -1170,7 +1170,7 @@ def add_retention_time_cols(alg_df_dict):
     indices = [(scan, 0) for scan in pn_df.index.get_level_values('scan').tolist()]
     pn_df['retention time'] = novor_df.ix[indices]['retention time'].tolist()
 
-    if 'deepnovo' in config.alg_list:
+    if 'deepnovo' in config.globals['algs']:
         deepnovo_df = alg_df_dict['deepnovo']
         indices = [(scan, 0) for scan in deepnovo_df.index.get_level_values('scan').tolist()]
         deepnovo_df['retention time'] = novor_df.ix[indices]['retention time'].tolist()

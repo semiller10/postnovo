@@ -22,22 +22,22 @@ def update_prediction_df(prediction_df):
     prediction_df.reset_index(inplace = True)
     prediction_df.set_index(config.is_alg_col_names, inplace = True)
     tol_group_key_list = []
-    for i, tol in enumerate(config.frag_mass_tols):
-        tol_group_key = [0] * len(config.frag_mass_tols)
+    for i, tol in enumerate(config.globals['frag_mass_tols']):
+        tol_group_key = [0] * len(config.globals['frag_mass_tols'])
         tol_group_key[i] = 1
         tol_group_key_list.append(tuple(tol_group_key))
     full_precursor_array_list = []
 
     for multiindex_key in config.is_alg_col_multiindex_keys:
-        alg_combo = '-'.join([alg for i, alg in enumerate(config.alg_list) if multiindex_key[i]])
+        alg_combo = '-'.join([alg for i, alg in enumerate(config.globals['algs']) if multiindex_key[i]])
 
         alg_group_precursor_array_list = []
         alg_combo_df = prediction_df.xs(multiindex_key)
         alg_combo_df.reset_index(inplace = True)
-        alg_combo_df.set_index(config.frag_mass_tols, inplace = True)
+        alg_combo_df.set_index(config.globals['frag_mass_tols'], inplace = True)
 
         for tol_group_key in tol_group_key_list:
-            tol = config.frag_mass_tols[tol_group_key.index(1)]
+            tol = config.globals['frag_mass_tols'][tol_group_key.index(1)]
 
             try:
                 tol_df = alg_combo_df.xs(tol_group_key)[['seq', 'measured mass', 'mass error']]
@@ -62,7 +62,7 @@ def update_prediction_df(prediction_df):
             tol_df['precursor index'] = precursor_indices
             precursor_groups = tol_df.groupby('precursor index')
             precursor_range = range(precursor_indices[-1] + 1)
-            one_percent_number_precursors = len(precursor_range) / 100 / config.cores[0]
+            one_percent_number_precursors = len(precursor_range) / 100 / config.globals['cpus']
 
             ## Single process
             #tol_group_precursor_array_list = []
@@ -79,8 +79,8 @@ def update_prediction_df(prediction_df):
             print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
                                                 procedure_str = 'inter-spectrum comparison progress: ',
                                                 one_percent_total_count = one_percent_number_precursors,
-                                                cores = config.cores[0])
-            multiprocessing_pool = Pool(config.cores[0],
+                                                cores = config.globals['cpus'])
+            multiprocessing_pool = Pool(config.globals['cpus'],
                                         initializer = child_initialize,
                                         initargs = (precursor_groups,
                                                     print_percent_progress_fn)

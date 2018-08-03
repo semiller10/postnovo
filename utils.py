@@ -59,13 +59,13 @@ def load_json_objects(dir, *args):
         return tuple(return_list)
 
 def verbose_print(*args):
-    if config.verbose[0]:
+    if config.globals['verbose']:
         for arg in args:
             print(arg, end=' ', flush=True)
         print(flush=True)
 
 def verbose_print_over_same_line(output_str):
-    if config.verbose[0]:
+    if config.globals['verbose']:
         # Clear to end of line
         sys.stdout.write('\033[K')
         sys.stdout.write(output_str + '\r')

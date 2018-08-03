@@ -26,52 +26,60 @@ def load_files():
     ## OrderedDict('novor': OrderedDict('0.2': df, ..., '0.7': df), 'pn': ..., 'deepnovo': ...)
     input_df_dict = OrderedDict()
 
-    if config.novor_files:
+    if config.globals['novor_fps']:
         input_df_dict['novor'] = OrderedDict()
 
         ## Single-threaded
-        #for i, novor_file in enumerate(config.novor_files):
+        #for i, novor_file in enumerate(config.globals['novor_fps']):
         #    utils.verbose_print('loading', basename(novor_file))
-        #    input_df_dict['novor'][config.frag_mass_tols[i]] = load_novor_file(novor_file)
+        #    input_df_dict['novor'][
+        #        config.globals['frag_mass_tols'][i]
+        #    ] = load_novor_file(novor_file)
 
         # Multi-threaded
-        mp_pool = multiprocessing.Pool(config.cores[0])
+        mp_pool = multiprocessing.Pool(config.globals['cpus'])
         utils.verbose_print('loading Novor files')
-        novor_dfs = mp_pool.map(load_novor_file, config.novor_files)
+        novor_dfs = mp_pool.map(load_novor_file, config.globals['novor_fps'])
         mp_pool.close()
         mp_pool.join()
         for i, novor_df in enumerate(novor_dfs):
-            input_df_dict['novor'][config.frag_mass_tols[i]] = novor_df
+            input_df_dict['novor'][
+                config.globals['frag_mass_tols'][i]
+            ] = novor_df
 
-    if config.pn_files:
+    if config.globals['pn_fps']:
         input_df_dict['pn'] = OrderedDict()
 
         ## Single-threaded
-        #for i, pn_file in enumerate(config.pn_files):
+        #for i, pn_file in enumerate(config.globals['pn_fps']):
         #    utils.verbose_print('loading', basename(pn_file))
-        #    input_df_dict['pn'][config.frag_mass_tols[i]] = load_pn_file(pn_file)
+        #    input_df_dict['pn'][
+        #        config.globals['frag_mass_tols'][i]
+        #    ] = load_pn_file(pn_file)
 
         # Multi-threaded
-        mp_pool = multiprocessing.Pool(config.cores[0])
+        mp_pool = multiprocessing.Pool(config.globals['cpus'])
         utils.verbose_print('loading PepNovo+ files')
-        pn_dfs = mp_pool.map(load_pn_file, config.pn_files)
+        pn_dfs = mp_pool.map(load_pn_file, config.globals['pn_fps'])
         mp_pool.close()
         mp_pool.join()
         for i, pn_df in enumerate(pn_dfs):
-            input_df_dict['pn'][config.frag_mass_tols[i]] = pn_df
+            input_df_dict['pn'][
+                config.globals['frag_mass_tols'][i]
+            ] = pn_df
 
-    if config.deepnovo_files:
+    if config.globals['deepnovo_fps']:
         input_df_dict['deepnovo'] = OrderedDict()
 
         ## Single-threaded
-        #for i, path in enumerate(config.deepnovo_files):
+        #for i, path in enumerate(config.globals['deepnovo_fps']):
         #    utils.verbose_print('loading', basename(path))
         #    input_df_dict['deepnovo'][config.frag_mass_tols[i]] = load_deepnovo_file(path)
 
         # Multi-threaded: do not use, since there is currently multithreading within load_deepnovo_file
-        mp_pool = multiprocessing.Pool(config.cores[0])
+        mp_pool = multiprocessing.Pool(config.globals['cpus'])
         utils.verbose_print('loading DeepNovo files')
-        deepnovo_dfs = mp_pool.map(load_deepnovo_file, config.deepnovo_files)
+        deepnovo_dfs = mp_pool.map(load_deepnovo_file, config.globals['deepnovo_fps'])
         mp_pool.close()
         mp_pool.join()
         for i, deepnovo_df in enumerate(deepnovo_dfs):
@@ -90,10 +98,16 @@ def load_novor_file(novor_file):
     novor_df.columns = [name.strip() for name in novor_df.columns]
     novor_df.drop(['# id', 'err(data-denovo)', 'score'], axis = 1, inplace = True)
 
-    novor_df.columns = ['scan', 'retention time', 'm/z',
-                        'charge', 'novor seq mass',
-                        'seq mass error', 'seq',
-                        'aa score']
+    novor_df.columns = [
+        'scan', 
+        'retention time', 
+        'm/z', 
+        'charge', 
+        'novor seq mass', 
+        'seq mass error', 
+        'seq', 
+        'aa score'
+    ]
 
     novor_df['rank'] = 0
     new_col_order = [novor_df.columns[0]] + [novor_df.columns[-1]] + novor_df.columns[1:-1].tolist()
@@ -101,17 +115,31 @@ def load_novor_file(novor_file):
 
     novor_df['seq'] = novor_df['seq'].str.strip()
     novor_df['aa score'] = novor_df['aa score'].str.strip()
-    novor_df[['scan', 'retention time', 'm/z',
-              'charge', 'novor seq mass',
-              'seq mass error']] = novor_df[[
-                  'scan', 'retention time',
-                  'm/z', 'charge', 'novor seq mass',
-                  'seq mass error']].apply(pd.to_numeric)
+    novor_df[
+        [
+            'scan', 
+            'retention time', 
+            'm/z', 
+            'charge', 
+            'novor seq mass', 
+            'seq mass error'
+        ]
+    ] = novor_df[
+        [
+            'scan', 
+            'retention time', 
+            'm/z', 
+            'charge', 
+            'novor seq mass', 
+            'seq mass error'
+        ]
+    ].apply(pd.to_numeric)
 
     novor_df['retention time'] /= config.seconds_in_min
 
-    novor_df['novor seq mass'] = (novor_df['novor seq mass'] +
-                                  config.proton_mass * novor_df['charge'])
+    novor_df['novor seq mass'] = (
+        novor_df['novor seq mass'] + config.proton_mass * novor_df['charge']
+    )
     
     novor_df['seq'] = novor_df['seq'].apply(
         lambda seq: utils.remove_mod_chars(seq = seq))
@@ -128,21 +156,30 @@ def load_novor_file(novor_file):
 
 def load_pn_file(pn_file):
     
-    col_names = ['rank', 'rank score', 'pn score', 'n-gap', 'c-gap', '[m+h]', 'charge', 'seq']
+    col_names = [
+        'rank', 
+        'rank score', 
+        'pn score', 
+        'n-gap', 
+        'c-gap', 
+        '[m+h]', 
+        'charge', 
+        'seq'
+    ]
     pn_df = pd.read_csv(pn_file, sep = '\t', names = col_names, comment = '#')
 
     pn_df = pn_df[~(pn_df['rank'].shift(-1).str.contains('>>') & pn_df['rank'].str.contains('>>'))]
-    nonnumeric_scan_col = pd.to_numeric(
-        pn_df['rank'], errors = 'coerce').apply(np.isnan)
-    pn_df['retained rows'] = (((nonnumeric_scan_col.shift(-1) - nonnumeric_scan_col) == -1)
-                              | (nonnumeric_scan_col == False))
+    nonnumeric_scan_col = pd.to_numeric(pn_df['rank'], errors='coerce').apply(np.isnan)
+    pn_df['retained rows'] = (
+        ((nonnumeric_scan_col.shift(-1) - nonnumeric_scan_col) == -1) 
+        | (nonnumeric_scan_col == False)
+    )
     pn_df.drop(pn_df[pn_df['retained rows'] == False].index, inplace = True)
-    pn_df.drop('retained rows', axis = 1, inplace = True)
+    pn_df.drop('retained rows', axis=1, inplace = True)
     
     pn_df.reset_index(drop = True, inplace = True)
     pn_df['group'] = np.nan
-    nonnumeric_scan_col = pd.to_numeric(
-        pn_df['rank'], errors = 'coerce').apply(np.isnan)
+    nonnumeric_scan_col = pd.to_numeric(pn_df['rank'], errors='coerce').apply(np.isnan)
     nonnumeric_indices = pn_df['rank'][nonnumeric_scan_col].index.tolist()
     pn_df['group'][nonnumeric_indices] = pn_df['group'][nonnumeric_indices].index
     pn_df['group'].fillna(method = 'ffill', inplace = True)
@@ -171,28 +208,44 @@ def load_pn_file(pn_file):
     sqs_end_substr = '\)'
     pn_df['sqs'] = grouped['rank'].first().apply(
         lambda str: re.search(
-            sqs_start_substr + '(.*)' + sqs_end_substr, str).group(1))
+            sqs_start_substr + '(.*)' + sqs_end_substr, str
+        ).group(1)
+    )
     pn_df['sqs'] = pn_df['sqs'].apply(float)
     pn_df['sqs'].fillna(method = 'ffill', inplace = True)
 
     pn_df.drop('group', axis = 1, inplace = True)
 
-    pn_df['[m+h]'] = (pn_df['[m+h]'] + (pn_df['charge'] - 1) * config.proton_mass) / pn_df['charge']
+    pn_df['[m+h]'] = (pn_df['[m+h]'] + (pn_df['charge'] - 1) * config.proton_mass) \
+        / pn_df['charge']
     pn_df.rename(columns = {'[m+h]': 'm/z'}, inplace = True)
 
     pn_df['seq'].replace(
-        to_replace = np.nan, value = '', inplace = True)
+        to_replace = np.nan, value = '', inplace = True
+    )
     pn_df['seq'] = pn_df['seq'].apply(
-        lambda seq: utils.remove_mod_chars(seq = seq))
+        lambda seq: utils.remove_mod_chars(seq=seq)
+    )
 
-    pn_df_cols = ['scan', 'rank', 'm/z',
-                  'charge', 'n-gap', 'c-gap',
-                  'seq', 'rank score', 'pn score',
-                  'sqs']
+    pn_df_cols = [
+        'scan', 
+        'rank', 
+        'm/z', 
+        'charge', 
+        'n-gap', 
+        'c-gap', 
+        'seq', 
+        'rank score', 
+        'pn score', 
+        'sqs'
+    ]
 
     pn_df = pn_df.reindex_axis(
-        sorted(pn_df.columns,
-               key = lambda old_col: pn_df_cols.index(old_col)), axis = 1)
+        sorted(
+            pn_df.columns, 
+            key = lambda old_col: pn_df_cols.index(old_col)
+        ), axis = 1
+    )
 
     pn_df.drop(grouped['rank'].first().index, inplace = True)
 
@@ -232,7 +285,7 @@ def load_deepnovo_file(path):
         dereplicated_scan_tables.append(dereplicate_deepnovo_scan_tables(scan_table))
 
     ## Multiprocessing
-    #mp_pool = multiprocessing.Pool(config.cores[0])
+    #mp_pool = multiprocessing.Pool(config.globals['cpus'])
     #dereplicated_scan_tables = mp_pool.map(dereplicate_deepnovo_scan_tables, scan_tables)
     #mp_pool.close()
     #mp_pool.join()
@@ -269,14 +322,14 @@ def dereplicate_deepnovo_scan_tables(scan_table):
     return dereplicated_scan_table
 
 def filter_shared_scans(input_df_dict):
-    for tol in config.frag_mass_tols:
+    for tol in config.globals['frag_mass_tols']:
         # Get the set of scans retained from the first alg
-        common = set(input_df_dict[config.alg_list[0]][tol].index.get_level_values(0).tolist())
+        common = set(input_df_dict[config.globals['algs'][0]][tol].index.get_level_values(0).tolist())
         # Loop through the other algs and only retain the scans in common
-        for alg in config.alg_list[1:]:
+        for alg in config.globals['algs'][1:]:
             common = common.intersection(set(input_df_dict[alg][tol].index.get_level_values(0).tolist()))
         common = list(common)
-        for alg in config.alg_list:
+        for alg in config.globals['algs']:
             input_df = input_df_dict[alg][tol]
             input_df_dict[alg][tol] = input_df[input_df.index.get_level_values(0).isin(common)]
 
