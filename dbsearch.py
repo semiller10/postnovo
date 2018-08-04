@@ -363,7 +363,7 @@ def group_predictions(input_df):
     # matches = 8, mismatches = 1
 
     #UNCOMMENT
-    input_df['mass error'] = input_df['measured mass'] * (config.precursor_mass_tol[0] * 10**-6)
+    input_df['mass error'] = input_df['measured mass'] * (config.globals['pre_mass_tol'] * 10**-6)
     # df with cols: scan, seq, prob, mass, mass error, [best_peptide], [etc]
     # sort by mass
     input_df.sort('measured mass', inplace=True)

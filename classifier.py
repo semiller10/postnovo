@@ -68,7 +68,7 @@ def classify(prediction_df=None, input_df_dict=None):
         ]
 
         df = reported_prediction_df.reset_index()
-        if config.psm_fp_list:
+        if config.globals['db_search_fp']:
             df = dbsearch.merge_predictions(df)
         mass_grouped_df = dbsearch.group_predictions(df)
         retained_seq_dict = dbsearch.lengthen_seqs(mass_grouped_df)
@@ -80,7 +80,7 @@ def classify(prediction_df=None, input_df_dict=None):
             ref_correspondence_df.reset_index(), 
             how='left', 
             on=(
-                config.is_alg_col_names 
+                config.globals['is_alg_names'] 
                 + ['scan'] 
                 + config.globals['frag_mass_tols'] 
                 + ['is longest consensus', 'is top rank consensus']
@@ -103,7 +103,7 @@ def classify(prediction_df=None, input_df_dict=None):
         #training_df = pd.read_csv(
         #    os.path.join(config.data_dir, 'training_df.csv'),
         #    header=0,
-        #    index_col=config.is_alg_col_names
+        #    index_col=config.globals['is_alg_names']
         #)
         # REMOVE
         #training_df = utils.load_pkl_objects(config.data_dir, 'training_df')
@@ -198,7 +198,7 @@ def find_target_accuracy(prediction_df):
     prediction_df['ref match'] = prediction_df['de novo seq matches db search seq'] + \
         prediction_df['correct de novo seq not found in db search']
     prediction_df.set_index(
-        config.is_alg_col_names + 
+        config.globals['is_alg_names'] + 
         ['scan'] + 
         config.globals['frag_mass_tols'] + 
         ['is longest consensus', 'is top rank consensus'], 
@@ -222,7 +222,7 @@ def find_target_accuracy(prediction_df):
         axis=1, 
         inplace=True
     )
-    prediction_df = prediction_df.reset_index().set_index(config.is_alg_col_names + ['scan'])
+    prediction_df = prediction_df.reset_index().set_index(config.globals['is_alg_names'] + ['scan'])
 
     return prediction_df, ref_correspondence_df, db_search_ref
 
@@ -304,7 +304,7 @@ def update_training_data(prediction_df):
     training_df.set_index(['timestamp', 'scan'], inplace = True)
     training_df.to_csv(join(config.data_dir, 'training_df.csv'))
     training_df.reset_index(inplace=True)
-    training_df.set_index(config.is_alg_col_names, inplace=True)
+    training_df.set_index(config.globals['is_alg_names'], inplace=True)
 
     return training_df
 
@@ -361,7 +361,7 @@ def make_predictions(prediction_df, input_df_dict=None, db_search_ref=None):
 
     #Run Postnovo model for each combination of algorithms (single alg seqs, consensus seqs).
     prediction_df['probability'] = np.nan
-    for multiindex_key in config.is_alg_col_multiindex_keys:
+    for multiindex_key in config.globals['is_alg_keys']:
         # REMOVE
         print(str(multiindex_key), flush=True)
         alg_group = tuple([alg for i, alg in enumerate(config.globals['algs']) if multiindex_key[i]])
@@ -587,17 +587,17 @@ def make_train_target_arr_dict(training_df):
     training_df.sort_index(inplace = True)
     model_keys_used = []
     train_target_arr_dict = {}
-    for multiindex in config.is_alg_col_multiindex_keys:
-        print(str(multiindex), flush=True)
-        model_key = tuple([alg for i, alg in enumerate(config.globals['algs']) if multiindex[i]])
+    for multiindex_key in config.globals['is_alg_keys']:
+        print(str(multiindex_key), flush=True)
+        model_key = tuple([alg for i, alg in enumerate(config.globals['algs']) if multiindex_key[i]])
         print(model_key, flush=True)
         model_keys_used.append(model_key)
         train_target_arr_dict[model_keys_used[-1]] = {}.fromkeys(['train', 'target'])
         try:
-            alg_group_df = training_df.xs(multiindex).reset_index().set_index(['scan', 'seq'])
+            alg_group_df = training_df.xs(multiindex_key).reset_index().set_index(['scan', 'seq'])
             alg_group_df.dropna(1, inplace = True)
             train_columns = alg_group_df.columns.tolist()
-            for c in config.is_alg_col_names + ['ref match', 'mass error', 'measured mass', 'timestamp']:
+            for c in config.globals['is_alg_names'] + ['ref match', 'mass error', 'measured mass', 'timestamp']:
                 train_columns.remove(c)
             print(train_columns)
             train_target_arr_dict[model_key]['train'] = alg_group_df.as_matrix(train_columns)

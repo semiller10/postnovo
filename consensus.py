@@ -43,11 +43,11 @@ def make_prediction_df(input_df_dict):
     for tol in config.globals['frag_mass_tols']:
         prediction_df[tol].fillna(0, inplace = True)
 
-    for is_alg_col_name in config.is_alg_col_names:
-        prediction_df[is_alg_col_name].fillna(0, inplace = True)
-        prediction_df[is_alg_col_name] = prediction_df[is_alg_col_name].astype(int)
-    prediction_df.set_index(config.is_alg_col_names + ['scan'], inplace = True)
-    prediction_df.sort_index(level = ['scan'] + config.is_alg_col_names, inplace = True)
+    for is_alg_name in config.globals['is_alg_names']:
+        prediction_df[is_alg_name].fillna(0, inplace = True)
+        prediction_df[is_alg_name] = prediction_df[is_alg_name].astype(int)
+    prediction_df.set_index(config.globals['is_alg_names'] + ['scan'], inplace = True)
+    prediction_df.sort_index(level = ['scan'] + config.globals['is_alg_names'], inplace = True)
 
     return prediction_df
 

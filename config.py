@@ -13,7 +13,7 @@ data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 globals = dict()
 
 #Numeric representation of amino acids
-dict([
+aa_code_dict = dict([
     ('A', 0), 
     ('C', 1), 
     ('D', 2), 
@@ -37,7 +37,7 @@ dict([
     ('C+57.021', 20), 
     ('M+15.995', 21)
 ])
-dict([
+ptm_code_dict = dict([
     ('Carbamidomethylation of C', 'C+57.021'), 
     ('Oxidation of M', 'M+15.995')
 ])
@@ -116,16 +116,6 @@ default_variable_mods = ['Oxidation of M']
 train_consensus_len = 7
 min_ref_match_len = 7
 min_blast_query_len = 9
-
-#PICK UP HERE, removing all instances of db_name_list
-db_name_list = []
-psm_fp_list = []
-db_fp_list = []
-## example
-## is_alg_col_names = ['is novor seq', 'is pn seq', 'is deepnovo seq']
-is_alg_col_names = []
-is_alg_col_multiindex_keys = []
-precursor_mass_tol = [10.0]
 
 # de novo output characteristics
 mod_chars = ['.', '|', '^', '+', '-'] + [str(i) for i in range(10)]

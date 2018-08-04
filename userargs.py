@@ -54,6 +54,20 @@ def parse_args(test_argv=None):
     mgf_format_parser.add_argument('mgf', help='Path to mgf file')
     mgf_format_parser.add_argument('--deepnovo', help='Flag to make an mgf file for DeepNovo')
 
+    label_fraction_parser = subparsers.add_parser(
+        'label_fraction', 
+        dest='subparser_name', 
+        help=(
+            'Modify scan numbers in each mgf file '
+            'to reflect the dataset of origin in preparation for merging.'
+        )
+    )
+    label_fraction_parser.add_argument(
+        'mgfs', 
+        nargs='+', 
+        help='Filepaths of mgf files'
+    )
+
     msgf_format_parser.add_argument()
 
     #Arguments applicable to predict, test and train subparsers
@@ -262,6 +276,11 @@ def parse_args(test_argv=None):
         check_mgf(args.mgf)
         format_mgf(args.mgf, args.deepnovo)
         sys.exit()
+    elif args.subparser_name == 'label_fraction':
+        for mgf_fp in args.mgfs:
+            check_mgf(mgf_fp)
+        label_fractions(args.mgfs)
+        sys.exit()
 
     #Determine the I/O directory.
     if args.iodir == None:
@@ -284,6 +303,13 @@ def inspect_args(parser, args):
 
     check_path(args.iodir)
     config.globals['iodir'] = args.iodir
+
+    if args.mgf:
+        check_path(args.mgf, args.iodir)
+        if args.iodir:
+            config.globals['mgf_fp'] = os.path.join(args.iodir, args.mgf)
+        else:
+            config.globals['mgf_fp'] = os.path.join(args.mgf)
 
     config.globals['pre_mass_tol'] = args.pre_mass_tol
 
@@ -339,6 +365,28 @@ def inspect_args(parser, args):
                 )
 
     if args.deepnovo:
+        if not args.mgf:
+            raise AssertionError(
+                'DeepNovo input must always be accompanied by the mgf file '
+                'so that scan IDs in the DeepNovo output can be correlated to spectrum IDs.'
+            )
+        #Make a dict mapping scan ID to spectrum ID.
+        scan_spec_id_dict = OrderedDict()
+        with open(args.mgf) as handle:
+            for line in handle.readlines():
+                if line[:6] == 'TITLE=':
+                    scan_index = line.index('"; scans: "')
+                    spec_id = line[line.index('SpectrumID: "') + 13: scan_index]
+                    scan_id = line[scan_index + 11: -2]
+                    scan_spec_id_dict[scan_id] = int(spec_id)
+        #Assert that each scan ID is unique.
+        assert len(scan_spec_id_dict) == len(set(scan_spec_id_dict.keys())), \
+            (
+                'Run Postnovo label_fraction command '
+                'upon mgf files from individual datasets before merging.'
+            )
+        config.globals['scan_spec_id_dict'] = scan_spec_id_dict
+
         config.globals['algs'].append('deepnovo')
         missing_files = []
         for frag_mass_tol in config.globals['frag_mass_tols']:
@@ -412,11 +460,6 @@ def inspect_args(parser, args):
     if args.denovogui:
         check_path(args.denovogui, args.iodir)
         config.globals['denovogui_fp'] = args.denovogui
-        check_path(args.mgf, args.iodir)
-        if args.iodir:
-            config.globals['mgf_fp'] = os.path.join(args.iodir, args.mgf)
-        else:
-            config.globals['mgf_fp'] = os.path.join(args.mgf)
 
     if args.cpus > cpu_count() or args.cpus < 1:
         parser.error(str(cpu_count()) + ' cores are available')
@@ -538,8 +581,8 @@ def format_mgf(mgf_fp, for_deepnovo):
     else:
         new_mgf_fp = os.path.splitext(mgf_fp)[0] + 'temp.mgf'
 
-    with open(mgf_fp) as in_f, open(new_mgf_fp, mode='w') as out_f:
-        for line in open(mgf_fp):
+    with open(mgf_fp) as in_handle, open(new_mgf_fp, mode='w') as out_handle:
+        for line in in_handle.readlines():
             if line[:7] == 'TITLE=':
                 title_line = line
                 scans_line = line[line.index('; scans: "') + 10: -2] + '\n'
@@ -552,19 +595,35 @@ def format_mgf(mgf_fp, for_deepnovo):
                 #Remove ambiguous charge states (value after ' and ').
                 charge_line = line.split(' ')[0] + '\n'
                 #Charge is the last header line, so write the new header.
-                out_f.write(title_line)
-                out_f.write(pepmass_line)
-                out_f.write(charge_line)
-                out_f.write(scans_line)
-                out_f.write(rt_line)
+                out_handle.write(title_line)
+                out_handle.write(pepmass_line)
+                out_handle.write(charge_line)
+                out_handle.write(scans_line)
+                out_handle.write(rt_line)
                 if for_deepnovo:
                     #DeepNovo requires a nominal (nonsense) peptide sequence assignment.
-                    out_f.write('SEQ=A\n')
+                    out_handle.write('SEQ=A\n')
             else:
-                out_f.write(line)
+                out_handle.write(line)
 
     if for_deepnovo:
         os.rename(new_mgf_fp, mgf_fp)
+
+    return
+
+def label_fractions(mgf_fps):
+
+    fraction = 1
+    for mgf_fp in mgf_fps:
+        scan_prefix = 'F' + str(fraction) + ':'
+        with open(mgf_fp) as handle:
+            mgf = handle.readlines()
+        with open(mgf_fp) as handle:
+            for line in mgf:
+                if line[:6] == 'TITLE=':
+                    line = line.replace('scans: "', 'scans: "' + scan_prefix)
+                handle.write(line)
+        fraction += 1
 
     return
 

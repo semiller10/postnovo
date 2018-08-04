@@ -18,9 +18,9 @@ def update_prediction_df(prediction_df):
     utils.verbose_print()
 
     utils.verbose_print('setting up inter-spectrum comparison')
-    prediction_df['mass error'] = prediction_df['measured mass'] * config.precursor_mass_tol[0] * 10**-6
+    prediction_df['mass error'] = prediction_df['measured mass'] * config.globals['pre_mass_tol'] * 10**-6
     prediction_df.reset_index(inplace = True)
-    prediction_df.set_index(config.is_alg_col_names, inplace = True)
+    prediction_df.set_index(config.globals['is_alg_names'], inplace = True)
     tol_group_key_list = []
     for i, tol in enumerate(config.globals['frag_mass_tols']):
         tol_group_key = [0] * len(config.globals['frag_mass_tols'])
@@ -28,7 +28,7 @@ def update_prediction_df(prediction_df):
         tol_group_key_list.append(tuple(tol_group_key))
     full_precursor_array_list = []
 
-    for multiindex_key in config.is_alg_col_multiindex_keys:
+    for multiindex_key in config.globals['is_alg_keys']:
         alg_combo = '-'.join([alg for i, alg in enumerate(config.globals['algs']) if multiindex_key[i]])
 
         alg_group_precursor_array_list = []
@@ -101,8 +101,8 @@ def update_prediction_df(prediction_df):
 
     # prediction_df.drop(['measured mass', 'mass error'], axis = 1, inplace = True)
     prediction_df.reset_index(inplace = True)
-    prediction_df.set_index(config.is_alg_col_names + ['scan'], inplace = True)
-    prediction_df.sort_index(level = ['scan'] + config.is_alg_col_names, inplace = True)
+    prediction_df.set_index(config.globals['is_alg_names'] + ['scan'], inplace = True)
+    prediction_df.sort_index(level = ['scan'] + config.globals['is_alg_names'], inplace = True)
 
     return prediction_df
 
