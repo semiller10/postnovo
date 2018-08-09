@@ -135,8 +135,23 @@ rf_default_params = {
 
 # feature selection from input data
 prediction_dict_source_cols = {
-    'novor': ['retention time', 'measured mass', 'seq', 'aa score', 'avg aa score', 'encoded seq'],
-    'pn': ['retention time', 'measured mass', 'seq', 'rank score', 'pn score', 'sqs', 'encoded seq'],
+    'novor': [
+        'retention time', 
+        'measured mass', 
+        'seq', 
+        'aa score', 
+        'avg aa score', 
+        'encoded seq'
+    ], 
+    'pn': [
+        'retention time', 
+        'measured mass', 
+        'seq', 
+        'rank score', 
+        'pn score', 
+        'sqs', 
+        'encoded seq'
+    ], 
     'deepnovo': [
         'retention time',
         'measured mass',
@@ -144,10 +159,11 @@ prediction_dict_source_cols = {
         'aa score',
         'avg aa score',
         'encoded seq'
-        ]
-    }
+    ]
+}
 single_alg_prediction_dict_cols = {
     'general': [
+        'spec_id', 
         'scan',
         'measured mass',
         'is top rank single alg',
@@ -184,6 +200,7 @@ single_alg_prediction_dict_cols = {
     }
 consensus_prediction_dict_cols = {
     'general': [
+        'spec_id', 
         'scan',
         'measured mass',
         'seq',
@@ -301,12 +318,14 @@ feature_groups = OrderedDict([
         ])
     ])
 
-# report
+#Report
 reported_df_cols = [
+    'spec_id', 
+    'scan', 
     'seq', 
     'probability', 
     'ref match', 
-    'scan has db search PSM', 
+    'spec has db search PSM', 
     'de novo seq matches db search seq', 
     'correct de novo seq not found in db search', 
     'is novor seq', 

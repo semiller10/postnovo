@@ -21,19 +21,19 @@ progress_count = 0
 
 def save_dfs(dir, **kwargs):
     for df_name, df in kwargs.items():
-        verbose_print('saving', df_name)
+        verbose_print('Saving', df_name)
         df.to_csv(os.path.join(dir, df_name + '.tsv'), sep='\t', index=True)
 
 def save_pkl_objects(dir, **kwargs):
     for obj_name, obj in kwargs.items():
-        verbose_print('saving', obj_name)
+        verbose_print('Saving', obj_name)
         with open(os.path.join(dir, obj_name + '.pkl'), 'wb') as f:
             pkl.dump(obj, f, 2)
 
 def load_pkl_objects(dir, *args):
     return_list = []
     for obj_name in args:
-        verbose_print('loading', obj_name)
+        verbose_print('Loading', obj_name)
         with open(os.path.join(dir, obj_name + '.pkl'), 'rb') as f:
             return_list.append(pkl.load(f))
     if len(args) == 1:
@@ -43,14 +43,14 @@ def load_pkl_objects(dir, *args):
 
 def save_json_objects(dir, **kwargs):
     for obj_name, obj in kwargs.items():
-        verbose_print('saving', obj_name)
+        verbose_print('Saving', obj_name)
         with open(os.path.join(dir, obj_name + '.json'), 'w') as f:
             json.dump(obj, f)
 
 def load_json_objects(dir, *args):
     return_list = []
     for obj_name in args:
-        verbose_print('loading', obj_name)
+        verbose_print('Loading', obj_name)
         with open(os.path.join(dir, obj_name + '.json'), 'r') as f:
             return_list.append(json.load(f))
     if len(args) == 1:
@@ -66,7 +66,7 @@ def verbose_print(*args):
 
 def verbose_print_over_same_line(output_str):
     if config.globals['verbose']:
-        # Clear to end of line
+        #Clear to end of line
         sys.stdout.write('\033[K')
         sys.stdout.write(output_str + '\r')
         sys.stdout.flush()

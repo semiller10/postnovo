@@ -31,14 +31,14 @@ def load_files():
 
         ## Single-threaded
         #for i, novor_file in enumerate(config.globals['novor_fps']):
-        #    utils.verbose_print('loading', basename(novor_file))
+        #    utils.verbose_print('Loading', basename(novor_file))
         #    input_df_dict['novor'][
         #        config.globals['frag_mass_tols'][i]
         #    ] = load_novor_file(novor_file)
 
         # Multi-threaded
         mp_pool = multiprocessing.Pool(config.globals['cpus'])
-        utils.verbose_print('loading Novor files')
+        utils.verbose_print('Loading Novor files')
         novor_dfs = mp_pool.map(load_novor_file, config.globals['novor_fps'])
         mp_pool.close()
         mp_pool.join()
@@ -52,14 +52,14 @@ def load_files():
 
         ## Single-threaded
         #for i, pn_file in enumerate(config.globals['pn_fps']):
-        #    utils.verbose_print('loading', basename(pn_file))
+        #    utils.verbose_print('Loading', basename(pn_file))
         #    input_df_dict['pn'][
         #        config.globals['frag_mass_tols'][i]
         #    ] = load_pn_file(pn_file)
 
         # Multi-threaded
         mp_pool = multiprocessing.Pool(config.globals['cpus'])
-        utils.verbose_print('loading PepNovo+ files')
+        utils.verbose_print('Loading PepNovo+ files')
         pn_dfs = mp_pool.map(load_pn_file, config.globals['pn_fps'])
         mp_pool.close()
         mp_pool.join()
@@ -71,22 +71,22 @@ def load_files():
     if config.globals['deepnovo_fps']:
         input_df_dict['deepnovo'] = OrderedDict()
 
-        ## Single-threaded
+        ##Single-threaded
         #for i, path in enumerate(config.globals['deepnovo_fps']):
-        #    utils.verbose_print('loading', basename(path))
-        #    input_df_dict['deepnovo'][config.frag_mass_tols[i]] = load_deepnovo_file(path)
+        #    utils.verbose_print('Loading', basename(path))
+        #    input_df_dict['deepnovo'][config.globals['frag_mass_tols'][i]] = load_deepnovo_file(path)
 
-        # Multi-threaded: do not use, since there is currently multithreading within load_deepnovo_file
+        #Multi-threaded: do not use, since there is currently multithreading within load_deepnovo_file
         mp_pool = multiprocessing.Pool(config.globals['cpus'])
-        utils.verbose_print('loading DeepNovo files')
+        utils.verbose_print('Loading DeepNovo files')
         deepnovo_dfs = mp_pool.map(load_deepnovo_file, config.globals['deepnovo_fps'])
         mp_pool.close()
         mp_pool.join()
         for i, deepnovo_df in enumerate(deepnovo_dfs):
-            input_df_dict['deepnovo'][config.frag_mass_tols[i]] = deepnovo_df
+            input_df_dict['deepnovo'][config.globals['frag_mass_tols'][i]] = deepnovo_df
 
-    utils.verbose_print('cleaning up input data')
-    input_df_dict = filter_shared_scans(input_df_dict)
+    utils.verbose_print('Cleaning up input data')
+    input_df_dict = filter_shared_spectra(input_df_dict)
 
     return input_df_dict
 
@@ -118,6 +118,21 @@ def load_novor_file(novor_file):
         'aa score'
     ]
 
+    #REMOVE
+    #spec_ids = []
+    #for scan, rt in zip(novor_df['scan'].tolist(), novor_df['retention time'].tolist()):
+    #    rounded_rt = round(rt, 1)
+    #    try:
+    #        spec_ids.append(config.globals['rt_scan_spec_id_dict'][(str(scan), str(rounded_rt))])
+    #    except KeyError:
+    #        try:
+    #            spec_ids.append(config.globals['rt_scan_spec_id_dict'][(str(scan), str(round(rounded_rt + 0.1, 1)))])
+    #        except KeyError:
+    #            spec_ids.append(config.globals['rt_scan_spec_id_dict'][(str(scan), str(round(rounded_rt - 0.1, 1)))])
+
+    #novor_df['spec_id'] = spec_ids
+    #novor_df['retention time'] = novor_df['retention time'].apply(str)
+
     novor_df['rank'] = 0
     new_col_order = ['spec_id'] + ['rank'] + novor_df.columns[1:-1].tolist()
     novor_df = novor_df[new_col_order]
@@ -126,7 +141,7 @@ def load_novor_file(novor_file):
     novor_df['aa score'] = novor_df['aa score'].str.strip()
     novor_df[
         [
-            'seq_id', 
+            'spec_id', 
             'retention time', 
             'm/z', 
             'charge', 
@@ -135,7 +150,7 @@ def load_novor_file(novor_file):
         ]
     ] = novor_df[
         [
-            'seq_id', 
+            'spec_id', 
             'retention time', 
             'm/z', 
             'charge', 
@@ -160,7 +175,7 @@ def load_novor_file(novor_file):
     novor_df['avg aa score'] = novor_df['aa score'].apply(
         lambda scores: sum(scores) / len(scores))
 
-    novor_df.set_index(['seq_id', 'rank'], inplace = True)
+    novor_df.set_index(['spec_id', 'rank'], inplace = True)
 
     return novor_df
 
@@ -198,10 +213,10 @@ def load_pn_file(pn_file):
     #Extract seq ids, scans and SQS values from spectrum block headers.
     grouped = pn_df.groupby('group')
     spectrum_headers = grouped['rank'].first()
-    pn_df['seq_id'] = spectrum_headers.apply(
-        lambda s: int(s[s.index('SpectrumID: "') + 13: s.index('"; scans: "')])
+    pn_df['spec_id'] = spectrum_headers.apply(
+        lambda s: int(s[s.index('"; SpectrumID: "') + 16: s.index('"; scans: "')])
     )
-    pn_df['seq_id'].fillna(method='ffill', inplace=True)
+    pn_df['spec_id'].fillna(method='ffill', inplace=True)
     pn_df['scan'] = spectrum_headers.apply(
         lambda s: s[s.index('scans: "') + 8: s.index('" (SQS')]
     )
@@ -224,9 +239,9 @@ def load_pn_file(pn_file):
     )
 
     pn_df_cols = [
-        'seq_id', 
-        'rank', 
+        'spec_id', 
         'scan', 
+        'rank', 
         'm/z', 
         'charge', 
         'n-gap', 
@@ -247,85 +262,94 @@ def load_pn_file(pn_file):
 
     pn_df.drop(grouped['rank'].first().index, inplace=True)
 
-    pn_df[['seq_id', 'rank']] = pn_df[['seq_id', 'rank']].astype(int)
-    pn_df.set_index(['seq_id', 'rank'], inplace = True)
+    pn_df[['spec_id', 'rank']] = pn_df[['spec_id', 'rank']].astype(int)
+    pn_df.set_index(['spec_id', 'rank'], inplace = True)
 
     return pn_df
 
 def load_deepnovo_file(path):
     
-    deepnovo_table = pd.read_csv(path, sep='\t', header=0)
-    deepnovo_table = deepnovo_table[['scan', 'output_seq', 'AA_probability']]
-    deepnovo_table.columns = ['scan', 'seq', 'aa score']
+    deepnovo_df = pd.read_csv(path, sep='\t', header=0, dtype={'scan': str})
+    deepnovo_df['spec_id'] = deepnovo_df['scan'].apply(
+        lambda s: config.globals['scan_spec_id_dict'][s]
+    )
+    deepnovo_df = deepnovo_df[['spec_id', 'scan', 'output_seq', 'AA_probability']]
+    deepnovo_df.columns = ['spec_id', 'scan', 'seq', 'aa score']
 
     #Example: 
     #'Mmod,V,D,V,A,Q,H,P,N,I,R' -> 'MmodVDVAQHPNIR' -> 'MVDVAQHPNIR'
-    deepnovo_table['seq'] = deepnovo_table['seq'].apply(
+    deepnovo_df['seq'] = deepnovo_df['seq'].apply(
         lambda s: ''.join(s.split(',')).replace('mod', '')
     )
     #Example:
     #'0.67 1.0 1.0 1.0 1.0 0.28 1.0 0.1 0.0 0.85' -> [0.67, 1.0, ...]
-    deepnovo_table['aa score'] = deepnovo_table['aa score'].apply(
+    deepnovo_df['aa score'] = deepnovo_df['aa score'].apply(
         lambda s: list(map(float, s.split(' ')))
     )
-    deepnovo_table['avg aa score'] = deepnovo_table['aa score'].apply(
+    deepnovo_df['avg aa score'] = deepnovo_df['aa score'].apply(
         lambda s: sum(s) / len(s)
     )
 
     #DeepNovo predicts both Leu and Ile: 
     #Consider these residues to be the same and remove redundant lower-ranking seqs.
-    groupby_deepnovo_table = deepnovo_table.groupby('scan')
-    scan_tables = [scan_table.reset_index(drop=True) for _, scan_table in groupby_deepnovo_table]
+    deepnovo_gb = deepnovo_df.groupby('spec_id')
+    spec_dfs = [spec_df.reset_index(drop=True) for _, spec_df in deepnovo_gb]
 
-    # Single-threaded
-    dereplicated_scan_tables = []
-    for scan_table in scan_tables:
-        dereplicated_scan_tables.append(dereplicate_deepnovo_scan_tables(scan_table))
+    #Single-threaded
+    derep_spec_dfs = []
+    for spec_df in spec_dfs:
+        derep_spec_dfs.append(dereplicate_deepnovo_spec_dfs(spec_df))
 
-    ## Multiprocessing
+    ##Multiprocessing: only if DeepNovo file loading is also not multithreaded!
     #mp_pool = multiprocessing.Pool(config.globals['cpus'])
-    #dereplicated_scan_tables = mp_pool.map(dereplicate_deepnovo_scan_tables, scan_tables)
+    #derep_spec_dfs = mp_pool.map(dereplicate_deepnovo_spec_dfs, spec_dfs)
     #mp_pool.close()
     #mp_pool.join()
 
-    deepnovo_table_dereplicated = pd.concat(dereplicated_scan_tables)
+    derep_deepnovo_df = pd.concat(derep_spec_dfs)
 
-    # Add column of seq rank
-    scan_tables = [scan_table.reset_index() for _, scan_table in deepnovo_table_dereplicated.groupby('scan')]
-    deepnovo_table_with_ranks = pd.concat(scan_tables).rename(columns={'index': 'rank'})
+    #Add a seq rank column.
+    spec_dfs = [spec_df.reset_index() for _, spec_df in derep_deepnovo_df.groupby('spec_id')]
+    deepnovo_df_with_ranks = pd.concat(spec_dfs).rename(columns={'index': 'rank'})
 
-    deepnovo_table = deepnovo_table_with_ranks[['scan', 'rank', 'seq', 'aa score', 'avg aa score']]
-    deepnovo_table['scan'] = deepnovo_table['scan'].apply(int)
-    deepnovo_table.set_index(['scan', 'rank'], inplace=True)
+    deepnovo_df = deepnovo_df_with_ranks[
+        ['spec_id', 'scan', 'rank', 'seq', 'aa score', 'avg aa score']
+    ]
+    deepnovo_df.set_index(['spec_id', 'rank'], inplace=True)
 
-    return deepnovo_table
+    return deepnovo_df
 
-def dereplicate_deepnovo_scan_tables(scan_table):
+def dereplicate_deepnovo_spec_dfs(spec_df):
 
-    scan_table_seqs = scan_table['seq'].tolist()
-    scan_table_seqs_all_leu = [seq.replace('I', 'L') for seq in scan_table_seqs]
+    spec_seqs = spec_df['seq'].tolist()
+    spec_seqs_all_leu = [seq.replace('I', 'L') for seq in spec_seqs]
 
-    # There are occasionally fewer than 20 results per peptide
-    retained_rows = list(range(len(scan_table_seqs)))
-    for i, seq1 in enumerate(scan_table_seqs_all_leu):
+    #There are occasionally fewer than 20 results per peptide.
+    retained_rows = list(range(len(spec_seqs)))
+    for i, seq1 in enumerate(spec_seqs_all_leu):
         if retained_rows[i] != -1:
-            for j, seq2 in enumerate(scan_table_seqs_all_leu[i + 1:]):
-                if retained_rows[j] != -1:
+            for j, seq2 in enumerate(spec_seqs_all_leu[i + 1:]):
+                if retained_rows[i + j + 1] != -1:
                     if seq1 == seq2:
                         retained_rows[i + j + 1] = -1
     
-    scan_table['seq'] = scan_table_seqs_all_leu
-    dereplicated_scan_table = scan_table.ix[[i for i in retained_rows if i != -1]]
-    dereplicated_scan_table.index = range(len(dereplicated_scan_table))
-    return dereplicated_scan_table
+    spec_df['seq'] = spec_seqs_all_leu
+    derep_spec_df = spec_df.iloc[[i for i in retained_rows if i != -1]]
+    derep_spec_df.index = range(len(derep_spec_df))
+    return derep_spec_df
 
-def filter_shared_scans(input_df_dict):
+def filter_shared_spectra(input_df_dict):
+
     for tol in config.globals['frag_mass_tols']:
-        # Get the set of scans retained from the first alg
-        common = set(input_df_dict[config.globals['algs'][0]][tol].index.get_level_values(0).tolist())
-        # Loop through the other algs and only retain the scans in common
+        #Get the set of spectra IDs retained from the first de novo alg.
+        common = set(
+            input_df_dict[config.globals['algs'][0]][tol].index.get_level_values(0).tolist()
+        )
+        #Retain spectra with predictions from all algs.
         for alg in config.globals['algs'][1:]:
-            common = common.intersection(set(input_df_dict[alg][tol].index.get_level_values(0).tolist()))
+            common = common.intersection(set(
+                input_df_dict[alg][tol].index.get_level_values(0).tolist()
+            ))
         common = list(common)
         for alg in config.globals['algs']:
             input_df = input_df_dict[alg][tol]

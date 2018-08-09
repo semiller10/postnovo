@@ -17,10 +17,11 @@ else:
 def update_prediction_df(prediction_df):
     utils.verbose_print()
 
-    utils.verbose_print('setting up inter-spectrum comparison')
-    prediction_df['mass error'] = prediction_df['measured mass'] * config.globals['pre_mass_tol'] * 10**-6
-    prediction_df.reset_index(inplace = True)
-    prediction_df.set_index(config.globals['is_alg_names'], inplace = True)
+    utils.verbose_print('Setting up inter-spectrum comparison')
+    prediction_df['mass error'] = prediction_df['measured mass'] * \
+        config.globals['pre_mass_tol'] * 10**-6
+    prediction_df.reset_index(inplace=True)
+    prediction_df.set_index(config.globals['is_alg_names'], inplace=True)
     tol_group_key_list = []
     for i, tol in enumerate(config.globals['frag_mass_tols']):
         tol_group_key = [0] * len(config.globals['frag_mass_tols'])
@@ -29,80 +30,109 @@ def update_prediction_df(prediction_df):
     full_precursor_array_list = []
 
     for multiindex_key in config.globals['is_alg_keys']:
-        alg_combo = '-'.join([alg for i, alg in enumerate(config.globals['algs']) if multiindex_key[i]])
+        alg_combo = '-'.join(
+            [alg for i, alg in enumerate(config.globals['algs']) if multiindex_key[i]]
+        )
 
         alg_group_precursor_array_list = []
         alg_combo_df = prediction_df.xs(multiindex_key)
-        alg_combo_df.reset_index(inplace = True)
-        alg_combo_df.set_index(config.globals['frag_mass_tols'], inplace = True)
+        alg_combo_df.reset_index(inplace=True)
+        alg_combo_df.set_index(config.globals['frag_mass_tols'], inplace=True)
 
         for tol_group_key in tol_group_key_list:
+            no_tol_group_seqs = False
             tol = config.globals['frag_mass_tols'][tol_group_key.index(1)]
 
             try:
                 tol_df = alg_combo_df.xs(tol_group_key)[['seq', 'measured mass', 'mass error']]
-            except TypeError:
-                tol_df = alg_combo_df.xs(tol_group_key[0])[['seq', 'measured mass', 'mass error']]
-            tol_df.sort('measured mass', inplace = True)
-            measured_masses = tol_df['measured mass'].tolist()
-            mass_errors = tol_df['mass error'].tolist()
+                if isinstance(tol_df, pd.Series):
+                    tol_df = alg_combo_df.loc[[tol_group_key]]
+            #except (TypeError, KeyError):
+            #    print(alg_combo_df)
+            #    print(tol_group_key)
+            #    tol_df = alg_combo_df.xs(tol_group_key[0])[['seq', 'measured mass', 'mass error']]
+            except (TypeError, KeyError):
+                no_tol_group_seqs = True
 
-            # precursor indices represent different spectra clustered by mass
-            precursor_indices = []
-            precursor_index = 0
-            # assign the first seq prediction to precursor 0
-            precursor_indices.append(0)
-            previous_mass = tol_df.iat[0, 1]
+            if no_tol_group_seqs:
+                tol_group_precursor_array_list = []
+            else:
+                tol_df.sort_values('measured mass', inplace=True)
+                measured_masses = tol_df['measured mass'].tolist()
+                mass_errors = tol_df['mass error'].tolist()
 
-            for mass_index, mass in enumerate(measured_masses[1:]):
-                if mass - mass_errors[mass_index] > previous_mass:
-                    precursor_index += 1
-                    previous_mass = mass
-                precursor_indices.append(precursor_index)
-            tol_df['precursor index'] = precursor_indices
-            precursor_groups = tol_df.groupby('precursor index')
-            precursor_range = range(precursor_indices[-1] + 1)
-            one_percent_number_precursors = len(precursor_range) / 100 / config.globals['cpus']
+                #Precursor indices represent different spectra clustered by mass.
+                precursor_indices = []
+                precursor_index = 0
+                #Assign the first seq prediction to precursor 0.
+                precursor_indices.append(0)
+                previous_mass = tol_df.iat[0, 1]
 
-            ## Single process
-            #tol_group_precursor_array_list = []
-            #print_percent_progress_fn = partial(utils.print_percent_progress_singlethreaded, 
-            #                                    procedure_str = 'inter-spectrum comparison progress: ', 
-            #                                    one_percent_total_count = one_percent_number_precursors)
-            #utils.verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
-            #child_initialize(precursor_groups,
-            #                 print_percent_progress_fn)
-            #for precursor_index in precursor_range:
-            #    tol_group_precursor_array_list.append(make_precursor_info_array(precursor_index))
+                for mass_index, mass in enumerate(measured_masses[1:]):
+                    if mass - mass_errors[mass_index] > previous_mass:
+                        precursor_index += 1
+                        previous_mass = mass
+                    precursor_indices.append(precursor_index)
+                tol_df['precursor index'] = precursor_indices
+                precursor_groups = tol_df.groupby('precursor index')
+                precursor_range = range(precursor_indices[-1] + 1)
+                one_percent_number_precursors = len(precursor_range) / 100 / config.globals['cpus']
 
-            # Multiprocess
-            print_percent_progress_fn = partial(utils.print_percent_progress_multithreaded,
-                                                procedure_str = 'inter-spectrum comparison progress: ',
-                                                one_percent_total_count = one_percent_number_precursors,
-                                                cores = config.globals['cpus'])
-            multiprocessing_pool = Pool(config.globals['cpus'],
-                                        initializer = child_initialize,
-                                        initargs = (precursor_groups,
-                                                    print_percent_progress_fn)
-                                        )
-            utils.verbose_print('performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs')
-            tol_group_precursor_array_list = multiprocessing_pool.map(make_precursor_info_array,
-                                                                      precursor_range)
-            multiprocessing_pool.close()
-            multiprocessing_pool.join()
+                ##Single process
+                #tol_group_precursor_array_list = []
+                #print_percent_progress_fn = partial(
+                #    utils.print_percent_progress_singlethreaded, 
+                #    procedure_str='inter-spectrum comparison progress: ', 
+                #    one_percent_total_count=one_percent_number_precursors
+                #)
+                #utils.verbose_print(
+                #    'Performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs'
+                #)
+                #child_initialize(precursor_groups, print_percent_progress_fn)
+                #for precursor_index in precursor_range:
+                #    tol_group_precursor_array_list.append(
+                #        make_precursor_info_array(precursor_index)
+                #    )
 
-            alg_group_precursor_array_list += tol_group_precursor_array_list
+                # Multiprocess
+                print_percent_progress_fn = partial(
+                    utils.print_percent_progress_multithreaded, 
+                    procedure_str='Inter-spectrum comparison progress: ', 
+                    one_percent_total_count=one_percent_number_precursors, 
+                    cores=config.globals['cpus']
+                )
+                multiprocessing_pool = Pool(
+                    config.globals['cpus'], 
+                    initializer=child_initialize, 
+                    initargs=(precursor_groups, print_percent_progress_fn)
+                )
+                utils.verbose_print(
+                    'Performing inter-spectrum comparison for', alg_combo + ',', tol, 'Da seqs'
+                )
+                tol_group_precursor_array_list = multiprocessing_pool.map(
+                    make_precursor_info_array, 
+                    precursor_range
+                )
+                multiprocessing_pool.close()
+                multiprocessing_pool.join()
+
+                alg_group_precursor_array_list += tol_group_precursor_array_list
+                #if no_tol_group_seqs:
+                #    print(tol_group_precursor_array_list)
+                #    print(alg_group_precursor_array_list)
         full_precursor_array_list += alg_group_precursor_array_list
-    interspec_df = pd.DataFrame(np.concatenate(full_precursor_array_list),
-                                index = prediction_df.index,
-                                columns = ['precursor seq agreement', 'precursor seq count'])
-    # concatenate full array columnwise with prediction_df
-    prediction_df = pd.concat([prediction_df, interspec_df], axis = 1)
+    interspec_df = pd.DataFrame(
+        np.concatenate(full_precursor_array_list), 
+        index=prediction_df.index, 
+        columns=['precursor seq agreement', 'precursor seq count']
+    )
+    #Concatenate full array columnwise with prediction_df
+    prediction_df = pd.concat([prediction_df, interspec_df], axis=1)
 
-    # prediction_df.drop(['measured mass', 'mass error'], axis = 1, inplace = True)
-    prediction_df.reset_index(inplace = True)
-    prediction_df.set_index(config.globals['is_alg_names'] + ['scan'], inplace = True)
-    prediction_df.sort_index(level = ['scan'] + config.globals['is_alg_names'], inplace = True)
+    #prediction_df.drop(['measured mass', 'mass error'], axis=1, inplace=True)
+    prediction_df.reset_index(inplace=True)
+    prediction_df.set_index(config.globals['is_alg_names'] + ['spec_id'], inplace=True)
+    prediction_df.sort_index(level=['spec_id'] + config.globals['is_alg_names'], inplace=True)
 
     return prediction_df
 
@@ -125,7 +155,9 @@ def make_precursor_info_array(precursor_index):
     for first_seq_index, first_seq in enumerate(precursor_seqs):
         all_seq_matches_list[first_seq_index].append(1)
 
-        for second_seq_index, second_seq in enumerate(precursor_seqs[first_seq_index + 1:], start = 1):
+        for second_seq_index, second_seq in enumerate(
+            precursor_seqs[first_seq_index + 1:], start = 1
+        ):
             if first_seq in second_seq:
                 all_seq_matches_list[first_seq_index].append(1)
             else:
