@@ -6,7 +6,7 @@ import input
 import utils
 
 from config import code_aa_dict, min_ref_match_len, mod_code_standard_code_dict
-from utils import encode_aas, find_subarray, remove_mod_chars
+from utils import encode_aas, find_subarray
 
 import csv
 import datetime
