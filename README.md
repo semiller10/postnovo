@@ -12,6 +12,7 @@ Much more detail and other options can be found in the [Postnovo Wiki pages](htt
 3. Use Python 3.
 [The Anaconda distribution](https://www.anaconda.com/distribution/) comes with all necessary package dependencies.
 4. Download [DeNovoGUI](http://compomics.github.io/projects/denovogui.html) and large pre-trained models.
+
    For low-res MS2 data:
    
    `python main.py setup --denovogui --postnovo_low --deepnovo_low`
