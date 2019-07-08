@@ -16,9 +16,11 @@ Post-processing peptide de novo sequences to improve their accuracy
    `python main.py setup --denovogui --postnovo_high --deepnovo_high`
    
 5. Convert your RAW file to an MGF file with the following spectrum header format using the [ProteoWizard](http://proteowizard.sourceforge.net/) msconvert tool.
+
    `msconvert preformatted_spectra.raw --mgf --filter "titleMaker Run: <RunId>, Index: <Index>, Scan: <ScanNumber>"`
 
    For peak picking and removal of zero intensity peaks, add additional filters.
+   
    `msconvert preformatted_spectra.raw --mgf --filter "peakPicking vendor" --filter "zeroSamples removeExtra" --filter "titleMaker Run: <RunId>, Index: <Index>, Scan: <ScanNumber>"`
 
 6. [Format the input MGF file](https://github.com/semiller10/postnovo/wiki/MGF-Input-File-Setup) for compatability with all de novo sequencing algorithms.
