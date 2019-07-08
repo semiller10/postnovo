@@ -1,6 +1,8 @@
 # Postnovo
 Post-processing peptide de novo sequences to improve their accuracy
 
+Journal article: https://pubs.acs.org/doi/10.1021/acs.jproteome.8b00278
+
 ## Quick Start
 
 Much more detail and other options can be found in the [Postnovo Wiki pages](https://github.com/semiller10/postnovo/wiki).
