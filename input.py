@@ -185,7 +185,7 @@ def load_novor_file(novor_fp):
     #Taking into account different fragment masses, 
     #Novor calculates the mass of the predicted peptide.
     novor_df['De Novo Peptide Ion Mass'] = (
-        novor_df['Novor Peptide Mass'] + config.proton_mass * novor_df['Charge'])
+        novor_df['Novor Peptide Mass'] + config.PROTON_MASS * novor_df['Charge'])
     novor_df.drop('Novor Peptide Mass', axis=1, inplace=True)
     #Calculate the error in the (full-length) peptide ion prediction.
     novor_df['De Novo Peptide Ion Mass Error (ppm)'] = \

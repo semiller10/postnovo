@@ -7,6 +7,7 @@ import os
 import os.path
 import pandas as pd
 import pickle as pkl
+import requests
 import sys
 
 from collections import OrderedDict, Counter
@@ -268,6 +269,41 @@ def check_positive_nonzero_float(i):
 
     return
 
+def check_path(f, dir=None, return_str=False):
+    '''
+    Check if a path exists.
+
+    Parameters
+    ----------
+    f : str
+        Filename or filepath
+    dir : str
+        Directory, when specified, joined to filename, f.
+    return_str : bool
+        By default, this function throws an error if the file does not exist.
+        Set to true, return_str instead returns the nonexistent filepath.
+
+    Returns
+    -------
+    None
+    '''
+
+    if dir == None:
+        if not os.path.exists(f):
+            if return_str:
+                return f
+            print(f + ' does not exist')
+            sys.exit(1)
+    else:
+        fp = os.path.join(dir, f)
+        if not os.path.exists(fp):
+            if return_str:
+                return fp
+            print(fp + ' does not exist')
+            sys.exit(1)
+
+    return
+
 def check_filepaths(fps):
     '''
     Check the existence of multiple filepaths.
@@ -288,6 +324,98 @@ def check_filepaths(fps):
             bad_fps.append(fp)
 
     return bad_fps
+
+#The following three functions for downloading a file from Google Drive 
+#were modified from turdus-merula's StackOverflow post at 
+#https://stackoverflow.com/questions/38511444/python-download-files-from-google-drive-using-url#comment86132281_39225272
+def download_file_from_google_drive(id, destination, file_size):
+    '''
+    Download a file from Google Drive.
+
+    Parameters
+    ----------
+    id : str
+        File ID from shareable link.
+    destination : str
+        Save filepath.
+    file_size : int
+        Size in bytes of file to download.
+
+    Returns
+    -------
+    None
+    '''
+
+    session = requests.Session()
+
+    response = session.get(config.GOOGLE_DRIVE_DOWNLOAD_URL, params={'id': id}, stream=True)
+    token = get_confirm_token(response)
+
+    if token:
+        params = {'id': id, 'confirm': token}
+        response = session.get(config.GOOGLE_DRIVE_DOWNLOAD_URL, params=params, stream=True)
+
+    save_response_content(response, destination, file_size)
+
+    return
+
+def get_confirm_token(response):
+    '''
+    Get token from Google Drive if there's a download warning for the file.
+
+    Parameters
+    ----------
+    response : requests.models.Response object
+
+    Returns
+    -------
+    value
+        Token object returned if warning is generated.
+    None
+    '''
+
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            return value
+
+    return
+
+def save_response_content(response, destination, file_size):
+    '''
+    Save content from URL.
+
+    Parameters
+    ----------
+    response : requests.models.Response object
+    destination : str
+        Save filepath.
+    file_size : int
+        Size in bytes of file to download.
+
+    Returns
+    -------
+    None
+    '''
+    CHUNK_SIZE = 32768
+    one_percent_file_size = file_size / 100
+    downloaded_byte_total = 0
+    prev_percent_completion = 0
+
+    with open(destination, 'wb') as f:
+        for chunk in response.iter_content(CHUNK_SIZE):
+            #Filter out keep-alive new chunks.
+            if chunk:
+                f.write(chunk)
+                downloaded_byte_total += CHUNK_SIZE
+                percent_completion = int(downloaded_byte_total / one_percent_file_size)
+                if percent_completion != prev_percent_completion:
+                    #Print progress over the same line.
+                    sys.stdout.write('\033[K')
+                    sys.stdout.write(str(percent_completion) + '%\r')
+                    sys.stdout.flush()
+                    prev_percent_completion = percent_completion
+
+    return
 
 def encode_aas(seq):
     '''
@@ -456,7 +584,7 @@ def find_isobaric(aa_mass_dict, max_pep_length):
                 old_mass = old_pep_mass_tuple[1]
                 delta_mass = round(abs(old_mass - new_mass), 5)
                 #Ignore isobaric matches.
-                if delta_mass > 0.00002 and delta_mass <= config.near_isobaric_window:
+                if delta_mass > 0.00002 and delta_mass <= config.NEAR_ISOBARIC_WINDOW:
                     near_isobaric_peps_dict[old_pep_mass_tuple].append(new_pep_mass_tuple)
                     near_isobaric_peps_dict[new_pep_mass_tuple].append(old_pep_mass_tuple)
 
@@ -513,7 +641,7 @@ def get_potential_substitution_info(
     pep, 
     aa_scores, 
     alg, 
-    max_subseq_len=config.max_subseq_len, 
+    max_subseq_len=config.MAX_SUBSEQ_LEN, 
     all_isobaric_peps_dict=config.all_permuted_isobaric_peps_dict, 
     all_near_isobaric_peps_dict=config.all_permuted_near_isobaric_peps_dict):
     '''

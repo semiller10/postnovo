@@ -9,13 +9,16 @@ import glob
 import numpy as np
 import os
 import pandas as pd
+import requests
 import shutil
 import subprocess
 import sys
 import time
+import zipfile
 
 from collections import OrderedDict
 from config import postnovo_deepnovo_training_mod_dict
+from io import StringIO
 from itertools import combinations, product
 from math import ceil
 from multiprocessing import cpu_count
@@ -38,6 +41,84 @@ def setup(test_argv=None):
     parser = argparse.ArgumentParser(
         description='Postnovo post-processes peptide de novo sequences to improve their accuracy.')
     subparsers = parser.add_subparsers(dest='subparser_name')
+
+    setup_parser = subparsers.add_parser(
+        'setup', 
+        help='Sets up the default Postnovo and DeepNovo models.')
+    setup_parser.add_argument(
+        '--check_updates', 
+        action='store_true', 
+        default=False, 
+        help='Check for updates to downloadable files.')
+    setup_parser.add_argument(
+        '--denovogui', 
+        action='store_true', 
+        default=False, 
+        help='Download DeNovoGUI.')
+    setup_parser.add_argument(
+        '--msgf', 
+        action='store_true', 
+        default=False, 
+        help='Download MSGF+.')
+    setup_parser.add_argument(
+        '--postnovo_low', 
+        action='store_true', 
+        default=False, 
+        help='Download the Postnovo model for low-resolution fragmentation spectra.')
+    setup_parser.add_argument(
+        '--postnovo_high', 
+        action='store_true', 
+        default=False, 
+        help='Download the Postnovo model for high-resolution fragmentation spectra.')
+    setup_parser.add_argument(
+        '--deepnovo_low', 
+        action='store_true', 
+        default=False, 
+        help=(
+            'Download the DeepNovo model for low-resolution fragmentation spectra. '
+            'Warning: this option overwrites '
+            'the relevant fragment mass tolerance directories in postnovo/deepnovo.'))
+    setup_parser.add_argument(
+        '--deepnovo_high', 
+        action='store_true', 
+        default=False, 
+        help=(
+            'Download the DeepNovo model for high-resolution fragmentation spectra.'
+            'Warning: this option overwrites '
+            'the relevant fragment mass tolerance directories in postnovo/deepnovo.'))
+    setup_parser.add_argument(
+        '--container', 
+        help=(
+            'Path to Singularity/Docker TensorFlow container image. '
+            'Required for "deepnovo_low" and "deepnovo_high" options.'))
+    setup_parser.add_argument(
+        '--bind_point', 
+        help=(
+            'Directory within the scope of the singularity container '
+            'used to bind a Postnovo/DeepNovo directory outside the scope of the container. '
+            'By default, bind points are subdirectories created in the directory '
+            'containing the Singularity container and given the name, '
+            '"DeepNovo.<frag_resolution>.<frag_mass_tol>".'))
+    setup_parser.add_argument(
+        '--postnovo_low_spectra', 
+        action='store_true', 
+        default=False, 
+        help='Download MGF files of spectra used to train the Postnovo low-resolution model.')
+    setup_parser.add_argument(
+        '--postnovo_high_spectra', 
+        action='store_true', 
+        default=False, 
+        help='Download MGF files of spectra used to train the Postnovo high-resolution model.')
+    setup_parser.add_argument(
+        '--deepnovo_low_spectra', 
+        action='store_true', 
+        default=False, 
+        help='Download MGF files of spectra used to train the DeepNovo low-resolution model.')
+    setup_parser.add_argument(
+        '--deepnovo_high_spectra', 
+        action='store_true', 
+        default=False, 
+        help='Download MGF files of spectra used to train the DeepNovo high-resolution model.')
 
     #Subcommand: Reformat mgf files for Postnovo compatability.
     format_mgf_parser = subparsers.add_parser(
@@ -94,33 +175,12 @@ def setup(test_argv=None):
             'I have found that reported MSGF+ PSM q-values (FDRs) are inaccurate.'))
 
     #DeepNovo subcommands.
-    default_deepnovo_setup_parser = subparsers.add_parser(
-        'default_deepnovo_setup', 
-        help=(
-            'Sets up default DeepNovo models that have been downloaded: '
-            'see https://github.com/semiller10/postnovo/wiki/Training-and-Running-DeepNovo.'))
-    default_deepnovo_setup_parser.add_argument(
-        '--container', 
-        help='Path to Singularity/Docker TensorFlow container image.')
-    default_deepnovo_setup_parser.add_argument(
-        '--bind_point', 
-        help=(
-            'Directory within the scope of the singularity container '
-            'used to bind a Postnovo/DeepNovo directory outside the scope of the container. '
-            'By default, bind points are subdirectories created in the directory '
-            'of the Singularity container and given the name, '
-            '"DeepNovo.<frag_resolution>.<frag_mass_tol>".'))
-    default_deepnovo_setup_parser.add_argument(
-        '--frag_resolution', 
-        choices=['low', 'high'], 
-        help=(
-            'Resolution of fragmentation spectra in dataset. '
-            'If frag_mass_tols option is not specified, '
-            'then default fragment mass tolerances for "low" or "high" resolution are used.'))
-
     train_deepnovo_parser = subparsers.add_parser(
         'train_deepnovo', 
-        help='Train DeepNovo.')
+        help=(
+            'Train DeepNovo. '
+            'The "setup" subcommand with options "deepnovo_low" or "deepnovo_high" '
+            'should already have been run.'))
     train_deepnovo_parser.add_argument(
         '--mgf', 
         help=(
@@ -333,10 +393,10 @@ def setup(test_argv=None):
     predict_parser.add_argument(
         '--min_len', 
         type=int, 
-        default=config.default_min_len, 
+        default=config.DEFAULT_MIN_LEN, 
         help=(
             'The minimum length of sequences reported by Postnovo, '
-            'with the absolute minimum being {0} amino acids.'.format(config.default_min_len)))
+            'with the absolute minimum being {0} amino acids.'.format(config.DEFAULT_MIN_LEN)))
     predict_parser.add_argument(
         '--min_prob', 
         type=utils.check_positive_nonzero_float, 
@@ -492,10 +552,10 @@ def setup(test_argv=None):
     test_parser.add_argument(
         '--min_len', 
         type=int, 
-        default=config.default_min_len, 
+        default=config.DEFAULT_MIN_LEN, 
         help=(
             'The minimum length of sequences reported by Postnovo, '
-            'with the absolute minimum being {0} amino acids.'.format(config.default_min_len)))
+            'with the absolute minimum being {0} amino acids.'.format(config.DEFAULT_MIN_LEN)))
     test_parser.add_argument(
         '--feature_set', 
         type=int, 
@@ -608,6 +668,14 @@ def setup(test_argv=None):
             'For no FDR screening, specify a value of 1. '
             'I have found that reported MSGF+ PSM q-values (FDRs) are inaccurate.'))
     train_parser.add_argument(
+        '--stop_before_training', 
+        action='store_true', 
+        default=False, 
+        help=(
+            'Create the training files for the added dataset, '
+            'but do not create new random forest models with all of the training datasets. '
+            'This flag is useful for adding multiple new datasets before training the model.'))
+    train_parser.add_argument(
         '--leave_one_out', 
         action='store_true', 
         default=False, 
@@ -620,14 +688,6 @@ def setup(test_argv=None):
         action='store_true', 
         default=False, 
         help='Plot random forest feature importances.')
-    train_parser.add_argument(
-        '--stop_before_training', 
-        action='store_true', 
-        default=False, 
-        help=(
-            'Create the training files for the added dataset, '
-            'but do not create new random forest models with all of the training datasets. '
-            'This flag is useful for adding multiple new datasets before training the model.'))
     train_parser.add_argument(
         '--retrain', 
         action='store_true', 
@@ -677,6 +737,22 @@ def setup(test_argv=None):
     #if args.subparser_name == 'mods_list':
     #    print_accepted_mods()
     #    sys.exit(0)
+    if args.subparser_name == 'setup':
+        set_up_postnovo(
+            args.check_updates, 
+            args.denovogui, 
+            args.msgf, 
+            args.postnovo_low, 
+            args.postnovo_high, 
+            args.deepnovo_low, 
+            args.deepnovo_high, 
+            args.container, 
+            args.bind_point, 
+            args.postnovo_low_spectra, 
+            args.postnovo_high_spectra, 
+            args.deepnovo_low_spectra, 
+            args.deepnovo_high_spectra)
+        sys.exit(0)
     if args.subparser_name == 'format_mgf':
         format_mgf(
             args.mgfs, 
@@ -685,9 +761,6 @@ def setup(test_argv=None):
             args.screen_fdr, 
             args.subsample, 
             args.remove_low_mass)
-        sys.exit(0)
-    elif args.subparser_name == 'default_deepnovo_setup':
-        set_up_default_deepnovo_models(args.container, args.bind_point, args.frag_resolution)
         sys.exit(0)
     elif args.subparser_name == 'train_deepnovo' or args.subparser_name == 'predict_deepnovo':
         #Perform checks and get the necessary parameters for DeepNovo, regardless of mode.
@@ -720,7 +793,7 @@ def setup(test_argv=None):
             if args.out == None:
                 out_dir = os.path.dirname(args.mgf)
             else:
-                check_path(args.out)
+                utils.check_path(args.out)
                 out_dir = args.out
 
             #Check that DeepNovo was trained at each fragment mass tolerance.
@@ -777,6 +850,639 @@ def setup(test_argv=None):
 
 #    return
 
+def set_up_postnovo(
+    check_updates, 
+    denovogui, 
+    msgf, 
+    postnovo_low, 
+    postnovo_high, 
+    deepnovo_low, 
+    deepnovo_high, 
+    container_fp, 
+    bind_point, 
+    postnovo_low_spectra, 
+    postnovo_high_spectra, 
+    deepnovo_low_spectra, 
+    deepnovo_high_spectra):
+    '''
+    Sets up the default Postnovo and DeepNovo models.
+
+    Parameters
+    ----------
+    check_updates : bool
+    denovogui : bool
+    msgf : bool
+    postnovo_low : bool
+    postnovo_high : bool
+    deepnovo_low : bool
+    deepnovo_high : bool
+    container_fp : str
+        Filepath to TensorFlow container image.
+    bind_point : str
+        Singularity bind point (directory) within the scope of the TensorFlow container.
+    postnovo_low_spectra : bool
+    postnovo_high_spectra : bool
+    deepnovo_low_spectra : bool
+    deepnovo_high_spectra : bool
+
+    Returns
+    -------
+    None
+    '''
+
+    #Download a table of the most up-to-date files that can be downloaded from Google Drive.
+    #The maintainer of these downloadable files should try to ensure that 
+    #the Google Drive ID changes with each change in the file, 
+    #but this requires deleting the previous version of the file on Google Drive 
+    #before uploading the new version.
+    #Both ID and file size are compared between the new download 
+    #and the user's version of the file, if present.
+    #This should help ensure that only true updates, not redundant updates, can occur.
+    try:
+        current_downloads_df = pd.read_csv(
+            StringIO(requests.get(
+                config.GOOGLE_DRIVE_DOWNLOAD_URL, 
+                params={'id': config.CURRENT_DOWNLOAD_GOOGLE_DRIVE_ID}).text), 
+            sep='\t', 
+            index_col='Download Filename')
+    except requests.ConnectionError:
+        raise RuntimeError('An internet connection is needed to download files for setup.')
+    #Load the table of the Google Drive files that are in use.
+    user_downloads_df = pd.read_csv(
+        config.download_ids_tsv, sep='\t', index_col='Download Filename')
+
+    if check_updates:
+        for filename in current_downloads_df.index:
+            if filename == 'knapsack.npy':
+                continue
+            if filename in user_downloads_df.index:
+                if (
+                    current_downloads_df.loc[filename]['Google Drive ID'] != 
+                    user_downloads_df.loc[filename]['Google Drive ID']) or (
+                        current_downloads_df.loc[filename]['Size'] != 
+                        user_downloads_df.loc[filename]['Size']):
+                    print('The previously downloaded version of', filename, 'is not up-to-date.')
+            else:
+                print(filename, 'has not been downloaded.')
+
+        return
+
+    if denovogui:
+        current_download_id = current_downloads_df.loc['DeNovoGUI.zip']['Google Drive ID']
+        current_download_size = current_downloads_df.loc['DeNovoGUI.zip']['Size']
+
+        continue_with_download = True
+        if 'DeNovoGUI.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['DeNovoGUI.zip']['Google Drive ID']
+            user_download_size = user_downloads_df.loc['DeNovoGUI.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded DeNovoGUI was already up-to-date. '
+                    'Delete the line for "DeNovoGUI.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            denovogui_zip_fp = os.path.join(config.postnovo_dir, 'DeNovoGUI.zip')
+
+            print('Downloading DeNovoGUI.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, denovogui_zip_fp, current_download_size)
+
+            print('Unzipping DeNovoGUI.zip')
+            with zipfile.ZipFile(denovogui_zip_fp) as f:
+                f.extractall(config.postnovo_dir)
+            os.remove(denovogui_zip_fp)
+
+            #Update the user download record.
+            if 'DeNovoGUI.zip' in user_downloads_df.index:
+                user_downloads_df.drop('DeNovoGUI.zip', inplace=True)
+            user_downloads_df.loc['DeNovoGUI.zip'] = [current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    if msgf:
+        current_download_id = current_downloads_df.loc['MSGFPlus.zip']['Google Drive ID']
+        current_download_size = current_downloads_df.loc['MSGFPlus.zip']['Size']
+
+        continue_with_download = True
+        if 'MSGFPlus.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['MSGFPlus.zip']['Google Drive ID']
+            user_download_size = user_downloads_df.loc['MSGFPlus.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded MSGF+ was already up-to-date. '
+                    'Delete the line for "MSGFPlus.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            msgf_zip_fp = os.path.join(config.postnovo_dir, 'MSGFPlus.zip')
+
+            print('Downloading MSGFPlus.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, msgf_zip_fp, current_download_size)
+
+            print('Unzipping MSGFPlus.zip')
+            with zipfile.ZipFile(msgf_zip_fp) as f:
+                f.extractall(config.postnovo_dir)
+            os.remove(msgf_zip_fp)
+
+            #Update the user download record.
+            if 'MSGFPlus.zip' in user_downloads_df.index:
+                user_downloads_df.drop('MSGFPlus.zip', inplace=True)
+            user_downloads_df.loc['MSGFPlus.zip'] = [current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    if postnovo_low:
+        current_download_id = current_downloads_df.loc['postnovo_low_default_models.zip'][
+            'Google Drive ID']
+        current_download_size = current_downloads_df.loc['postnovo_low_default_models.zip']['Size']
+
+        continue_with_download = True
+        if 'postnovo_low_default_models.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['postnovo_low_default_models.zip'][
+                'Google Drive ID']
+            user_download_size = user_downloads_df.loc['postnovo_low_default_models.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded Postnovo low-resolution model '
+                    'was already up-to-date. '
+                    'Delete the line for "postnovo_low_default_models.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            postnovo_low_default_models_zip_fp = os.path.join(
+                config.postnovo_train_dir_dict['Low'], 'postnovo_low_default_models.zip')
+            if not os.path.isdir(config.postnovo_train_dir_dict['Low']):
+                os.mkdir(config.postnovo_train_dir_dict['Low'])
+
+            print('Downloading postnovo_low_default_models.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, postnovo_low_default_models_zip_fp, current_download_size)
+
+            print('Unzipping postnovo_low_default_models.zip')
+            with zipfile.ZipFile(postnovo_low_default_models_zip_fp) as f:
+                f.extractall(config.postnovo_train_dir_dict['Low'])
+            os.remove(postnovo_low_default_models_zip_fp)
+
+            #Update the user download record.
+            if 'postnovo_low_default_models.zip' in user_downloads_df.index:
+                user_downloads_df.drop('postnovo_low_default_models.zip', inplace=True)
+            user_downloads_df.loc['postnovo_low_default_models.zip'] = [
+                current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    if postnovo_high:
+        current_download_id = current_downloads_df.loc['postnovo_high_default_models.zip'][
+            'Google Drive ID']
+        current_download_size = current_downloads_df.loc['postnovo_high_default_models.zip'][
+            'Size']
+
+        continue_with_download = True
+        if 'postnovo_high_default_models.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['postnovo_high_default_models.zip'][
+                'Google Drive ID']
+            user_download_size = user_downloads_df.loc['postnovo_high_default_models.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded Postnovo high-resolution model '
+                    'was already up-to-date. '
+                    'Delete the line for "postnovo_high_default_models.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            postnovo_high_default_models_zip_fp = os.path.join(
+                config.postnovo_train_dir_dict['High'], 'postnovo_high_default_models.zip')
+            if not os.path.isdir(config.postnovo_train_dir_dict['High']):
+                os.mkdir(config.postnovo_train_dir_dict['High'])
+
+            print('Downloading postnovo_high_default_models.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, postnovo_high_default_models_zip_fp, current_download_size)
+
+            print('Unzipping postnovo_high_default_models.zip')
+            with zipfile.ZipFile(postnovo_high_default_models_zip_fp) as f:
+                f.extractall(config.postnovo_train_dir_dict['High'])
+            os.remove(postnovo_high_default_models_zip_fp)
+
+            #Update the user download record.
+            if 'postnovo_high_default_models.zip' in user_downloads_df.index:
+                user_downloads_df.drop('postnovo_high_default_models.zip', inplace=True)
+            user_downloads_df.loc['postnovo_high_default_models.zip'] = [
+                current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    if deepnovo_low:
+        current_download_id = current_downloads_df.loc['deepnovo_low_default_models.zip'][
+            'Google Drive ID']
+        current_download_size = current_downloads_df.loc['deepnovo_low_default_models.zip']['Size']
+
+        continue_with_download = True
+        if 'deepnovo_low_default_models.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['deepnovo_low_default_models.zip'][
+                'Google Drive ID']
+            user_download_size = user_downloads_df.loc['deepnovo_low_default_models.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded DeepNovo low-resolution model '
+                    'was already up-to-date. '
+                    'Delete the line for "deepnovo_low_default_models.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            deepnovo_low_default_models_zip_fp = os.path.join(
+                config.deepnovo_dir, 'deepnovo_low_default_models.zip')
+
+            print('Downloading deepnovo_low_default_models.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, deepnovo_low_default_models_zip_fp, current_download_size)
+
+            print('Unzipping deepnovo_low_default_models.zip')
+            with zipfile.ZipFile(deepnovo_low_default_models_zip_fp) as f:
+                f.extractall(config.deepnovo_dir)
+            os.remove(deepnovo_low_default_models_zip_fp)
+
+            knapsack_fp = os.path.join(config.deepnovo_dir, 'knapsack.npy')
+            if not os.path.exists(knapsack_fp):
+                print('Downloading knapsack.npy')
+                utils.download_file_from_google_drive(
+                    current_downloads_df.loc['knapsack.npy']['Google Drive ID'], 
+                    knapsack_fp, 
+                    current_downloads_df.loc['knapsack.npy']['Size'])
+            #Create a model directory for each fragment mass tolerance.
+            set_up_deepnovo_model('low', container_fp, bind_point)
+            shutil.rmtree(os.path.join(config.deepnovo_dir, 'deepnovo_low_default_models'))
+
+            #Update the user download record.
+            if 'deepnovo_low_default_models.zip' in user_downloads_df.index:
+                user_downloads_df.drop('deepnovo_low_default_models.zip', inplace=True)
+            user_downloads_df.loc['deepnovo_low_default_models.zip'] = [
+                current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    if deepnovo_high:
+        current_download_id = current_downloads_df.loc['deepnovo_high_default_models.zip'][
+            'Google Drive ID']
+        current_download_size = current_downloads_df.loc['deepnovo_high_default_models.zip'][
+            'Size']
+
+        continue_with_download = True
+        if 'deepnovo_high_default_models.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['deepnovo_high_default_models.zip'][
+                'Google Drive ID']
+            user_download_size = user_downloads_df.loc['deepnovo_high_default_models.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded DeepNovo high-resolution model '
+                    'was already up-to-date. '
+                    'Delete the line for "deepnovo_high_default_models.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            deepnovo_high_default_models_zip_fp = os.path.join(
+                config.deepnovo_dir, 'deepnovo_high_default_models.zip')
+
+            print('Downloading deepnovo_high_default_models.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, deepnovo_high_default_models_zip_fp, current_download_size)
+
+            print('Unzipping deepnovo_high_default_models.zip')
+            with zipfile.ZipFile(deepnovo_high_default_models_zip_fp) as f:
+                f.extractall(config.deepnovo_dir)
+            os.remove(deepnovo_high_default_models_zip_fp)
+
+            knapsack_fp = os.path.join(config.deepnovo_dir, 'knapsack.npy')
+            if not os.path.exists(knapsack_fp):
+                print('Downloading knapsack.npy')
+                utils.download_file_from_google_drive(
+                    current_downloads_df.loc['knapsack.npy']['Google Drive ID'], 
+                    knapsack_fp, 
+                    current_downloads_df.loc['knapsack.npy']['Size'])
+            set_up_deepnovo_model('high', container_fp, bind_point)
+            shutil.rmtree(os.path.join(config.deepnovo_dir, 'deepnovo_high_default_models'))
+
+            #Update the user download record.
+            if 'deepnovo_high_default_models.zip' in user_downloads_df.index:
+                user_downloads_df.drop('deepnovo_high_default_models.zip', inplace=True)
+            user_downloads_df.loc['deepnovo_high_default_models.zip'] = [
+                current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    if postnovo_low_spectra:
+        current_download_id = current_downloads_df.loc['postnovo_low_default_spectra.zip'][
+            'Google Drive ID']
+        current_download_size = current_downloads_df.loc['postnovo_low_default_spectra.zip'][
+            'Size']
+
+        continue_with_download = True
+        if 'postnovo_low_default_spectra.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['postnovo_low_default_spectra.zip'][
+                'Google Drive ID']
+            user_download_size = user_downloads_df.loc['postnovo_low_default_spectra.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded Postnovo low-resolution training spectra '
+                    'were already up-to-date. '
+                    'Delete the line for "postnovo_low_default_spectra.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            postnovo_low_default_spectra_zip_fp = os.path.join(
+                config.postnovo_train_dir_dict['Low'], 'postnovo_low_default_spectra.zip')
+
+            print('Downloading postnovo_low_default_spectra.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, postnovo_low_default_spectra_zip_fp, current_download_size)
+
+            print('Unzipping postnovo_low_default_spectra.zip')
+            with zipfile.ZipFile(postnovo_low_default_spectra_zip_fp) as f:
+                f.extractall(config.postnovo_train_dir_dict['Low'])
+            os.remove(postnovo_low_default_spectra_zip_fp)
+
+            #Update the user download record.
+            if 'postnovo_low_default_spectra.zip' in user_downloads_df.index:
+                user_downloads_df.drop('postnovo_low_default_spectra.zip', inplace=True)
+            user_downloads_df.loc['postnovo_low_default_spectra.zip'] = [
+                current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    if postnovo_high_spectra:
+        current_download_id = current_downloads_df.loc['postnovo_high_default_spectra.zip'][
+            'Google Drive ID']
+        current_download_size = current_downloads_df.loc['postnovo_high_default_spectra.zip'][
+            'Size']
+
+        continue_with_download = True
+        if 'postnovo_high_default_spectra.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['postnovo_high_default_spectra.zip'][
+                'Google Drive ID']
+            user_download_size = user_downloads_df.loc['postnovo_high_default_spectra.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded Postnovo high-resolution training spectra '
+                    'were already up-to-date. '
+                    'Delete the line for "postnovo_high_default_spectra.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            postnovo_high_default_spectra_zip_fp = os.path.join(
+                config.postnovo_train_dir_dict['High'], 'postnovo_high_default_spectra.zip')
+
+            print('Downloading postnovo_high_default_spectra.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, postnovo_high_default_spectra_zip_fp, current_download_size)
+
+            print('Unzipping postnovo_high_default_spectra.zip')
+            with zipfile.ZipFile(postnovo_high_default_spectra_zip_fp) as f:
+                f.extractall(config.postnovo_train_dir_dict['High'])
+            os.remove(postnovo_high_default_spectra_zip_fp)
+
+            #Update the user download record.
+            if 'postnovo_high_default_spectra.zip' in user_downloads_df.index:
+                user_downloads_df.drop('postnovo_high_default_spectra.zip', inplace=True)
+            user_downloads_df.loc['postnovo_high_default_spectra.zip'] = [
+                current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    if deepnovo_low_spectra:
+        current_download_id = current_downloads_df.loc['deepnovo_low_default_spectra.zip'][
+            'Google Drive ID']
+        current_download_size = current_downloads_df.loc['deepnovo_low_default_spectra.zip'][
+            'Size']
+
+        continue_with_download = True
+        if 'deepnovo_low_default_spectra.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['deepnovo_low_default_spectra.zip'][
+                'Google Drive ID']
+            user_download_size = user_downloads_df.loc['deepnovo_low_default_spectra.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded DeepNovo low-resolution training spectra '
+                    'were already up-to-date. '
+                    'Delete the line for "deepnovo_low_default_spectra.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            deepnovo_low_default_spectra_zip_fp = os.path.join(
+                config.deepnovo_dir, 'deepnovo_low_default_spectra.zip')
+
+            print('Downloading deepnovo_low_default_spectra.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, deepnovo_low_default_spectra_zip_fp, current_download_size)
+
+            print('Unzipping deepnovo_low_default_spectra.zip')
+            with zipfile.ZipFile(deepnovo_low_default_spectra_zip_fp) as f:
+                f.extractall(config.deepnovo_dir)
+            os.remove(deepnovo_low_default_spectra_zip_fp)
+
+            #Update the user download record.
+            if 'deepnovo_low_default_spectra.zip' in user_downloads_df.index:
+                user_downloads_df.drop('deepnovo_low_default_spectra.zip', inplace=True)
+            user_downloads_df.loc['deepnovo_low_default_spectra.zip'] = [
+                current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    if deepnovo_high_spectra:
+        current_download_id = current_downloads_df.loc['deepnovo_high_default_spectra.zip'][
+            'Google Drive ID']
+        current_download_size = current_downloads_df.loc['deepnovo_high_default_spectra.zip'][
+            'Size']
+
+        continue_with_download = True
+        if 'deepnovo_high_default_spectra.zip' in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc['deepnovo_high_default_spectra.zip'][
+                'Google Drive ID']
+            user_download_size = user_downloads_df.loc['deepnovo_high_default_spectra.zip']['Size']
+            if (current_download_id == user_download_id) and \
+                (current_download_size == user_download_size):
+                continue_with_download = False
+                print(
+                    'The previously downloaded DeepNovo high-resolution training spectra '
+                    'were already up-to-date. '
+                    'Delete the line for "deepnovo_high_default_spectra.zip" in the file, '
+                    '"postnovo/download_ids.tsv", and re-run this command to download it again.')
+
+        if continue_with_download:
+            deepnovo_high_default_spectra_zip_fp = os.path.join(
+                config.deepnovo_dir, 'deepnovo_high_default_spectra.zip')
+
+            print('Downloading deepnovo_high_default_spectra.zip')
+            utils.download_file_from_google_drive(
+                current_download_id, deepnovo_high_default_spectra_zip_fp, current_download_size)
+
+            print('Unzipping deepnovo_high_default_spectra.zip')
+            with zipfile.ZipFile(deepnovo_high_default_spectra_zip_fp) as f:
+                f.extractall(config.deepnovo_dir)
+            os.remove(deepnovo_high_default_spectra_zip_fp)
+
+            #Update the user download record.
+            if 'deepnovo_high_default_spectra.zip' in user_downloads_df.index:
+                user_downloads_df.drop('deepnovo_high_default_spectra.zip', inplace=True)
+            user_downloads_df.loc['deepnovo_high_default_spectra.zip'] = [
+                current_download_id, current_download_size]
+            user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
+
+    #Remove the large file, knapsack.npy, that was placed in the top DeepNovo directory 
+    #to copy into the subdirectories that are actually used.
+    if os.path.exists(os.path.join(config.deepnovo_dir, 'knapsack.npy')):
+        os.remove(os.path.join(config.deepnovo_dir, 'knapsack.npy'))
+
+    return
+
+def set_up_deepnovo_model(frag_resolution, container_fp, bind_point):
+    '''
+    Sets up default DeepNovo models in directories for each fragment mass tolerance.
+
+    Parameters
+    ----------
+    frag_resolution : <'High' or 'Low'>
+    container_fp : str
+        Filepath to TensorFlow image.
+    bind_point : str
+        Filepath to bind point within scope of TensorFlow container.
+
+    Returns
+    -------
+    None
+    '''
+
+    encountered_cython_compile_err = False
+    default_model_dir = os.path.join(
+        config.deepnovo_dir, 'deepnovo_' + frag_resolution + '_default_models')
+
+    for frag_mass_tol in config.frag_mass_tol_dict[frag_resolution.capitalize()]:            
+        target_deepnovo_dir = os.path.join(
+            config.deepnovo_dir, 'DeepNovo.' + frag_resolution + '.' + frag_mass_tol)
+        target_train_dir = os.path.join(target_deepnovo_dir, 'train')
+
+        try:
+            #Try to load a Singularity environment module, 
+            #which may be needed for Cython compilation.
+            with open(os.devnull, 'w') as null_f:
+                subprocess.call('module load singularity', shell=True, stderr=null_f)
+        except FileNotFoundError:
+            pass
+
+        if os.path.isdir(target_deepnovo_dir):
+            #The target DeepNovo directory already exists.
+            #Check for each program file, including compiled Cython files.
+            for program_file_fp in config.deepnovo_program_fps + \
+                [os.path.join(target_deepnovo_dir, 'deepnovo_cython_modules.so'), 
+                    os.path.join(target_deepnovo_dir, 'deepnovo_cython_modules.c')]:
+                if not os.path.exists(program_file_fp):
+                    print(
+                        'Not every program file was found in ' + target_deepnovo_dir + 
+                        ', so the program files there are being refreshed.')
+                    subprocess.call(['cp'] + config.deepnovo_program_fps + [target_deepnovo_dir])
+
+                    #Compile Cython modules.
+                    #Create a bind point for the proper DeepNovo directory 
+                    #within the Singularity container.
+                    if container_fp == None:
+                        raise RuntimeError(
+                            'For DeepNovo Cython files to be compiled, '
+                            'please use the "container" option.')
+                    if bind_point == None:
+                        #Create a bind point for the proper DeepNovo directory 
+                        #within the Singularity container, by default.
+                        bind_point = os.path.join(
+                            os.path.dirname(container_fp), 
+                            os.path.basename(target_deepnovo_dir))
+                    if not os.path.isdir(bind_point):
+                        os.mkdir(bind_point)
+
+                    os.chdir(bind_point)
+                    p = subprocess.Popen([
+                        'singularity', 
+                        'exec', 
+                        '--bind', 
+                        target_deepnovo_dir + ':' + bind_point, 
+                        container_fp, 
+                        'python', 
+                        os.path.join(bind_point, 'deepnovo_cython_setup.py'), 
+                        'build_ext', 
+                        '--inplace'], stderr=subprocess.PIPE)
+                    err = p.communicate()[1]
+                    if err.decode() != '':
+                        encountered_cython_compile_err = True
+
+                    break
+            if os.path.isdir(target_train_dir):
+                pass
+            else:
+                os.mkdir(target_train_dir)
+        else:
+            #The target DeepNovo directory does not exist.
+            os.mkdir(target_deepnovo_dir)
+            os.mkdir(target_train_dir)
+            subprocess.call(['cp'] + config.deepnovo_program_fps + [target_deepnovo_dir])
+
+            #Compile Cython modules.
+            #Create a bind point for the proper DeepNovo directory 
+            #within the Singularity container.
+            if container_fp == None:
+                raise RuntimeError(
+                    'For DeepNovo Cython files to be compiled, '
+                    'please use the "container" option.')
+            if bind_point == None:
+                #Create a bind point for the proper DeepNovo directory 
+                #within the Singularity container, by default.
+                bind_point = os.path.join(
+                    os.path.dirname(container_fp), 
+                    os.path.basename(target_deepnovo_dir))
+            if not os.path.isdir(bind_point):
+                os.mkdir(bind_point)
+
+            os.chdir(bind_point)
+            p = subprocess.Popen([
+                'singularity', 
+                'exec', 
+                '--bind', 
+                target_deepnovo_dir + ':' + bind_point, 
+                container_fp, 
+                'python', 
+                os.path.join(bind_point, 'deepnovo_cython_setup.py'), 
+                'build_ext', 
+                '--inplace'], stderr=subprocess.PIPE)
+            err = p.communicate()[1]
+            if err.decode() != '':
+                encountered_cython_compile_err = True
+
+        #Move model files into the training directory for the fragment mass tolerance.
+        frag_mass_tol_default_model_dir = os.path.join(
+            default_model_dir, 'DeepNovo.' + frag_resolution + '.' + frag_mass_tol)
+        for unzipped_filename in os.listdir(frag_mass_tol_default_model_dir):
+            os.rename(
+                os.path.join(frag_mass_tol_default_model_dir, unzipped_filename), 
+                os.path.join(target_train_dir, unzipped_filename))
+
+        if encountered_cython_compile_err:
+            print(
+                'DeepNovo Cython modules could not be compiled. '
+                'Try using Python 2.7 to compile in each DeepNovo directory. '
+                'The necessary "Cython" package may not be installed in Python -- '
+                'to install, run the command, "pip install --user Cython". '
+                'To compile the DeepNovo Cython code, run the following command in each directory, '
+                '"python deepnovo_cython_setup.py build_ext --inplace".')
+
+    return
+
 def format_mgf(mgf_fps, out_mgf_fp, db_search_fps, fdr_cutoff, subsample_size, min_mass):
     '''
     Write new MGF files compatible with Postnovo.
@@ -804,16 +1510,23 @@ def format_mgf(mgf_fps, out_mgf_fp, db_search_fps, fdr_cutoff, subsample_size, m
     None
     '''
 
-    #Check the existence of MGF files.
-    bad_fps = utils.check_filepaths(mgf_fps)
-    if bad_fps:
-        raise RuntimeError(', '.join(bad_fps) + ' are not files.')
+    #Check the existence of MGF and database search result files.
+    nonexistent_fps = []
+    for mgf_fp in mgf_fps:
+        nonexistent_fps.append(utils.check_path(mgf_fp, return_str=True))
+        if nonexistent_fps[-1] == None:
+            nonexistent_fps.pop()
+    if nonexistent_fps:
+        raise RuntimeError(', '.join(nonexistent_fps) + ' are not files.')
 
     if db_search_fps != None:
-        #Check the existence of database search result files.
-        bad_fps = utils.check_filepaths(db_search_fps)
-        if bad_fps:
-            raise RuntimeError(', '.join(bad_fps) + ' are not files.')
+        nonexistent_fps = []
+        for db_search_fp in db_search_fps:
+            nonexistent_fps.append(utils.check_path(db_search_fp, return_str=True))
+            if nonexistent_fps[-1] == None:
+                nonexistent_fps.pop()
+        if nonexistent_fps:
+            raise RuntimeError(', '.join(nonexistent_fps) + ' are not files.')
 
     #Check that the input MGF files meet the minimum formatting requirements.
     unrecognized_mgf_fps = []
@@ -1166,12 +1879,12 @@ def prepare_deepnovo(
     if mgf_fp == None:
         raise RuntimeError('Specify the input MGF filepath.')
     else:
-        check_path(mgf_fp)
+        utils.check_path(mgf_fp)
 
     if tensorflow_fp == None:
         raise RuntimeError('The filepath to a TensorFlow image must be specified.')
     else:
-        check_path(tensorflow_fp)
+        utils.check_path(tensorflow_fp)
 
     if frag_resolution == None:
         raise RuntimeError(
@@ -1217,7 +1930,7 @@ def prepare_deepnovo(
 
     #Check the validity of a user-specified bind point (directory).
     if bind_point:
-        check_path(bind_point)
+        utils.check_path(bind_point)
 
     if time_limit:
         hrs = int(time_limit)
@@ -1230,41 +1943,6 @@ def prepare_deepnovo(
             raise RuntimeError('Memory allocated to the Slurm job must be positive.')
 
     return frag_mass_tols, fixed_mod_aas, variable_mod_aas, time_limit
-
-def check_path(f, dir=None, return_str=False):
-    '''
-    Check if a path exists.
-
-    Parameters
-    ----------
-    f : str
-        Filename or filepath
-    dir : str
-        Directory, when specified, joined to filename, f.
-    return_str : bool
-        By default, this function throws an error if the file does not exist.
-        Set to true, return_str instead returns the nonexistent filepath.
-
-    Returns
-    -------
-    None
-    '''
-
-    if dir == None:
-        if not os.path.exists(f):
-            if return_str:
-                return f
-            print(f + ' does not exist')
-            sys.exit(1)
-    else:
-        fp = os.path.join(dir, f)
-        if not os.path.exists(fp):
-            if return_str:
-                return fp
-            print(fp + ' does not exist')
-            sys.exit(1)
-
-    return
 
 #REMOVE: There are only two default modifications, to C and M.
 #def check_mods(parser, mod_input):
@@ -1291,158 +1969,6 @@ def check_path(f, dir=None, return_str=False):
 #                ', '.join(unrecognized_mods)))
 
 #    return
-
-def set_up_default_deepnovo_models(container_fp, user_bind_point, frag_resolution):
-    '''
-    Set up default DeepNovo models at each fragment mass tolerance parameterization.
-
-    Parameters
-    ----------
-    container_fp : str
-        Filepath to TensorFlow container image.
-    user_bind_point : str
-        Singularity bind point within the scope of the TensorFlow container.
-    frag_resolution : str
-        Resolution of fragmentation spectra: "low" or "high".
-
-    Returns
-    -------
-    None
-    '''
-
-    if frag_resolution == None:
-        frag_resolutions = ['Low', 'High']
-    elif frag_resolution == 'low':
-        frag_resolutions = ['Low']
-    elif frag_resolution == 'high':
-        frag_resolutions = ['High']
-
-    encountered_cython_compile_err = False
-    #Each resolution setting is associated with a different set of fragment mass tolerances.
-    for frag_resolution in frag_resolutions:
-        frag_resolution_dir = os.path.join(
-            config.deepnovo_dir, 'default_train_' + frag_resolution + '_default')
-
-        for frag_mass_tol in config.frag_mass_tol_dict[frag_resolution]:
-            frag_mass_tol_dir = os.path.join(
-                frag_resolution_dir, frag_resolution + '.' + frag_mass_tol)
-            
-            target_deepnovo_dir = os.path.join(
-                config.deepnovo_dir, 'DeepNovo.' + frag_resolution + '.' + frag_mass_tol)
-            target_train_dir = os.path.join(target_deepnovo_dir, 'train')
-            #Make a DeepNovo directory for each fragment mass tolerance.
-            if os.path.isdir(target_train_dir):
-                raise RuntimeError(
-                    target_train_dir + ' already exists. '
-                    'Remove DeepNovo train directories for default setup.')
-
-            try:
-                #Try to load a Singularity environment module, 
-                #which may be needed for Cython compilation.
-                subprocess.call('module load singularity', shell=True)
-            except FileNotFoundError:
-                pass
-
-            if os.path.isdir(target_deepnovo_dir):
-                #The target DeepNovo directory already exists.
-                #Check for each program file, including compiled Cython files.
-                for program_file_fp in config.deepnovo_program_fps + \
-                    [os.path.join(target_deepnovo_dir, 'deepnovo_cython_modules.so'), 
-                     os.path.join(target_deepnovo_dir, 'deepnovo_cython_modules.c')]:
-                    if not os.path.exists(program_file_fp):
-                        print(
-                            'Not every program file was found in ' + target_deepnovo_dir + 
-                            ', so the program files there are being refreshed.')
-                        subprocess.call(['cp'] + config.deepnovo_program_fps + [target_deepnovo_dir])
-
-                        #Compile Cython modules.
-                        #Create a bind point for the proper DeepNovo directory 
-                        #within the Singularity container.
-                        if container_fp == None:
-                            raise RuntimeError(
-                                'For DeepNovo Cython files to be compiled, '
-                                'please use the "container" option.')
-                        if user_bind_point == None:
-                            #Create a bind point for the proper DeepNovo directory 
-                            #within the Singularity container, by default.
-                            bind_point = os.path.join(
-                                os.path.dirname(container_fp), 
-                                os.path.basename(target_deepnovo_dir))
-                        else:
-                            bind_point = user_bind_point
-                        if not os.path.isdir(bind_point):
-                            os.mkdir(bind_point)
-
-                        os.chdir(bind_point)
-                        p = subprocess.Popen([
-                            'singularity', 
-                            'exec', 
-                            '--bind', 
-                            target_deepnovo_dir + ':' + bind_point, 
-                            container_fp, 
-                            'python', 
-                            os.path.join(bind_point, 'deepnovo_cython_setup.py'), 
-                            'build_ext', 
-                            '--inplace'], stderr=subprocess.PIPE)
-                        err = p.communicate()[1]
-                        if err.decode() != '':
-                            encountered_cython_compile_err = True
-
-                        break
-                os.mkdir(target_train_dir)
-            else:
-                #The target DeepNovo directory does not exist.
-                os.mkdir(target_deepnovo_dir)
-                os.mkdir(target_train_dir)
-                subprocess.call(['cp'] + config.deepnovo_program_fps + [target_deepnovo_dir])
-
-                #Compile Cython modules.
-                #Create a bind point for the proper DeepNovo directory 
-                #within the Singularity container.
-                if container_fp == None:
-                    raise RuntimeError(
-                        'For DeepNovo Cython files to be compiled, '
-                        'please use the "container" option.')
-                if user_bind_point == None:
-                    #Create a bind point for the proper DeepNovo directory 
-                    #within the Singularity container, by default.
-                    bind_point = os.path.join(
-                        os.path.dirname(container_fp), 
-                        os.path.basename(target_deepnovo_dir))
-                else:
-                    bind_point = user_bind_point
-                if not os.path.isdir(bind_point):
-                    os.mkdir(bind_point)
-
-                os.chdir(bind_point)
-                p = subprocess.Popen([
-                    'singularity', 
-                    'exec', 
-                    '--bind', 
-                    target_deepnovo_dir + ':' + bind_point, 
-                    container_fp, 
-                    'python', 
-                    os.path.join(bind_point, 'deepnovo_cython_setup.py'), 
-                    'build_ext', 
-                    '--inplace'], stderr=subprocess.PIPE)
-                err = p.communicate()[1]
-                if err.decode() != '':
-                    encountered_cython_compile_err = True
-
-            #Copy model files into the training directory for the fragment mass tolerance.
-            subprocess.call(
-                ['cp'] + glob.glob(os.path.join(frag_mass_tol_dir, '*')) + [target_train_dir])
-
-            if encountered_cython_compile_err:
-                print(
-                    'DeepNovo Cython modules could not be compiled. '
-                    'Try using Python 2.7 to compile in each DeepNovo directory. '
-                    'The necessary "Cython" package may not be installed in Python -- '
-                    'to install, run the command, "pip install --user Cython". '
-                    'To compile the DeepNovo Cython code, run the following command in each directory, '
-                    '"python deepnovo_cython_setup.py build_ext --inplace".')
-
-    return
 
 def train_deepnovo(
     mgf_fp, 
@@ -1552,7 +2078,8 @@ def train_deepnovo(
     #Loop through each mass tolerance.
     try:
         #Try to load a Singularity environment module.
-        subprocess.call('module load singularity', shell=True)
+        with open(os.devnull, 'w') as null_f:
+            subprocess.call('module load singularity', shell=True, stderr=null_f)
     except FileNotFoundError:
         pass
 
@@ -2018,7 +2545,7 @@ def inspect_args(args):
     config.globals['Make Test Plots'] = False
 
     config.globals['Leave-One-Out Data Filepath'] = os.path.join(
-        config.globals['Postnovo Training Directory'], config.binned_scores_filename)
+        config.globals['Postnovo Training Directory'], config.BINNED_SCORES_FILENAME)
     config.globals['Leave One Out'] = False
     if 'leave_one_out' in args:
         if args.leave_one_out:
@@ -2061,7 +2588,7 @@ def inspect_args(args):
             if args.deepnovo:
                 config.globals['De Novo Algorithms'].append('DeepNovo')
             config.globals['Postnovo Training Record Filepath'] = os.path.join(
-                postnovo_train_dir, config.postnovo_train_record_filename)
+                postnovo_train_dir, config.POSTNOVO_TRAIN_RECORD_FILENAME)
             #Check that all of the recorded training files actually exist.
             if os.path.exists(config.globals['Postnovo Training Record Filepath']):
                 for train_dataset_name in pd.read_csv(
@@ -2087,7 +2614,7 @@ def inspect_args(args):
     if not args.mgf:
         raise RuntimeError('A properly formatted MGF file must be provided.')
     #The full filepath must be provided.
-    check_path(args.mgf)
+    utils.check_path(args.mgf)
     config.globals['MGF Filepath'] = args.mgf
     config.globals['Dataset Name'] = os.path.splitext(os.path.basename(args.mgf))[0]
     config.globals['Input Directory'] = os.path.dirname(args.mgf)
@@ -2097,7 +2624,7 @@ def inspect_args(args):
     if not args.clusters:
         args.clusters = os.path.join(
             config.globals['Input Directory'], 'MaRaCluster.clusters_p2.tsv')
-    check_path(args.clusters)
+    utils.check_path(args.clusters)
     config.globals['Clusters Filepath'] = args.clusters
 
     #Check validity of output directory.
@@ -2124,7 +2651,7 @@ def inspect_args(args):
                 'A training dataset of the same name already exists. '
                 'If this is truly a new training dataset, change its name to proceed.')
         config.globals['Postnovo Training Record Filepath'] = os.path.join(
-            postnovo_train_dir, config.postnovo_train_record_filename)
+            postnovo_train_dir, config.POSTNOVO_TRAIN_RECORD_FILENAME)
         #Check that all of the recorded training files actually exist.
         if os.path.exists(config.globals['Postnovo Training Record Filepath']):
             for train_dataset_name in pd.read_csv(
@@ -2154,7 +2681,7 @@ def inspect_args(args):
         missing_files = []
         for frag_mass_tol in config.globals['Fragment Mass Tolerances']:
             try:
-                missing_file = check_path(
+                missing_file = utils.check_path(
                     config.globals['MGF Filename'] + '.' + frag_mass_tol + '.novor.csv', 
                     config.globals['Input Directory'], 
                     return_str=True)
@@ -2163,7 +2690,7 @@ def inspect_args(args):
             except TypeError:
                 pass
             try:
-                missing_file = check_path(
+                missing_file = utils.check_path(
                     config.globals['MGF Filename'] + '.' + frag_mass_tol + '.mgf.out', 
                     config.globals['Input Directory'], 
                     return_str=True)
@@ -2195,7 +2722,7 @@ def inspect_args(args):
         missing_files = []
         for frag_mass_tol in config.globals['Fragment Mass Tolerances']:
             try:
-                missing_file = check_path(
+                missing_file = utils.check_path(
                     config.globals['MGF Filename'] + '.' + frag_mass_tol + '.tsv', 
                     config.globals['Input Directory'], 
                     return_str=True)
@@ -2263,7 +2790,7 @@ def inspect_args(args):
                 config.globals['Reported Binary Classification Statistics Filepath']):
                 os.remove(config.globals['Reported Binary Classification Statistics Filepath'])
             config.globals['Binned Scores Filepath'] = os.path.join(
-                config.globals['Output Directory'], config.binned_scores_filename)
+                config.globals['Output Directory'], config.BINNED_SCORES_FILENAME)
 
     if 'stop_before_training' in args:
         if args.stop_before_training:
@@ -2272,20 +2799,20 @@ def inspect_args(args):
             config.globals['Stop Before Training'] = False
 
     if 'min_len' in args:
-        if args.min_len < config.default_min_len:
+        if args.min_len < config.DEFAULT_MIN_LEN:
             raise RuntimeError(
-                'min_len must be >= {0} amino acids.'.format(config.default_min_len))
+                'min_len must be >= {0} amino acids.'.format(config.DEFAULT_MIN_LEN))
         config.globals['Minimum Postnovo Sequence Length'] = args.min_len
     else:
-        config.globals['Minimum Postnovo Sequence Length'] = config.default_min_len
+        config.globals['Minimum Postnovo Sequence Length'] = config.DEFAULT_MIN_LEN
 
     if 'min_prob' in args:
-        if not 0 < args.min_prob < 1:
+        if not 0 <= args.min_prob < 1:
             raise RuntimeError('min_prob must be between 0 and 1.')
         config.globals['Minimum Postnovo Sequence Probability'] = args.min_prob
 
     if 'ref_fasta' in args:
-        check_path(args.ref_fasta, config.globals['Input Directory'])
+        utils.check_path(args.ref_fasta, config.globals['Input Directory'])
         config.globals['Reference Fasta Filepath'] = os.path.join(
             config.globals['Input Directory'], args.ref_fasta)
         if not 0 < args.fdr_cutoff <= 1:
@@ -2299,6 +2826,20 @@ def inspect_args(args):
     #so all of the following global variables that are set are only applicable to those modes.
     if 'msgf' in args:
         if args.msgf:
+            #The newer versions of MSGF+ require Java 8.
+            #Check that Java 8 is available.
+            try:
+                java_version = subprocess.Popen(
+                    ['java', '-version'], stderr=subprocess.PIPE).communicate()[1].decode().split('.')[1]
+                if int(java_version) < 8:
+                    load_java8 = True
+                else:
+                    load_java8 = False
+            except FileNotFoundError:
+                load_java8 = True
+            if load_java8:
+                raise RuntimeError('Load Java 8 (java/1.8) or higher to run MSGF+.')
+
             config.globals['Run MSGF'] = True
             config.globals['Database Search Output Filepath'] = os.path.splitext(os.path.join(
                 config.globals['Output Directory'], 
@@ -2308,7 +2849,7 @@ def inspect_args(args):
             config.globals['Is Q-Exactive'] = args.qexactive
         else:
             if 'db_search' in args:
-                check_path(args.db_search, config.globals['Input Directory'])
+                utils.check_path(args.db_search, config.globals['Input Directory'])
                 config.globals['Database Search Output Filepath'] = os.path.join(
                     config.globals['Input Directory'], args.db_search)
             if 'reconcile_spectrum_ids' in args:
@@ -2345,6 +2886,8 @@ def run_denovogui():
     None
     '''
 
+    denovogui_jar_fp = glob.glob(os.path.join(config.denovogui_dir, '*.jar'))[0]
+
     #Create strings to be used as DeNovoGUI arguments.
     fixed_mods = '"' + ', '.join(
         [config.postnovo_denovogui_mod_dict[postnovo_mod] 
@@ -2376,7 +2919,7 @@ def run_denovogui():
         subprocess.call([
             'java', 
             '-cp', 
-            config.denovogui_jar, 
+            denovogui_jar_fp, 
             'com.compomics.denovogui.cmd.IdentificationParametersCLI', 
             '-out', 
             param_fp, 
@@ -2399,7 +2942,7 @@ def run_denovogui():
             subprocess.call([
                 'java', 
                 '-cp', 
-                config.denovogui_jar,
+                denovogui_jar_fp,
                 'com.compomics.denovogui.cmd.DeNovoCLI', 
                 '-spectrum_files', 
                 temp_mgf_fp, 
@@ -2447,20 +2990,6 @@ def run_msgf():
     -------
     None
     '''
-
-    #The newer versions of MSGF+ require Java 8.
-    #Check that Java 8 is available.
-    try:
-        java_version = subprocess.Popen(
-            ['java', '-version'], stderr=subprocess.PIPE).communicate()[1].decode().split('.')[1]
-        if int(java_version) < 8:
-            load_java8 = True
-        else:
-            load_java8 = False
-    except FileNotFoundError:
-        load_java8 = True
-    if load_java8:
-        raise RuntimeError('Load Java 8 (java/1.8) or higher to run MSGF+.')
 
     #Create strings to be used as MSGF+ arguments.
     if config.globals['Fragmentation Method'] == 'CID':
@@ -2607,7 +3136,7 @@ def make_additional_globals():
     for fixed_mod in config.globals['Fixed Modifications']:
         standard_plus_mod_mass_dict.pop(fixed_mod[0])
     all_permuted_isobaric_peps_dict, all_permuted_near_isobaric_peps_dict = \
-        utils.find_isobaric(standard_plus_mod_mass_dict, config.max_subseq_len)
+        utils.find_isobaric(standard_plus_mod_mass_dict, config.MAX_SUBSEQ_LEN)
     #Numerically encode the isobaric peptides.
     #Update dicts in config to retain the persistence of mutable variables.
     aa_code_dict = config.aa_code_dict

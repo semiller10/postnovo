@@ -1,11 +1,10 @@
 ''' Sequence accuracy classification model '''
 
 import config
-import dbsearch
 import input
 import utils
 
-from config import code_aa_dict, min_ref_match_len, mod_code_standard_code_dict
+from config import code_aa_dict, MIN_REF_MATCH_LEN, mod_code_standard_code_dict
 from utils import encode_aas, find_subarray
 
 import csv
@@ -43,9 +42,6 @@ from sklearn.preprocessing import StandardScaler
 matplotlib.use('Agg')
 
 warnings.filterwarnings('ignore')
-
-#The total number of amino acids in the FDR-controlled reference peptides.
-ref_psm_aa_sum = 0
 
 def classify(prediction_df):
     '''
@@ -209,7 +205,7 @@ def classify(prediction_df):
             prediction_df['Sequence Matches Database Search PSM'].tolist()):
             seq_for_ref_fasta_search = ''
             if db_search_match != 1:
-                if encoded_seq.size >= min_ref_match_len:
+                if encoded_seq.size >= MIN_REF_MATCH_LEN:
                     for code in encoded_seq:
                         if code in mod_code_standard_code_dict:
                             seq_for_ref_fasta_search += code_aa_dict[
@@ -420,12 +416,11 @@ def classify(prediction_df):
             reported_prediction_df['Sequence'] = seqs
         reported_prediction_df['Sequence Length'] = reported_prediction_df[
             'Encoded Sequence'].apply(lambda encoded_seq: encoded_seq.size)
-        ##UNCOMMENT IN FINAL VERSION, AS ONLY SEQUENCES ABOVE SCORE THRESHOLD ARE REPORTED
-        #reported_prediction_df = reported_prediction_df[
-        #    reported_prediction_df['Random Forest Score'] >= config.min_prob]
         #Given enough training data, random forest score estimates probability of correctness.
         reported_prediction_df.rename(
             columns={'Random Forest Score': 'Estimated Probability'}, inplace=True)
+        reported_prediction_df = reported_prediction_df[
+            reported_prediction_df['Estimated Probability'] >= config.min_prob]
         reported_prediction_df = reported_prediction_df.reset_index().set_index(
             ['Spectrum ID'] + 
             config.globals['De Novo Algorithm Origin Headers'] + 
@@ -643,7 +638,7 @@ def find_sequence_correctnesses(prediction_df):
         ##The specification here of what counts of long reference fasta matches allows 
         ##the threshold length to be changed while tinkering with Postnovo.
         #((prediction_df['Encoded Sequence'].apply(
-        #    lambda encoded_seq: (encoded_seq.size >= min_ref_match_len))) & 
+        #    lambda encoded_seq: (encoded_seq.size >= config.MIN_REF_MATCH_LEN))) & 
         #(prediction_df['Sequence Only Matches Reference Fasta'] == 1)).astype('int').tolist()):
         prediction_df['Exclusive Reference Fasta Match'].tolist()):
         if (is_db_search_psm == 1) or (is_fasta_match == 1):
@@ -1277,7 +1272,7 @@ def plot_precision_recall(
                 (config.upper_score_bound_dict[alg] - config.lower_score_bound_dict[alg]))
         tick_locs = config.colorbar_tick_dict[alg]
 
-    plt.plot(1, config.default_fdr_precision, color='r', marker='*', markersize=10)
+    plt.plot(1, config.DEFAULT_PRECISION, color='r', marker='*', markersize=10)
 
     #Precision and recall range from 0 to 1.
     plt.xlim([0, 1])
@@ -1374,7 +1369,7 @@ def plot_precision_yield(
         if single_alg_yields[-1] > max_encountered_yield:
             max_encountered_yield = single_alg_yields[-1]
 
-    plt.plot(psm_yield, config.default_fdr_precision, color='r', marker='*', markersize=10)
+    plt.plot(psm_yield, config.DEFAULT_PRECISION, color='r', marker='*', markersize=10)
 
     if psm_yield > max_encountered_yield:
         #Guarantee some room along the x-axis for the star.
@@ -1542,9 +1537,9 @@ def make_rf_models(train_df, plot_feature_importance=False, leave_one_out_datase
         utils.verbose_print(
             'Training the Postnovo random forest model for', rf_model_name, 'sequences')
         rf_model = RandomForestClassifier(
-            n_estimators=config.rf_n_estimators, 
-            max_depth=config.rf_max_depth, 
-            max_features=config.rf_max_features, 
+            n_estimators=config.RF_N_ESTIMATORS, 
+            max_depth=config.RF_MAX_DEPTH, 
+            max_features=config.RF_MAX_FEATURES, 
             oob_score=True, 
             n_jobs=config.globals['CPU Count'])
         rf_model.fit(rf_train_array, rf_targets)
@@ -1730,17 +1725,17 @@ def bin_data_by_score(subsampled_test_df, dataset_name, model_type):
     binned_ref_matches = []
     correct_proportions = []
     spectrum_counts = []
-    current_score_bin_upperbound = config.score_bin_size
+    current_score_bin_upperbound = config.SCORE_BIN_SIZE
     for rf_score, ref_match in zip(rf_scores, ref_matches):
         #Each score bin is inclusive of the upper bound.
         #Advance to the next bin when this upper bound is exceeded.
         binned_ref_matches.append(ref_match)
         if rf_score > current_score_bin_upperbound:
             score_bin_midpoints.append(
-                current_score_bin_upperbound - config.score_bin_size / 2)
+                current_score_bin_upperbound - config.SCORE_BIN_SIZE / 2)
             correct_proportions.append(np.mean(binned_ref_matches))
             spectrum_counts.append(len(binned_ref_matches))
-            current_score_bin_upperbound += config.score_bin_size
+            current_score_bin_upperbound += config.SCORE_BIN_SIZE
             binned_ref_matches = []
 
     binned_df = pd.DataFrame.from_dict({
@@ -1858,7 +1853,7 @@ def plot_leave_one_out():
 #                train_target_arr_dict[alg_key]['target'], 
 #                stratify = train_target_arr_dict[alg_key]['target'])
 #        forest_grid = GridSearchCV(
-#            RandomForestClassifier(n_estimators = config.rf_n_estimators, oob_score = True), 
+#            RandomForestClassifier(n_estimators = config.RF_N_ESTIMATORS, oob_score = True), 
 #            {'max_features': ['sqrt', None], 'max_depth': [depth for depth in range(11, 20)]}, 
 #            n_jobs = config.globals['CPU Count'])
 #        forest_grid.fit(data_train_split, target_train_split)

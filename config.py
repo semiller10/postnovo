@@ -3,6 +3,7 @@
 from collections import OrderedDict
 from functools import partial
 
+import glob
 import os
 import re
 import sys
@@ -11,9 +12,7 @@ from itertools import product
 
 #STANDARD CONSTANTS
 #These are not specific to Postnovo.
-proton_mass = 1.007276
-seconds_in_min = 60
-unicode_decimal_A = 65
+PROTON_MASS = 1.007276
 standard_aa_mass_dict = OrderedDict([
     ('A', 71.03711), 
     ('R', 156.10111), 
@@ -82,17 +81,17 @@ standard_plus_mod_mass_dict = standard_aa_mass_dict.copy()
 #PROGRAM CONSTRAINTS
 #These are specific to the context of Postnovo.
 postnovo_dir = os.path.dirname(os.path.realpath(__file__))
+download_ids_tsv = os.path.join(postnovo_dir, 'download_ids.tsv')
 postnovo_top_train_dir = os.path.join(postnovo_dir, 'train')
 if not os.path.isdir(postnovo_top_train_dir):
     os.mkdir(postnovo_top_train_dir)
 postnovo_train_dir_dict = {
     'Low': os.path.join(postnovo_top_train_dir, 'low'), 
     'High': os.path.join(postnovo_top_train_dir, 'high')}
-postnovo_train_record_filename = 'train_record.tsv'
-binned_scores_filename = 'predictions_binned_by_score.tsv'
+POSTNOVO_TRAIN_RECORD_FILENAME = 'train_record.tsv'
+BINNED_SCORES_FILENAME = 'predictions_binned_by_score.tsv'
 #DeNovoGUI and DeepNovo are stored within subdirectories of the Postnovo directory.
-denovogui_dir = os.path.join(postnovo_dir, 'DeNovoGUI-1.16.2')
-denovogui_jar = os.path.join(denovogui_dir, 'DeNovoGUI-1.16.2.jar')
+denovogui_dir = os.path.join(postnovo_dir, 'DeNovoGUI')
 deepnovo_dir = os.path.join(postnovo_dir, 'deepnovo')
 deepnovo_program_basenames = [
     'deepnovo_config_template.py', 
@@ -114,6 +113,9 @@ deepnovo_program_basenames = [
 deepnovo_program_fps = [
     os.path.join(deepnovo_dir, deepnovo_program_basename) 
     for deepnovo_program_basename in deepnovo_program_basenames]
+
+GOOGLE_DRIVE_DOWNLOAD_URL = 'https://docs.google.com/uc?export=download'
+CURRENT_DOWNLOAD_GOOGLE_DRIVE_ID = '1UOV4RbF8Jl3wfslVV__ZnTRkKNHX4y5r'
 
 default_fixed_mods = ['Carbamidomethylation of C']
 default_variable_mods = ['Oxidation of M']
@@ -177,9 +179,8 @@ mod_code_standard_code_dict = OrderedDict(
 all_permuted_isobaric_peps_dict = OrderedDict()
 all_permuted_near_isobaric_peps_dict = OrderedDict()
 
-
 #MSGF+ is stored within a subdirectory of the Postnovo directory.
-msgf_dir = os.path.join(postnovo_dir, 'MSGFPlus_v20190220')
+msgf_dir = os.path.join(postnovo_dir, 'MSGFPlus')
 msgf_jar = os.path.join(msgf_dir, 'MSGFPlus.jar')
 msgf_mods_fp = os.path.join(msgf_dir, 'MSGFPlus_Mods.txt')
 
@@ -188,7 +189,7 @@ possible_algs = ['Novor', 'PepNovo', 'DeepNovo']
 seqs_reported_per_alg_dict = dict([('Novor', 1), ('PepNovo', 20), ('DeepNovo', 20)])
 
 #The default minimum length of sequences considered by and reported by Postnovo.
-default_min_len = 7
+DEFAULT_MIN_LEN = 7
 
 #The sets of fragment mass tolerances required for low- and high-resolution spectra.
 frag_mass_tol_dict = {
@@ -198,14 +199,14 @@ default_frag_mass_tol_dict = {'Low': '0.5', 'High': '0.05'}
 
 #A breakpoint between near-isobaric dipeptides is a mass difference of 0.01124 Da.
 #The next mass difference is >0.015 Da.
-near_isobaric_window = 0.012 #Da
+NEAR_ISOBARIC_WINDOW = 0.012 #Da
 #Maximum length of subsequences to consider for isobaric substitutions.
-max_subseq_len = 2
+MAX_SUBSEQ_LEN = 2
 
 #A minimum sequence length of 9 is required for a strong direct match to a reference proteome.
-min_ref_match_len = 9
+MIN_REF_MATCH_LEN = 9
 ##IN PROGRESS
-##min_blast_query_len = 9
+##MIN_BLAST_QUERY_LEN = 9
 
 #Algorithm evaluation scores are used to compare Postnovo results to individual algorithms.
 alg_evaluation_score_name_dict = {
@@ -214,13 +215,12 @@ alg_evaluation_score_name_dict = {
     'DeepNovo': 'DeepNovo Average Amino Acid Score'}
 
 #Parameters for training Postnovo random forest models.
-max_fdr = 0.01
-rf_n_estimators = 150
-rf_max_depth = 16
-rf_max_features = 'sqrt'
+RF_N_ESTIMATORS = 150
+RF_MAX_DEPTH = 16
+RF_MAX_FEATURES = 'sqrt'
 
 #Assume a 1% FDR to plot a database search PSM star in precision-recall/yield plots.
-default_fdr_precision = 0.99
+DEFAULT_PRECISION = 0.99
 #Score bounds are used to scale scores to the colorbar in precision-recall/yield plots.
 upper_score_bound_dict = {'Novor': 100, 'PepNovo': 15, 'DeepNovo': 1, 'Peaks': 100}
 lower_score_bound_dict = {'Novor': 0, 'PepNovo': -10, 'DeepNovo': 0, 'Peaks': 0}
@@ -232,8 +232,8 @@ colorbar_tick_dict = {
     'Peaks': [0, 20, 40, 60, 80, 100]}
 
 #Postnovo score is compared to sequence correctness by binning and averaging predictions.
-score_bin_count = 100
-score_bin_size = 1 / score_bin_count
+SCORE_BIN_COUNT = 100
+SCORE_BIN_SIZE = 1 / SCORE_BIN_COUNT
 
 #Precision thresholds to report recall and yield statistics in test mode with "test_plots" option.
 reported_precision_thresholds = [0.5, 0.8, 0.9, 0.95, 0.99]
