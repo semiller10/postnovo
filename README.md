@@ -1,7 +1,7 @@
 # Postnovo
 Post-processing peptide de novo sequences to improve their accuracy
 
-## Quick start
+## Quick Start
 1. Postnovo runs on a Unix-like OS. Use a powerful server or desktop with plenty of available disk space (~25 GB).
 2. Download and decompress the latest [release](https://github.com/semiller10/postnovo/releases).
 3. Use Python 3.
