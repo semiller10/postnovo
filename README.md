@@ -2,7 +2,7 @@
 Post-processing peptide de novo sequences to improve their accuracy
 
 ## Quick start
-1. Use a powerful server or desktop with plenty of storage space available (>25 GB for good measure).
+1. Use a powerful server or desktop with plenty of available disk space (~25 GB).
 2. Download and decompress the latest [release](https://github.com/semiller10/postnovo/releases).
 3. Use Python 3.
 [The Anaconda distribution](https://www.anaconda.com/distribution/) comes with all necessary package dependencies.
@@ -22,8 +22,9 @@ Post-processing peptide de novo sequences to improve their accuracy
 Superuser privileges may be required.
 
    `singularity build tensorflow.simg docker://tensorflow/tensorflow:latest`
-7. Generate [DeepNovo](https://github.com/nh2tran/DeepNovo) de novo sequences (process can take up to ~12 hours).
-Examples use low-res MS2 spectra.
+7. Generate [DeepNovo](https://github.com/nh2tran/DeepNovo) de novo sequences (can take up to ~12 hours).
+The following examples consider low-res MS2 spectra.
+Processing high-res spectra requires more memory (see [link](https://github.com/semiller10/postnovo/wiki/Training-and-Running-DeepNovo)).
 Postnovo only supports standard fixed C and variable M modifications (due to Novor and PepNovo+).
 
    Using single machine with 32 cores:
@@ -37,7 +38,7 @@ Postnovo only supports standard fixed C and variable M modifications (due to Nov
 As input, use the reformatted MGF file.
 Set "log10(p-value) threshold" to -2.
 
-9. [Run Postnovo](https://github.com/semiller10/postnovo/wiki/Predicting-with-Postnovo), generating [Novor](https://www.rapidnovor.com/download/) and [PepNovo+](http://proteomics.ucsd.edu/Software/PepNovo/) de novo sequences via DeNovoGUI (process can take up to ~3 hours).
+9. [Run Postnovo](https://github.com/semiller10/postnovo/wiki/Predicting-with-Postnovo), generating [Novor](https://www.rapidnovor.com/download/) and [PepNovo+](http://proteomics.ucsd.edu/Software/PepNovo/) de novo sequences via DeNovoGUI (can take up to ~3 hours).
 Results are written by default to the directory of the MGF input.
 
    `python main.py predict --mgf /path/to/spectra.mgf --clusters /path/to/MaRaCluster.clusters_p2.tsv --frag_method CID --frag_resolution low --denovogui --deepnovo --cpus 32`
