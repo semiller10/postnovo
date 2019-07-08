@@ -37,7 +37,7 @@ Superuser privileges may be required.
 8. Generate [DeepNovo](https://github.com/nh2tran/DeepNovo) de novo sequences (can take up to ~12 hours).
 The following examples consider low-res MS2 spectra.
 Processing high-res spectra requires more memory (see [link](https://github.com/semiller10/postnovo/wiki/Training-and-Running-DeepNovo)).
-Postnovo only supports standard fixed C and variable M modifications (due to Novor and PepNovo+).
+Postnovo only supports standard fixed C and variable M PTMs (due to Novor and PepNovo+).
 
    Using single machine with 32 cores:
 
