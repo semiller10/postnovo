@@ -214,12 +214,16 @@ def setup(test_argv=None):
         '--fixed_mods', 
         nargs='+', 
         default=config.default_fixed_mods, 
-        help='Enter "Carbamidomethylation of C", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Carbamidomethylation of C".'))
     train_deepnovo_parser.add_argument(
         '--variable_mods', 
         nargs='+', 
         default=config.default_variable_mods, 
-        help='Enter "Oxidation of M", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Oxidation of M".'))
     train_deepnovo_parser.add_argument(
         '--cpus', 
         type=utils.check_positive_nonzero_int, 
@@ -285,12 +289,16 @@ def setup(test_argv=None):
         '--fixed_mods', 
         nargs='+', 
         default=config.default_fixed_mods, 
-        help='Enter "Carbamidomethylation of C", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Carbamidomethylation of C".'))
     predict_deepnovo_parser.add_argument(
         '--variable_mods', 
         nargs='+', 
         default=config.default_variable_mods, 
-        help='Enter "Oxidation of M", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Oxidation of M".'))
     predict_deepnovo_parser.add_argument(
         '--cpus', 
         type=utils.check_positive_nonzero_int, 
@@ -353,12 +361,16 @@ def setup(test_argv=None):
         '--fixed_mods', 
         nargs='+', 
         default=config.default_fixed_mods, 
-        help='Enter "Carbamidomethylation of C", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Carbamidomethylation of C".'))
     predict_parser.add_argument(
         '--variable_mods', 
         nargs='+', 
         default=config.default_variable_mods, 
-        help='Enter "Oxidation of M", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Oxidation of M".'))
     predict_parser.add_argument(
         '--denovogui', 
         action='store_true', 
@@ -470,12 +482,16 @@ def setup(test_argv=None):
         '--fixed_mods', 
         nargs='+', 
         default=config.default_fixed_mods, 
-        help='Enter "Carbamidomethylation of C", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Carbamidomethylation of C".'))
     test_parser.add_argument(
         '--variable_mods', 
         nargs='+', 
         default=config.default_variable_mods, 
-        help='Enter "Oxidation of M", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Oxidation of M".'))
     test_parser.add_argument(
         '--denovogui', 
         action='store_true', 
@@ -605,12 +621,16 @@ def setup(test_argv=None):
         '--fixed_mods', 
         nargs='+', 
         default=config.default_fixed_mods, 
-        help='Enter "Carbamidomethylation of C", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Carbamidomethylation of C".'))
     train_parser.add_argument(
         '--variable_mods', 
         nargs='+', 
         default=config.default_variable_mods, 
-        help='Enter "Oxidation of M", the only available modification, if applicable.')
+        help=(
+            'This cannot currently be changed from the default value, '
+            '"Oxidation of M".'))
     train_parser.add_argument(
         '--denovogui', 
         action='store_true', 
@@ -1029,6 +1049,13 @@ def set_up_postnovo(
                 f.extractall(config.postnovo_train_dir_dict['Low'])
             os.remove(postnovo_low_default_models_zip_fp)
 
+            #Download the low-resolution training record, 
+            #which is required to run "train" mode with the default model.
+            utils.download_file_from_google_drive(
+                current_downloads_df.loc['train_record_low.tsv']['Google Drive ID'], 
+                os.path.join(config.postnovo_train_dir_dict['Low'], 'train_record.tsv'), 
+                current_downloads_df.loc['train_record_low.tsv']['Size'])
+
             #Update the user download record.
             if 'postnovo_low_default_models.zip' in user_downloads_df.index:
                 user_downloads_df.drop('postnovo_low_default_models.zip', inplace=True)
@@ -1070,6 +1097,13 @@ def set_up_postnovo(
             with zipfile.ZipFile(postnovo_high_default_models_zip_fp) as f:
                 f.extractall(config.postnovo_train_dir_dict['High'])
             os.remove(postnovo_high_default_models_zip_fp)
+
+            #Download the high-resolution training record, 
+            #which is required to run "train" mode with the default model.
+            utils.download_file_from_google_drive(
+                current_downloads_df.loc['train_record_high.tsv']['Google Drive ID'], 
+                os.path.join(config.postnovo_train_dir_dict['High'], 'train_record.tsv'), 
+                current_downloads_df.loc['train_record_high.tsv']['Size'])
 
             #Update the user download record.
             if 'postnovo_high_default_models.zip' in user_downloads_df.index:
