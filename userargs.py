@@ -1049,6 +1049,21 @@ def set_up_postnovo(
                 f.extractall(config.postnovo_train_dir_dict['Low'])
             os.remove(postnovo_low_default_models_zip_fp)
 
+            print('Downloading postnovo_low_default_training_data.zip')
+            postnovo_low_default_training_data_zip_fp = os.path.join(
+                config.postnovo_train_dir_dict['Low'], 
+                'postnovo_low_default_training_data.zip')
+            utils.download_file_from_google_drive(
+                current_downloads_df.loc['postnovo_low_default_training_data.zip'][
+                    'Google Drive ID'], 
+                postnovo_low_default_training_data_zip_fp, 
+                current_downloads_df.loc['postnovo_low_default_training_data.zip']['Size'])
+
+            print('Unzipping postnovo_low_default_training_data.zip')
+            with zipfile.ZipFile(postnovo_low_default_training_data_zip_fp) as f:
+                f.extractall(config.postnovo_train_dir_dict['Low'])
+            os.remove(postnovo_low_default_training_data_zip_fp)
+
             #Download the low-resolution training record, 
             #which is required to run "train" mode with the default model.
             utils.download_file_from_google_drive(
@@ -1097,6 +1112,21 @@ def set_up_postnovo(
             with zipfile.ZipFile(postnovo_high_default_models_zip_fp) as f:
                 f.extractall(config.postnovo_train_dir_dict['High'])
             os.remove(postnovo_high_default_models_zip_fp)
+
+            print('Downloading postnovo_high_default_training_data.zip')
+            postnovo_high_default_training_data_zip_fp = os.path.join(
+                config.postnovo_train_dir_dict['High'], 
+                'postnovo_high_default_training_data.zip')
+            utils.download_file_from_google_drive(
+                current_downloads_df.loc['postnovo_high_default_training_data.zip'][
+                    'Google Drive ID'], 
+                postnovo_high_default_training_data_zip_fp, 
+                current_downloads_df.loc['postnovo_high_default_training_data.zip']['Size'])
+
+            print('Unzipping postnovo_high_default_training_data.zip')
+            with zipfile.ZipFile(postnovo_high_default_training_data_zip_fp) as f:
+                f.extractall(config.postnovo_train_dir_dict['High'])
+            os.remove(postnovo_high_default_training_data_zip_fp)
 
             #Download the high-resolution training record, 
             #which is required to run "train" mode with the default model.
