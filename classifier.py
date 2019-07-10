@@ -275,26 +275,10 @@ def classify(prediction_df):
             seqs.append(seq)
         prediction_df['Sequence'] = seqs
 
-        ##REMOVE
+        ##REMOVE: debugging relic
         #prediction_df.to_pickle(os.path.splitext(config.globals['MGF Filepath'])[0] + '.comparison_df.pkl')
-        ##REMOVE
+        ##REMOVE: debugging relic
         #prediction_df = pd.read_pickle(os.path.splitext(config.globals['MGF Filepath'])[0] + '.comparison_df.pkl')
-
-        ##REMOVE
-        #prediction_df_fp = \
-        #    os.path.splitext(config.globals['MGF Filepath'])[0] + '.comparison_df.tsv'
-        #prediction_df.to_csv(
-        #    prediction_df_fp, 
-        #    sep='\t', 
-        #    escapechar='\\', 
-        #    index=False, 
-        #    float_format='%.8g')
-
-        ##REMOVE
-        #prediction_df_fp = \
-        #    os.path.splitext(config.globals['MGF Filepath'])[0] + '.comparison_df.tsv'
-        #prediction_df = pd.read_csv(
-        #    prediction_df_fp, sep='\t', escapechar='\\', index_col='Spectrum ID')
 
         find_sequence_correctnesses(prediction_df)
 
@@ -431,7 +415,9 @@ def classify(prediction_df):
             key=lambda col: config.reported_df_cols.index(col))]
 
         reported_prediction_df.to_csv(
-            os.path.join(config.globals['Output Directory'], 'best_predictions.csv'))
+            os.path.join(config.globals['Output Directory'], 'best_predictions.tsv'), 
+            sep='\t', 
+            float_format='%.5g')
 
     if config.globals['Mode'] == 'train':
         utils.verbose_print('Saving the new Postnovo training dataset')
@@ -578,7 +564,7 @@ def train_models(prediction_df=None):
                     sep='\t', 
                     header=False, 
                     index=False, 
-                    float_format='%.8g', 
+                    float_format='%.5g', 
                     mode='a')
             else:
                 binned_df.to_csv(
@@ -826,7 +812,7 @@ def predict_rf_scores(
                     sep='\t', 
                     header=False, 
                     index=False, 
-                    float_format='%.8g', 
+                    float_format='%.5g', 
                     mode='a')
             else:
                 binned_df.to_csv(
