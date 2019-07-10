@@ -36,7 +36,7 @@ Much more detail on Postnovo options can be found in the [Postnovo Wiki pages](h
 7. [Set up a container with TensorFlow](https://github.com/semiller10/postnovo/wiki/DeepNovo-Installation) to run DeepNovo (optional but recommended for Postnovo). Superuser privileges may be required.
 
    `singularity build tensorflow.simg docker://tensorflow/tensorflow:latest`
-8. Generate [DeepNovo](https://github.com/nh2tran/DeepNovo) de novo sequences (can take up to ~12 hours). The following examples consider low-res MS2 spectra. Processing high-res spectra requires more memory (see [link](https://github.com/semiller10/postnovo/wiki/Training-and-Running-DeepNovo)). Postnovo only supports standard fixed C and variable M PTMs at the moment.
+8. Generate [DeepNovo](https://github.com/nh2tran/DeepNovo) de novo sequences (can take up to ~12 hours). The following examples consider low-res MS2 spectra. Processing high-res spectra requires more memory (see [Predicting with Deepnovo](https://github.com/semiller10/postnovo/wiki/Predicting-with-DeepNovo)). Postnovo only supports standard fixed C and variable M PTMs at the moment.
 
    Using single machine with 32 cores:
 
