@@ -49,4 +49,4 @@ Much more detail on Postnovo options can be found in the [Postnovo Wiki pages](h
 
 10. [Run Postnovo](https://github.com/semiller10/postnovo/wiki/Predicting-with-Postnovo), which in the process generates [Novor](https://www.rapidnovor.com/download/) and [PepNovo+](http://proteomics.ucsd.edu/Software/PepNovo/) de novo sequences via [DeNovoGUI](http://compomics.github.io/projects/denovogui.html) (can take up to ~3 hours depending on resources). Results are written by default to the directory of the MGF input.
 
-    `python main.py predict --mgf /path/to/spectra.mgf --clusters /path/to/MaRaCluster.clusters_p2.tsv --frag_method CID --   frag_resolution low --denovogui --deepnovo --cpus 32`
+    `python main.py predict --mgf /path/to/spectra.mgf --clusters /path/to/MaRaCluster.clusters_p2.tsv --frag_method CID --frag_resolution low --denovogui --deepnovo --cpus 32`
