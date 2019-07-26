@@ -42,7 +42,7 @@ Much more detail on Postnovo options can be found in the [Postnovo Wiki pages](h
 
    `python main.py predict_deepnovo --mgf /path/to/spectra.mgf --container /path/to/tensorflow.simg --frag_resolution low --cpus 32`
    
-   Using a compute cluster via Slurm with 16 cores per node and sufficient memory allocation:
+   Using a compute cluster via [Slurm](https://slurm.schedmd.com/overview.html) with 16 cores per node and sufficient memory allocation:
    
    `python main.py predict_deepnovo --mgf /path/to/spectra.mgf --container /path/to/tensorflow.simg --frag_resolution low --cpus 16 --slurm --partition partition_with_16GB_mem --time_limit 36`
 9. [Download MaRaCluster](https://github.com/statisticalbiotechnology/maracluster) to cluster spectra by peptide species. As MaRaCluster input, use the reformatted MGF file. Set "log10(p-value) threshold" (in the GUI) or "--pvalThreshold" (in the CLI) to -2.
