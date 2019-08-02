@@ -1,5 +1,10 @@
 ''' Variables used across Postnovo project. '''
 
+#Copyright 2018, Samuel E. Miller. All rights reserved.
+#Postnovo is publicly available for non-commercial uses.
+#Licensed under GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007.
+#See postnovo/LICENSE.txt.
+
 from collections import OrderedDict
 from functools import partial
 

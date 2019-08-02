@@ -1,5 +1,10 @@
 ''' Load Novor, PepNovo+, and DeepNovo de novo sequence data. '''
 
+#Copyright 2018, Samuel E. Miller. All rights reserved.
+#Postnovo is publicly available for non-commercial uses.
+#Licensed under GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007.
+#See postnovo/LICENSE.txt.
+
 import config
 import utils
 
