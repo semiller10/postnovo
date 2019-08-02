@@ -3,6 +3,14 @@
 # DeepNovo is publicly available for non-commercial uses.
 # ==============================================================================
 
+# ==============================================================================
+# Postnovo distribution note. 
+# Samuel Miller, 2019
+# This file is a modified version of deepnovo_config.py, 
+# and is used by Postnovo to auto-generate files called deepnovo_config.py 
+# with proper parameterization for each fragment mass tolerance.
+# ==============================================================================
+
 """TODO(nh2tran): docstring."""
 
 from __future__ import absolute_import

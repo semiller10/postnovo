@@ -24,6 +24,13 @@
 # above as required by its Apache License.
 # ==============================================================================
 
+# ==============================================================================
+# Postnovo distribution note.
+# Samuel Miller, 2019
+# This file was modified 
+# to return up to 20 de novo sequence candidates per spectrum.
+# ==============================================================================
+
 """TODO(nh2tran): docstring."""
 
 from __future__ import absolute_import
