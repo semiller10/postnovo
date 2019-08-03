@@ -7,7 +7,7 @@ Journal article: https://pubs.acs.org/doi/10.1021/acs.jproteome.8b00278
 
 Much more detail on Postnovo options can be found in the [Postnovo Wiki pages](https://github.com/semiller10/postnovo/wiki).
 
-1. Postnovo runs on a Unix-like OS. Use a powerful server or desktop with plenty of available disk space (~25 GB).
+1. Postnovo runs on a Unix-like OS. Use a powerful server or desktop with >25 GB available disk space.
 2. Download and decompress the latest [release](https://github.com/semiller10/postnovo/releases).
 3. Use Python 3.
 [The Anaconda distribution](https://www.anaconda.com/distribution/) comes with all necessary package dependencies.
