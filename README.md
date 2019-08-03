@@ -21,7 +21,7 @@ Much more detail on Postnovo options can be found in the [Postnovo Wiki pages](h
    
    `python main.py setup --denovogui --postnovo_high --deepnovo_high`
    
-5. Use the [ProteoWizard](http://proteowizard.sourceforge.net/) msconvert tool to convert your RAW file to an MGF file with a certain spectrum header format.
+5. Use the [ProteoWizard](http://proteowizard.sourceforge.net/) [msconvert](http://proteowizard.sourceforge.net/tools/msconvert.html) tool to convert your RAW file to an MGF file with a certain spectrum header format.
 
    `msconvert preformatted_spectra.raw --mgf --filter "titleMaker Run: <RunId>, Index: <Index>, Scan: <ScanNumber>"`
 
