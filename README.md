@@ -1,4 +1,5 @@
-# Postnovo
+![Postnovo Logo](https://semiller10.github.io/images/Postnovo_Wiki/Postnovo_Logo_Small.png)
+
 Post-processing peptide de novo sequences to improve their accuracy
 
 Journal article: https://pubs.acs.org/doi/10.1021/acs.jproteome.8b00278
@@ -7,10 +8,10 @@ Journal article: https://pubs.acs.org/doi/10.1021/acs.jproteome.8b00278
 
 Much more detail on Postnovo options can be found in the [Postnovo Wiki pages](https://github.com/semiller10/postnovo/wiki).
 
-1. Postnovo runs on a Unix-like OS. Use a powerful server or desktop with plenty of available disk space (~25 GB).
+1. Postnovo runs on a Unix-like OS. Use a powerful server or desktop with >25 GB available disk space.
 2. Download and decompress the latest [release](https://github.com/semiller10/postnovo/releases).
 3. Use Python 3.
-[The Anaconda distribution](https://www.anaconda.com/distribution/) comes with all necessary package dependencies.
+[The Anaconda distribution](https://www.anaconda.com/distribution/) contains all necessary package dependencies.
 4. Download [DeNovoGUI](http://compomics.github.io/projects/denovogui.html) and large pre-trained models with [Postnovo `setup`](https://github.com/semiller10/postnovo/wiki/Setup).
 
    For low-res MS2 data (example uses `nohup` to avoid termination upon logout and `&` to run in background):
@@ -21,7 +22,7 @@ Much more detail on Postnovo options can be found in the [Postnovo Wiki pages](h
    
    `python main.py setup --denovogui --postnovo_high --deepnovo_high`
    
-5. Use the [ProteoWizard](http://proteowizard.sourceforge.net/) msconvert tool to convert your RAW file to an MGF file with a certain spectrum header format.
+5. Use the [ProteoWizard](http://proteowizard.sourceforge.net/) [msconvert](http://proteowizard.sourceforge.net/tools/msconvert.html) tool to convert your RAW file to an MGF file with a certain spectrum header format.
 
    `msconvert preformatted_spectra.raw --mgf --filter "titleMaker Run: <RunId>, Index: <Index>, Scan: <ScanNumber>"`
 
