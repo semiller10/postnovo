@@ -1,4 +1,4 @@
-![Postnovo Logo](https://semiller10.github.io/images/Postnovo_Logo.png)
+![Postnovo Logo](https://semiller10.github.io/images/Postnovo_Wiki/Postnovo_Logo_Small.png)
 
 Post-processing peptide de novo sequences to improve their accuracy
 
