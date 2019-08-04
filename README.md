@@ -1,4 +1,5 @@
 ![Postnovo Logo](https://semiller10.github.io/images/Postnovo_Logo.png)
+
 Post-processing peptide de novo sequences to improve their accuracy
 
 Journal article: https://pubs.acs.org/doi/10.1021/acs.jproteome.8b00278
