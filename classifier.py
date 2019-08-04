@@ -408,8 +408,10 @@ def classify(prediction_df):
         #Given enough training data, random forest score estimates probability of correctness.
         reported_prediction_df.rename(
             columns={'Random Forest Score': 'Estimated Probability'}, inplace=True)
-        reported_prediction_df = reported_prediction_df[
-            reported_prediction_df['Estimated Probability'] >= config.min_prob]
+        if config.globals['Mode'] == 'predict':
+            reported_prediction_df = reported_prediction_df[
+                reported_prediction_df['Estimated Probability'] >= 
+                config.globals['Minimum Postnovo Sequence Probability']]
         reported_prediction_df = reported_prediction_df.reset_index().set_index(
             ['Spectrum ID'] + 
             config.globals['De Novo Algorithm Origin Headers'] + 
