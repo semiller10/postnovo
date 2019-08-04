@@ -1,5 +1,11 @@
 # from __future__ import print_function
 
+# ==============================================================================
+# Postnovo distribution note.
+# Samuel Miller, 2019
+# This file was modified.
+# ==============================================================================
+
 import argparse
 import numpy as np
 import os.path
@@ -9,8 +15,8 @@ import random
 def main():
     # test_argv = [
     #     'make_test_mgf',
-    #     'C:\\Users\\Samuel\\Downloads\\Ecoli-AE_sample.mgf',
-    #     'C:\\Users\\Samuel\\Downloads\\EcoliAE_sequest_percolator_fdr.txt'
+    #     'Ecoli-AE_sample.mgf',
+    #     'EcoliAE_sequest_percolator_fdr.txt'
     # ]
     if 'test_argv' in locals():
         args = parse_args(test_argv)
