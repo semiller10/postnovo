@@ -96,7 +96,9 @@ postnovo_train_dir_dict = {
 POSTNOVO_TRAIN_RECORD_FILENAME = 'train_record.tsv'
 BINNED_SCORES_FILENAME = 'predictions_binned_by_score.tsv'
 #DeNovoGUI and DeepNovo are stored within subdirectories of the Postnovo directory.
-denovogui_dir = os.path.join(postnovo_dir, 'DeNovoGUI')
+denovogui_version = '1.16.2'
+denovogui_dir = os.path.join(postnovo_dir, 'DeNovoGUI-' + denovogui_version)
+denovogui_jar_fp = os.path.join(denovogui_dir, 'DeNovoGUI-' + denovogui_version + '.jar')
 deepnovo_dir = os.path.join(postnovo_dir, 'deepnovo')
 deepnovo_program_basenames = [
     'deepnovo_config_template.py', 

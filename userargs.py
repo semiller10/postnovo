@@ -18,6 +18,7 @@ import requests
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 import zipfile
 
@@ -953,37 +954,39 @@ def set_up_postnovo(
         return
 
     if denovogui:
-        current_download_id = current_downloads_df.loc['DeNovoGUI.zip']['Google Drive ID']
-        current_download_size = current_downloads_df.loc['DeNovoGUI.zip']['Size']
+        denovogui_dl_filename = 'DeNovoGUI-' + config.denovogui_version + '.zip'
+        current_download_id = current_downloads_df.loc[denovogui_dl_filename]['Google Drive ID']
+        current_download_size = current_downloads_df.loc[denovogui_dl_filename]['Size']
 
         continue_with_download = True
-        if 'DeNovoGUI.zip' in user_downloads_df.index:
-            user_download_id = user_downloads_df.loc['DeNovoGUI.zip']['Google Drive ID']
-            user_download_size = user_downloads_df.loc['DeNovoGUI.zip']['Size']
+        if denovogui_dl_filename in user_downloads_df.index:
+            user_download_id = user_downloads_df.loc[denovogui_dl_filename]['Google Drive ID']
+            user_download_size = user_downloads_df.loc[denovogui_dl_filename]['Size']
             if (current_download_id == user_download_id) and \
                 (current_download_size == user_download_size):
                 continue_with_download = False
                 print(
                     'The previously downloaded DeNovoGUI was already up-to-date. '
-                    'Delete the line for "DeNovoGUI.zip" in the file, '
+                    'Delete the line for DeNovoGUI in the file, '
                     '"postnovo/download_ids.tsv", and re-run this command to download it again.')
 
         if continue_with_download:
-            denovogui_zip_fp = os.path.join(config.postnovo_dir, 'DeNovoGUI.zip')
+            denovogui_zip_fp = os.path.join(config.postnovo_dir, denovogui_dl_filename)
 
-            print('Downloading DeNovoGUI.zip')
+            print('Downloading ' + denovogui_dl_filename)
             utils.download_file_from_google_drive(
                 current_download_id, denovogui_zip_fp, current_download_size)
 
-            print('Unzipping DeNovoGUI.zip')
-            with zipfile.ZipFile(denovogui_zip_fp) as f:
+            print('Unzipping ' + denovogui_dl_filename)
+            with zipfile.ZipFile(denovogui_dl_filename) as f:
                 f.extractall(config.postnovo_dir)
-            os.remove(denovogui_zip_fp)
+            os.remove(denovogui_dl_filename)
 
             #Update the user download record.
-            if 'DeNovoGUI.zip' in user_downloads_df.index:
-                user_downloads_df.drop('DeNovoGUI.zip', inplace=True)
-            user_downloads_df.loc['DeNovoGUI.zip'] = [current_download_id, current_download_size]
+            if denovogui_dl_filename in user_downloads_df.index:
+                user_downloads_df.drop(denovogui_dl_filename, inplace=True)
+            user_downloads_df.loc[denovogui_dl_filename] = [
+                current_download_id, current_download_size]
             user_downloads_df.to_csv(config.download_ids_tsv, sep='\t')
 
     if msgf:
@@ -2955,8 +2958,6 @@ def run_denovogui():
     None
     '''
 
-    denovogui_jar_fp = glob.glob(os.path.join(config.denovogui_dir, '*.jar'))[0]
-
     #Create strings to be used as DeNovoGUI arguments.
     fixed_mods = '"' + ', '.join(
         [config.postnovo_denovogui_mod_dict[postnovo_mod] 
@@ -2988,7 +2989,7 @@ def run_denovogui():
         subprocess.call([
             'java', 
             '-cp', 
-            denovogui_jar_fp, 
+            config.denovogui_jar_fp, 
             'com.compomics.denovogui.cmd.IdentificationParametersCLI', 
             '-out', 
             param_fp, 
@@ -3006,12 +3007,13 @@ def run_denovogui():
             config.globals['Fragmentation Method'], 
             '-novor_mass_analyzer', 
             frag_analyzer])
+
         #Run Novor and PepNovo+.
         with open(denovogui_stdout_fp, 'w') as out_f:
             subprocess.call([
                 'java', 
                 '-cp', 
-                denovogui_jar_fp,
+                config.denovogui_jar_fp,
                 'com.compomics.denovogui.cmd.DeNovoCLI', 
                 '-spectrum_files', 
                 temp_mgf_fp, 
@@ -3042,6 +3044,7 @@ def run_denovogui():
                 config.globals['Output Directory'], 
                 config.globals['MGF Filename'] + '.' + frag_mass_tol + '.mgf.out')])
         subprocess.call(['rm', param_fp])
+
     #Remove temporary folder, MGF.CUI and DeNovoGUI output files.
     subprocess.call(['rm', '-r', temp_out_dir])
 
