@@ -87,6 +87,9 @@ standard_plus_mod_mass_dict = standard_aa_mass_dict.copy()
 #These are specific to the context of Postnovo.
 postnovo_dir = os.path.dirname(os.path.realpath(__file__))
 download_ids_tsv = os.path.join(postnovo_dir, 'download_ids.tsv')
+if not os.path.exists(download_ids_tsv):
+    with open(download_ids_tsv, 'w') as f:
+        f.write('Download Filename\tGoogle Drive ID\tSize\n')
 postnovo_top_train_dir = os.path.join(postnovo_dir, 'train')
 if not os.path.isdir(postnovo_top_train_dir):
     os.mkdir(postnovo_top_train_dir)
@@ -96,7 +99,7 @@ postnovo_train_dir_dict = {
 POSTNOVO_TRAIN_RECORD_FILENAME = 'train_record.tsv'
 BINNED_SCORES_FILENAME = 'predictions_binned_by_score.tsv'
 #DeNovoGUI and DeepNovo are stored within subdirectories of the Postnovo directory.
-denovogui_version = '1.15.10'
+denovogui_version = '1.16.2'
 denovogui_dir = os.path.join(postnovo_dir, 'DeNovoGUI-' + denovogui_version)
 denovogui_jar_fp = os.path.join(denovogui_dir, 'DeNovoGUI-' + denovogui_version + '.jar')
 deepnovo_dir = os.path.join(postnovo_dir, 'deepnovo')

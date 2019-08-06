@@ -954,7 +954,7 @@ def set_up_postnovo(
         return
 
     if denovogui:
-        denovogui_dl_filename = 'DeNovoGUI-' + config.denovogui_version + '.zip'
+        denovogui_dl_filename = 'DeNovoGUI-' + config.denovogui_version + '-mac_and_linux.tar.gz'
         current_download_id = current_downloads_df.loc[denovogui_dl_filename]['Google Drive ID']
         current_download_size = current_downloads_df.loc[denovogui_dl_filename]['Size']
 
@@ -978,7 +978,7 @@ def set_up_postnovo(
                 current_download_id, denovogui_zip_fp, current_download_size)
 
             print('Unzipping ' + denovogui_dl_filename)
-            with zipfile.ZipFile(denovogui_dl_filename) as f:
+            with tarfile.open(denovogui_dl_filename, 'r:gz') as f:
                 f.extractall(config.postnovo_dir)
             os.remove(denovogui_dl_filename)
 
