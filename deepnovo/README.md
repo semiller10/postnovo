@@ -2,15 +2,13 @@
 
 ## Protein Identification with Deep Learning: from abc to xyz.
 
-!!! Files have been modified in the Postnovo distribution of DeepNovo. !!!
+!!! Files have been modified by Samuel Miller in the Postnovo distribution of DeepNovo. !!!
 Main changes:
 
 1. deepnovo_config.py was replaced by deepnovo_config_template.py, 
 which is used by Postnovo to auto-generate deepnovo_config.py for each fragment mass tolerance.
 2. deepnovo_main_modules.py was modified 
 to return up to 20 de novo sequence candidates per spectrum.
-
--Samuel Miller, 2019
 
 DeepNovo is a deep learning-based tool to address the problem of protein 
 identification from tandem mass spectrometry data. The core model applies 
