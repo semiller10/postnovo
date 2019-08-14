@@ -3,6 +3,7 @@
 ## Protein Identification with Deep Learning: from abc to xyz.
 
 !!! Files have been modified by Samuel Miller in the Postnovo distribution of DeepNovo. !!!
+
 Main changes:
 
 1. deepnovo_config.py was replaced by deepnovo_config_template.py, 
